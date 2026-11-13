@@ -1,0 +1,18 @@
+# Những thứ KHÔNG gửi vào Docker khi build (cho nhanh và không lộ bí mật)
+node_modules
+.next
+out
+build
+coverage
+.git
+.github
+.vscode
+.DS_Store
+*.log
+.env
+.env.*
+!.env.example
+docker-compose*.yml
+
+# Template giao diện mẫu (chỉ để tham khảo, không thuộc ứng dụng)
+typescript-version

@@ -1,0 +1,396 @@
+// =============================================================================
+// PRISMA SCHEMA — Phần mềm E-Learning tập đoàn (bản gọn: 15 bảng)
+//
+// Mỗi `model` = 1 bảng. Mỗi dòng trong model = 1 cột.
+// Sửa file này rồi chạy:  npx prisma migrate dev --name <ten_thay_doi>
+// Giải thích chi tiết: docs/database.md
+// =============================================================================
+
+generator client {
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "debian-openssl-3.0.x"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// =============================================================================
+// DANH SÁCH GIÁ TRỊ CỐ ĐỊNH (enum)
+// =============================================================================
+
+enum Role {
+  ADMIN   // Quản trị: toàn quyền
+  EDITOR  // Người soạn nội dung: tạo khoá học, câu hỏi
+  MANAGER // Quản lý: xem tiến độ học của phòng ban mình
+  LEARNER // Học viên
+}
+
+enum UserStatus {
+  ACTIVE   // Đang làm việc
+  INACTIVE // Đã nghỉ — không đăng nhập được, vẫn giữ lịch sử học
+}
+
+enum CourseStatus {
+  DRAFT     // Đang soạn, học viên chưa thấy
+  PUBLISHED // Đã mở cho học
+  ARCHIVED  // Ngừng sử dụng
+}
+
+enum LessonType {
+  VIDEO    // Xem video
+  DOCUMENT // Đọc bài viết / tài liệu
+  QUIZ     // Làm bài kiểm tra
+}
+
+enum EnrollmentSource {
+  ASSIGNED // Admin giao cho từng người
+  RULE     // Tự động giao theo công ty / phòng ban / chức danh
+  SELF     // Học viên tự đăng ký
+}
+
+enum EnrollmentStatus {
+  NOT_STARTED
+  IN_PROGRESS
+  COMPLETED
+}
+
+enum QuestionType {
+  SINGLE   // Chọn 1 đáp án đúng
+  MULTIPLE // Chọn nhiều đáp án đúng
+}
+
+// =============================================================================
+// NHÓM 1 — TỔ CHỨC (3 bảng)
+// Công ty tổng > Công ty con > Phòng ban. Chức danh dùng chung toàn tập đoàn.
+// =============================================================================
+
+/// Công ty tổng có parentId = NULL. Công ty con có parentId = id công ty tổng.
+model Company {
+  id        String   @id @default(cuid())
+  code      String   @unique // VD: TONG, CTY-A
+  name      String
+  parentId  String? // NULL = công ty tổng
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  parent          Company?         @relation("CompanyTree", fields: [parentId], references: [id])
+  subsidiaries    Company[]        @relation("CompanyTree")
+  departments     Department[]
+  users           User[]
+  assignmentRules AssignmentRule[]
+
+  @@map("companies")
+}
+
+model Department {
+  id        String   @id @default(cuid())
+  companyId String
+  code      String   @unique // VD: CTY-A-KD
+  name      String // VD: Phòng Kinh doanh
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  company         Company          @relation(fields: [companyId], references: [id])
+  users           User[]
+  assignmentRules AssignmentRule[]
+
+  @@map("departments")
+}
+
+model Position {
+  id        String   @id @default(cuid())
+  code      String   @unique // VD: NVKD
+  name      String // VD: Nhân viên kinh doanh
+  createdAt DateTime @default(now())
+
+  users           User[]
+  assignmentRules AssignmentRule[]
+
+  @@map("positions")
+}
+
+// =============================================================================
+// NHÓM 2 — NGƯỜI DÙNG (1 bảng)
+// Đăng nhập bằng Mã nhân viên + mật khẩu.
+// =============================================================================
+
+model User {
+  id                 String     @id @default(cuid())
+  employeeCode       String     @unique // Tên đăng nhập, VD: NV00123
+  passwordHash       String // Mật khẩu đã mã hoá (bcrypt), không lưu mật khẩu gốc
+  mustChangePassword Boolean    @default(true) // Bắt đổi mật khẩu lần đầu đăng nhập
+  fullName           String
+  email              String?
+  phone              String?
+  role               Role       @default(LEARNER)
+  status             UserStatus @default(ACTIVE)
+  companyId          String
+  departmentId       String?
+  positionId         String?
+  hireDate           DateTime?  @db.Date // Ngày vào làm
+  lastLoginAt        DateTime?
+  failedLoginCount   Int        @default(0) // Sai mật khẩu nhiều lần thì khoá tạm
+  lockedUntil        DateTime?
+  createdAt          DateTime   @default(now())
+  updatedAt          DateTime   @updatedAt
+
+  company      Company     @relation(fields: [companyId], references: [id])
+  department   Department? @relation(fields: [departmentId], references: [id])
+  position     Position?   @relation(fields: [positionId], references: [id])
+
+  enrollments    Enrollment[]     @relation("Learner")
+  assignedByMe   Enrollment[]     @relation("AssignedBy")
+  lessonProgress LessonProgress[]
+  quizAttempts   QuizAttempt[]
+  certificates   Certificate[]
+  notifications  Notification[]
+
+  @@index([companyId, departmentId])
+  @@map("users")
+}
+
+// =============================================================================
+// NHÓM 3 — NỘI DUNG (4 bảng)
+// Khoá học gồm nhiều bài học. Lộ trình gồm nhiều khoá học.
+// =============================================================================
+
+model Course {
+  id                     String       @id @default(cuid())
+  code                   String       @unique // VD: HN-001
+  title                  String
+  description            String?
+  thumbnailUrl           String?
+  category               String? // VD: Hội nhập, Kỹ năng, An toàn lao động
+  status                 CourseStatus @default(DRAFT)
+  allowSelfEnroll        Boolean      @default(false) // Cho nhân viên tự đăng ký
+  hasCertificate         Boolean      @default(false) // Học xong có cấp chứng nhận
+  certificateValidMonths Int? // NULL = vĩnh viễn; 12 = hết hạn sau 1 năm
+  createdAt              DateTime     @default(now())
+  updatedAt              DateTime     @updatedAt
+
+  lessons         Lesson[]
+  pathCourses     LearningPathCourse[]
+  enrollments     Enrollment[]
+  assignmentRules AssignmentRule[]
+  certificates    Certificate[]
+
+  @@map("courses")
+}
+
+/// Bài học. Học theo thứ tự sortOrder: xong bài trước mới mở bài sau.
+/// Tuỳ `type`, bài học dùng nhóm cột tương ứng.
+model Lesson {
+  id        String     @id @default(cuid())
+  courseId  String
+  title     String
+  type      LessonType
+  sortOrder Int        @default(0)
+
+  // --- type = VIDEO ---
+  bunnyVideoId    String? // Mã video trên Bunny Stream
+  durationSeconds Int? // Thời lượng video
+
+  // --- type = DOCUMENT ---
+  content  String? // Nội dung bài đọc (HTML)
+  fileUrl  String? // Tài liệu đính kèm (PDF...)
+  fileName String?
+
+  // --- type = QUIZ ---
+  questionCount    Int? // Số câu rút ngẫu nhiên cho mỗi lần làm
+  passingScore     Int? // Điểm đạt (thang 100)
+  timeLimitMinutes Int? // Thời gian làm bài
+  maxAttempts      Int? // Số lần làm tối đa (NULL = không giới hạn)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  course       Course           @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  questions    Question[]
+  progress     LessonProgress[]
+  quizAttempts QuizAttempt[]
+
+  @@index([courseId, sortOrder])
+  @@map("lessons")
+}
+
+model LearningPath {
+  id          String       @id @default(cuid())
+  code        String       @unique
+  title       String // VD: Lộ trình hội nhập 30 ngày
+  description String?
+  status      CourseStatus @default(DRAFT)
+  createdAt   DateTime     @default(now())
+
+  courses         LearningPathCourse[]
+  enrollments     Enrollment[]
+  assignmentRules AssignmentRule[]
+
+  @@map("learning_paths")
+}
+
+/// Lộ trình gồm những khoá nào, theo thứ tự nào
+model LearningPathCourse {
+  learningPathId String
+  courseId       String
+  sortOrder      Int    @default(0)
+
+  learningPath LearningPath @relation(fields: [learningPathId], references: [id], onDelete: Cascade)
+  course       Course       @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  @@id([learningPathId, courseId])
+  @@map("learning_path_courses")
+}
+
+// =============================================================================
+// NHÓM 4 — GIAO KHOÁ & TIẾN ĐỘ (3 bảng)
+// =============================================================================
+
+/// Quy tắc giao tự động. Ô nào để trống = không lọc theo tiêu chí đó.
+/// VD: Công ty A + Phòng Kinh doanh + Nhân viên kinh doanh -> Lộ trình hội nhập, hạn 30 ngày.
+/// Áp dụng cho người đang làm lẫn người vào sau.
+model AssignmentRule {
+  id             String   @id @default(cuid())
+  name           String
+  courseId       String? // Giao 1 khoá học...
+  learningPathId String? // ...hoặc 1 lộ trình (chọn 1 trong 2)
+  companyId      String?
+  departmentId   String?
+  positionId     String?
+  dueInDays      Int? // Hạn hoàn thành, tính từ ngày được giao
+  isActive       Boolean  @default(true)
+  createdAt      DateTime @default(now())
+
+  course       Course?       @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  learningPath LearningPath? @relation(fields: [learningPathId], references: [id], onDelete: Cascade)
+  company      Company?      @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  department   Department?   @relation(fields: [departmentId], references: [id], onDelete: Cascade)
+  position     Position?     @relation(fields: [positionId], references: [id], onDelete: Cascade)
+  enrollments  Enrollment[]
+
+  @@map("assignment_rules")
+}
+
+/// "Bình được học khoá X". Mỗi người - mỗi khoá chỉ có 1 dòng.
+/// Được giao lộ trình = được ghi danh vào từng khoá trong lộ trình (learningPathId ghi lại nguồn).
+model Enrollment {
+  id               String           @id @default(cuid())
+  userId           String
+  courseId         String
+  source           EnrollmentSource
+  assignedById     String? // Admin nào giao (khi source = ASSIGNED)
+  assignmentRuleId String? // Quy tắc nào giao (khi source = RULE)
+  learningPathId   String? // Được giao qua lộ trình nào (nếu có)
+  status           EnrollmentStatus @default(NOT_STARTED)
+  progressPercent  Int              @default(0) // 0 - 100
+  dueDate          DateTime? // Hạn hoàn thành. Quá hạn = dueDate đã qua mà chưa COMPLETED
+  startedAt        DateTime?
+  completedAt      DateTime?
+  createdAt        DateTime         @default(now())
+
+  user           User            @relation("Learner", fields: [userId], references: [id], onDelete: Cascade)
+  assignedBy     User?           @relation("AssignedBy", fields: [assignedById], references: [id], onDelete: SetNull)
+  course         Course          @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  assignmentRule AssignmentRule? @relation(fields: [assignmentRuleId], references: [id], onDelete: SetNull)
+  learningPath   LearningPath?   @relation(fields: [learningPathId], references: [id], onDelete: SetNull)
+
+  @@unique([userId, courseId])
+  @@index([courseId, status])
+  @@map("enrollments")
+}
+
+/// Tiến độ từng bài học của từng người
+model LessonProgress {
+  id                  String    @id @default(cuid())
+  userId              String
+  lessonId            String
+  isCompleted         Boolean   @default(false)
+  lastPositionSeconds Int       @default(0) // Video: đang dừng ở giây thứ mấy (để xem tiếp)
+  maxWatchedSeconds   Int       @default(0) // Video: đã xem thật tới đâu (chống tua)
+  completedAt         DateTime?
+  updatedAt           DateTime  @updatedAt
+
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  lesson Lesson @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, lessonId])
+  @@map("lesson_progress")
+}
+
+// =============================================================================
+// NHÓM 5 — KIỂM TRA (2 bảng)
+// Mỗi bài QUIZ có một kho câu hỏi riêng. Mỗi lần làm, rút ngẫu nhiên `questionCount` câu.
+// =============================================================================
+
+model Question {
+  id          String       @id @default(cuid())
+  lessonId    String // Thuộc bài kiểm tra nào
+  type        QuestionType
+  content     String // Nội dung câu hỏi
+  options     Json // [{ "id": "a", "text": "8:00", "isCorrect": true }, ...]
+  explanation String? // Giải thích, hiện sau khi nộp bài
+  isAiCreated Boolean      @default(false) // Giai đoạn 2: AI sinh ra
+  isApproved  Boolean      @default(true) // Câu AI sinh ra phải duyệt (= true) mới được dùng
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  lesson Lesson @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+
+  @@index([lessonId])
+  @@map("questions")
+}
+
+/// Một lần làm bài. `answers` lưu nguyên đề + câu trả lời tại thời điểm làm.
+model QuizAttempt {
+  id          String    @id @default(cuid())
+  lessonId    String
+  userId      String
+  attemptNo   Int // Lần thứ mấy
+  answers     Json // [{ questionId, content, options, selected: ["a"], isCorrect }]
+  score       Int? // Thang 100. NULL = đang làm, chưa nộp
+  passed      Boolean?
+  startedAt   DateTime  @default(now())
+  submittedAt DateTime?
+
+  lesson Lesson @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([lessonId, userId, attemptNo])
+  @@map("quiz_attempts")
+}
+
+// =============================================================================
+// NHÓM 6 — CHỨNG NHẬN & THÔNG BÁO (2 bảng)
+// =============================================================================
+
+model Certificate {
+  id            String    @id @default(cuid())
+  code          String    @unique // Mã tra cứu in trên chứng nhận, VD: CERT-2026-000123
+  userId        String
+  courseId      String?
+  recipientName String // Lưu tên tại thời điểm cấp
+  courseTitle   String
+  issuedAt      DateTime  @default(now())
+  expiresAt     DateTime? // NULL = vĩnh viễn
+
+  user   User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  course Course? @relation(fields: [courseId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@map("certificates")
+}
+
+model Notification {
+  id        String    @id @default(cuid())
+  userId    String
+  title     String // VD: Bạn được giao khoá "Hội nhập"
+  link      String? // Bấm vào thì mở trang này
+  readAt    DateTime? // NULL = chưa đọc
+  createdAt DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, readAt])
+  @@map("notifications")
+}
