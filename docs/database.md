@@ -39,6 +39,14 @@ PostgreSQL 17 · Prisma 6 · tên bảng `snake_case` (`@@map`), cột `camelCas
 - Quy tắc giao do công ty con tạo: `targetCompanyId` bắt buộc = chính công ty đó.
 - Mọi kiểm tra quyền làm ở server (không tin dữ liệu từ trình duyệt).
 
+### Phòng ban
+- Mã phòng ban duy nhất **trong từng công ty**. Phòng cha và trưởng phòng phải **cùng công ty** với phòng ban.
+- Không được chọn phòng cha là chính nó hoặc phòng con / cháu của nó (chống vòng lặp). Phòng cha mới phải đang dùng.
+- Chỉ định trưởng phòng: người được chọn phải đang làm (`status = ACTIVE`); nếu đang là `LEARNER` → **tự nâng lên `MANAGER`**
+  (ghi `DEPARTMENT_MANAGER_ASSIGNED` kèm `roleChange`). Gỡ trưởng phòng → **không** tự hạ vai trò.
+- Chỉ **ẩn** được phòng khi không còn phòng con đang dùng (`isActive`) và không còn nhân viên đang làm (`status = ACTIVE`).
+  **Hiện lại** phòng cần phòng cha (nếu có) đang dùng.
+
 ## Quy tắc 2 — Phiên bản quy trình
 
 - `courses.currentVersion`: 0 = chưa phát hành. Phát hành lần đầu → 1 (`INITIAL`).
@@ -71,6 +79,11 @@ PostgreSQL 17 · Prisma 6 · tên bảng `snake_case` (`@@map`), cột `camelCas
 - `employeeCode` duy nhất toàn tập đoàn (là tên đăng nhập). Nếu các công ty con trùng mã, thêm tiền tố mã công ty (VD: `CTYA-00123`).
 - Sai mật khẩu 5 lần → `lockedUntil = now + 15 phút`. Đăng nhập đúng → `failedLoginCount = 0`.
 - Nghỉ việc → `status = INACTIVE` (không xoá). Đặt lại mật khẩu → `mustChangePassword = true`.
+- **Công ty tạm ngưng** (`companies.isActive = false`) → mọi nhân viên của công ty đó **không đăng nhập được**
+  (thông báo "Công ty của bạn đang tạm ngưng sử dụng hệ thống"); phiên đang mở mất hiệu lực ở request kế tiếp
+  (`getCurrentUser` trả `null`). Dữ liệu giữ nguyên; kích hoạt lại thì đăng nhập bình thường.
+- Công ty chỉ có 2 cấp: công ty con luôn có `parentId` = công ty tổng. Công ty tổng không được tạm ngưng, không sửa mã (chỉ sửa tên).
+- Admin tập đoàn tạo tài khoản `COMPANY_ADMIN` cho công ty con (mã NV in hoa, duy nhất toàn tập đoàn, mật khẩu tạm, `mustChangePassword = true`).
 - Các cột `lark*` để trống ở phase 1 (dành cho đồng bộ Lark giai đoạn 2).
 
 ## Quy tắc 6 — Khác

@@ -9,6 +9,7 @@ const MESSAGES: Record<string, string> = {
   invalid: "Mã nhân viên hoặc mật khẩu không đúng.",
   locked: "Bạn đã nhập sai quá nhiều lần. Tài khoản tạm khoá 15 phút.",
   inactive: "Tài khoản đã bị khoá. Vui lòng liên hệ quản trị đào tạo.",
+  company_inactive: "Công ty của bạn đang tạm ngưng sử dụng hệ thống.",
 };
 
 export async function loginAction(_prev: LoginState, formData: FormData): Promise<LoginState> {

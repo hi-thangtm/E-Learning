@@ -26,7 +26,7 @@ import {
   Users,
   type LucideIcon,
 } from "lucide-react";
-import { cn } from "cn";
+import { cn } from "@/lib/utils";
 import { findMenuItem, menuForRole, type IconName } from "@/lib/roles";
 import { AppLogo } from "@/components/app-logo";
 

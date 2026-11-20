@@ -10,6 +10,7 @@ import { prisma } from "@/lib/db";
  * - Đăng nhập bằng mã nhân viên + mật khẩu (bcrypt).
  * - Sai 5 lần liên tiếp -> khoá tạm 15 phút.
  * - Tài khoản INACTIVE (nghỉ việc / bị khoá) không đăng nhập được.
+ * - Công ty đang tạm ngưng (companies.isActive = false) -> nhân viên công ty đó không đăng nhập được.
  * - Phiên đăng nhập lưu trong cookie đã ký (JWT), hết hạn sau 12 giờ.
  *   Cookie chỉ chứa id người dùng; quyền và trạng thái được đọc lại từ database
  *   ở mỗi request (xem src/lib/current-user.ts) -> khoá tài khoản có hiệu lực ngay.
@@ -27,6 +28,9 @@ class LockedLoginError extends CredentialsSignin {
 }
 class InactiveLoginError extends CredentialsSignin {
   code = "inactive";
+}
+class CompanySuspendedLoginError extends CredentialsSignin {
+  code = "company_inactive";
 }
 
 const loginSchema = z.object({
@@ -49,10 +53,15 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
 
         // Quy ước: mã nhân viên luôn lưu CHỮ IN HOA
         const employeeCode = parsed.data.employeeCode.toUpperCase();
-        const user = await prisma.user.findUnique({ where: { employeeCode } });
+        const user = await prisma.user.findUnique({
+          where: { employeeCode },
+          include: { company: { select: { isActive: true } } },
+        });
         if (!user) throw new InvalidLoginError();
 
         if (user.status !== "ACTIVE") throw new InactiveLoginError();
+        // Công ty bị tạm ngưng -> nhân viên của công ty đó không đăng nhập được (dữ liệu giữ nguyên)
+        if (!user.company.isActive) throw new CompanySuspendedLoginError();
         if (user.lockedUntil && user.lockedUntil > new Date()) throw new LockedLoginError();
 
         const passwordOk = await bcrypt.compare(parsed.data.password, user.passwordHash);

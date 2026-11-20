@@ -1,5 +1,5 @@
 import { GraduationCap } from "lucide-react";
-import { cn } from "cn";
+import { cn } from "@/lib/utils";
 
 /** Logo hệ thống: icon + chữ, cỡ chữ theo LogoText của Vuexy (22px, đậm 700). */
 export function AppLogo({ className }: { className?: string }) {

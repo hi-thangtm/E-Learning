@@ -7,7 +7,8 @@ import { prisma } from "@/lib/db";
 /**
  * Lấy người dùng đang đăng nhập — đọc lại từ database ở mỗi request.
  *
- * Trả về null nếu: chưa đăng nhập, tài khoản không còn, hoặc đã bị khoá (INACTIVE).
+ * Trả về null nếu: chưa đăng nhập, tài khoản không còn, đã bị khoá (INACTIVE),
+ * hoặc công ty của người đó đang tạm ngưng.
  * `cache` giúp trong cùng 1 request chỉ truy vấn 1 lần dù gọi ở nhiều chỗ.
  */
 export const getCurrentUser = cache(async () => {
@@ -29,11 +30,12 @@ export const getCurrentUser = cache(async () => {
       companyId: true,
       departmentId: true,
       positionId: true,
-      company: { select: { id: true, code: true, name: true, parentId: true } },
+      company: { select: { id: true, code: true, name: true, parentId: true, isActive: true } },
     },
   });
 
-  if (!user || user.status !== "ACTIVE") return null;
+  // Công ty bị tạm ngưng -> phiên đang mở cũng mất hiệu lực ở request kế tiếp
+  if (!user || user.status !== "ACTIVE" || !user.company.isActive) return null;
   return user;
 });
 

@@ -406,7 +406,8 @@ Theo `views/apps/academy/my-courses/Courses.tsx`.
 
 ## 7. Ánh xạ thành phần Vuexy (MUI) → shadcn/ui
 
-Đã có trong `src/components/ui/`: **button, card, input, label**. Thành phần khác thêm khi cần:
+Đã có trong `src/components/ui/`: **button, card, input, label, avatar, dropdown-menu, dialog, alert-dialog, select, table,
+skeleton, sonner**. Thành phần khác thêm khi cần:
 `npx shadcn@latest add <tên>`.
 
 | Vuexy / MUI | shadcn/ui | Ghi chú khi dùng |
@@ -452,6 +453,32 @@ Theo `views/apps/academy/my-courses/Courses.tsx`.
   - Sidebar (`app-sidebar.tsx`), header nổi (`app-header.tsx`, `user-menu.tsx`, `header-breadcrumb.tsx`), logo (`app-logo.tsx`) theo mục 4.
   - Trang đăng nhập theo login-v2 (ảnh ở `public/images/illustrations/auth/`, `public/images/pages/`).
   - Hàm `getInitials` ở `src/lib/initials.ts` (mục 5.5). Thêm shadcn `avatar`, `dropdown-menu`.
+- Việc 3 — bộ khuôn bảng dùng chung (dùng mẫu ở `src/app/(app)/org/positions/`):
+  - `components/page-header.tsx` — `PageHeader` (tiêu đề h4, mô tả, `actions` bên phải).
+  - `components/data-table/data-table.tsx` — `DataTable` (server component): truyền `columns` (`cell: (row) => ReactNode`),
+    `rows`, `total`, `page`, `pageSize`, `filters`, `toolbar`, `empty`. Tìm kiếm (chờ 400ms), lọc, số dòng, phân trang đều qua URL.
+    Trong `page.tsx` đọc tham số bằng `parseTableParams` / `getEnumParam` (`lib/table-params.ts`), truy vấn Prisma `count` + `findMany`.
+    `loading.tsx` dùng `DataTableSkeleton`.
+  - `components/status-badge.tsx` — `StatusBadge tone=...` (mục 5.4) và `ActiveBadge` ("Đang dùng" / "Đã ẩn").
+  - `components/confirm-dialog.tsx` — `ConfirmDialog` nhận server action đã `bind`, tự khoá nút khi đang xử lý, kết quả hiện toast.
+  - `components/form-field.tsx` — `FormField` (nhãn trên, lỗi / gợi ý 13px dưới ô).
+  - Form trong dialog: `useActionState` + kiểu `ActionState` (`lib/action-state.ts`: `ok`, `message`, `errors` theo ô, `values`
+    để giữ dữ liệu khi lỗi). Thành công → `toast.success` + đóng dialog. Mẫu: `org/positions/position-form-dialog.tsx`.
+  - Toast: `sonner`, `<Toaster position="top-right" />` trong `app/layout.tsx`.
+  - `lib/format.ts` — `formatDate` (dd/MM/yyyy, giờ Việt Nam), `formatDateTime`, `formatNumber`.
+  - Dialog / alert-dialog đã chỉnh: bo 8px, `shadow-lg`, padding 24px, tiêu đề 18px; select cao 38px, chữ 15px.
+- Việc 4 — Công ty con (`src/app/(app)/system/companies/`):
+  - Mẫu **menu ⋮** trên dòng bảng: `company-row-actions.tsx` (nút Sửa + `DropdownMenu`). Mục menu mở dialog bằng state;
+    dialog đặt ngoài menu và điều khiển bằng `open` / `onOpenChange`.
+  - `ConfirmDialog` có thêm chế độ điều khiển: bỏ `trigger`, truyền `open` + `onOpenChange`.
+- Việc 5 — Phòng ban (`src/app/(app)/org/departments/`):
+  - Mẫu **bảng dạng cây** (`department-tree.tsx`): thụt lề 24px/cấp, nút ▸/▾, "Mở tất cả / Thu tất cả"; tìm kiếm hiện phòng khớp
+    kèm các phòng cha (dòng cha chữ mờ). Không phân trang — tải hết phòng ban của 1 công ty.
+  - `lib/tree.ts`: `buildChildrenMap`, `getAncestorIds`, `getDescendantIds`, `wouldCreateCycle`, `flattenTree`, `normalizeSearch` (bỏ dấu).
+  - `DataTableFilter` có `includeAll={false}` + `defaultValue` (ô chọn công ty, không có "Tất cả").
+  - shadcn `combobox` (kèm `input-group`, `textarea`): ô chọn có tìm kiếm, cao 38px. Mẫu chọn trưởng phòng ở `department-form-dialog.tsx`.
+    Lưu ý: `shadcn add` đang ghi `import { cn } from "cn"` — sau khi thêm component phải đổi sang `@/lib/utils`.
+  - Dialog dùng chung cho cả bảng (điều khiển bằng state ở component cha) khi dữ liệu chọn lớn (danh sách nhân viên).
 
 **Chưa làm, để các việc sau:**
 - `src/components/ui/card.tsx` đang dùng `ring-1` + `rounded-xl` của shadcn → cần đổi sang `shadow-md` + `rounded-md` cho giống card Vuexy.
