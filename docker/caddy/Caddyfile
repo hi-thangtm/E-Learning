@@ -1,6 +1,0 @@
-# Caddy nhận truy cập từ Internet rồi chuyển vào container "app".
-# Nếu DOMAIN là tên miền thật, Caddy tự xin và gia hạn chứng chỉ HTTPS.
-{$DOMAIN} {
-	encode zstd gzip
-	reverse_proxy app:3000
-}
