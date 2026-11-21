@@ -20,6 +20,9 @@
 # production
 /build
 
+# file người dùng tải lên (UPLOAD_DIR)
+/uploads
+
 # misc
 .DS_Store
 *.pem

@@ -74,8 +74,8 @@ export const MENU: MenuGroup[] = [
   {
     label: "Giao khoá",
     items: [
-      { label: "Giao thủ công", href: "/assign/manual", icon: "assign", roles: ADMINS },
-      { label: "Quy tắc bắt buộc", href: "/assign/rules", icon: "rules", roles: ADMINS },
+      { label: "Danh sách giao khoá", href: "/assign/manual", icon: "assign", roles: ADMINS },
+      { label: "Giao tự động", href: "/assign/rules", icon: "rules", roles: ADMINS },
     ],
   },
   {

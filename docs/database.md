@@ -59,17 +59,69 @@ PostgreSQL 17 · Prisma 6 · tên bảng `snake_case` (`@@map`), cột `camelCas
 - "Đã nắm quy trình mới nhất" = `acknowledgedVersion = courses.currentVersion`.
 - Nội dung chương/bài sửa trực tiếp (không lưu bản nháp riêng); phát hành phiên bản là sự kiện báo cho người học và quyết định học lại hay chỉ xác nhận.
 
+### Xoá / ẩn chương và bài (`course_sections.isArchived`, `lessons.isArchived`)
+- Khoá **chưa phát hành** (`currentVersion = 0`, chưa ai học): xoá chương / bài là **xoá hẳn** (xoá chương xoá luôn mọi bài trong chương
+  và file PDF đính kèm; `lesson_progress`, `quiz_attempts` xoá theo do `onDelete: Cascade` — khi đó chưa có dữ liệu học).
+- Khoá **đã phát hành** (`currentVersion > 0`): **không xoá**, chỉ **ẩn** (`isArchived = true`): học viên không thấy, bài **không tính vào
+  tiến độ / tổng số bài**, giữ nguyên `lesson_progress`, `quiz_attempts`, chứng nhận. Chương bị ẩn = mọi bài trong chương coi như ẩn. Hiện lại được.
+- Sửa nội dung khoá đã phát hành có hiệu lực ngay; muốn báo cho người học thì phát hành phiên bản mới (Quy tắc 2).
+- Nội dung bài Tài liệu (HTML) **luôn lọc ở server** bằng `sanitizeLessonHtml` (`src/lib/sanitize.ts`) trước khi lưu: chỉ giữ
+  `p br h2 h3 strong em u ul ol li a`, link chỉ http/https (tự thêm `target="_blank" rel="noopener noreferrer"`). Bài Tài liệu phải có nội dung HOẶC file PDF.
+- Thứ tự: `sortOrder` của chương trong khoá và của bài trong chương, lưu cả bố cục trong 1 transaction (kéo thả).
+
 ## Quy tắc 3 — Giao khoá
 
-- Mỗi người – mỗi khoá 1 enrollment (`@@unique([userId, courseId])`). Giao trùng → giữ dòng cũ, chỉ rút ngắn hạn nếu hạn mới sớm hơn. Enrollment `CANCELLED` được giao lại thì kích hoạt lại.
-- Quy tắc bắt buộc chạy khi: tạo/sửa quy tắc; tạo nhân viên (thủ công / import); đổi phòng ban, chức danh hoặc công ty của nhân viên.
-- Giao lộ trình = tạo enrollment cho từng khoá trong lộ trình, ghi `learningPathId`. Khoá sau chỉ mở khi khoá trước COMPLETED.
+Lõi dùng chung: `assignCourse` / `previewAssignment` / `onUserOrgChanged` trong `src/lib/assignment.ts`.
+
+- Mỗi người – mỗi khoá 1 enrollment (`@@unique([userId, courseId])`). Khi giao:
+  - chưa có → tạo `NOT_STARTED`;
+  - đã có, `NOT_STARTED` / `IN_PROGRESS` → giữ nguyên, **chỉ rút ngắn hạn** nếu hạn mới sớm hơn;
+  - đã có, `COMPLETED` → bỏ qua;
+  - đã có, `CANCELLED` → **kích hoạt lại**: `NOT_STARTED`, hạn mới, `source` / `assignedById` / `assignmentRuleId` mới.
+- Chỉ giao khoá `PUBLISHED`. Bỏ qua người `INACTIVE` hoặc thuộc công ty tạm ngưng (đếm “bỏ qua”).
+- Phạm vi: khoá của **công ty tổng** giao được cho mọi công ty; khoá của **công ty con** chỉ giao cho người công ty đó.
+  Admin công ty chỉ giao cho / xem lượt giao của người công ty mình.
+- Hạn (`dueDate`) = **23:59:59 giờ Việt Nam** của ngày hạn (“sau N ngày” = hôm nay + N). Quá hạn tính khi truy vấn (Quy tắc 6).
+- Người được giao mới / kích hoạt lại nhận thông báo `COURSE_ASSIGNED` (“Bạn được giao khoá học: …”, link `/my-courses`).
+- Ghi theo lô 500 người / transaction. Nhật ký `ENROLLMENTS_ASSIGNED`: 1 dòng cho mỗi công ty của người học (số giao mới / rút ngắn / kích hoạt lại);
+  `actorId` NULL = Hệ thống tự giao. Không ghi khi không có thay đổi.
+- **Huỷ giao** → `CANCELLED` (giữ tiến độ). Lượt `RULE` mà quy tắc còn chạy thì **không huỷ được** — phải tắt quy tắc.
+- **Quy tắc giao tự động** (`assignment_rules`): điều kiện kết hợp kiểu VÀ (công ty / phòng ban + “gồm phòng con” / chức danh; trống = không lọc).
+  - Quy tắc do công ty con tạo: `ownerCompanyId` = `targetCompanyId` = chính công ty đó. Admin tập đoàn: 1 công ty hoặc toàn tập đoàn (`targetCompanyId` NULL).
+  - Khoá của quy tắc **cố định** sau khi tạo.
+  - Tạo / bật lại / sửa (khi đang chạy) → giao ngay cho mọi người đang khớp (`source = RULE`, `assignmentRuleId`, hạn = hôm nay + `dueInDays`).
+  - **Thu hẹp nhóm không thu hồi** lượt đã giao; chỉ áp dụng thêm cho người mới khớp. Người chuyển RA khỏi nhóm: giữ nguyên lượt đã giao.
+  - **Tắt** quy tắc: chọn “Giữ các lượt đã giao” (mặc định) hoặc “Huỷ các lượt CHƯA BẮT ĐẦU của quy tắc này”. Lượt đang học / đã xong luôn giữ.
+  - Khoá không còn `PUBLISHED` (VD lưu trữ) → quy tắc **tự bỏ qua**, không giao cho ai (bảng quy tắc có cảnh báo).
+- **Người vào sau** — `onUserOrgChanged(userId)` chạy khi: tạo người dùng, import Excel, đổi phòng ban / chức danh / công ty, **mở khoá tài khoản**.
+  Tìm mọi quy tắc đang chạy khớp công ty / chức danh / phòng ban (quy tắc “gồm phòng con” đặt ở **phòng cha / ông** cũng khớp) → giao.
+- Giao lộ trình = tạo enrollment cho từng khoá trong lộ trình, ghi `learningPathId`. Khoá sau chỉ mở khi khoá trước COMPLETED (làm ở việc Lộ trình).
 
 ## Quy tắc 4 — Học và kiểm tra
 
 - Học tuần tự theo chương (`course_sections.sortOrder`) rồi bài (`lessons.sortOrder`).
+- **Nguồn video** (`lessons.videoProvider`, `videoId`, `videoStatus`, `durationSeconds`) — **không lưu file video trên server**:
+  - `YOUTUBE`: chỉ lưu mã 11 ký tự (server tự tách từ link). Video phải để **Không công khai** và cho phép nhúng — **ai có link đều xem được**,
+    không dùng cho quy trình nội bộ cần bảo mật. Phát qua `www.youtube-nocookie.com`. Thời lượng đo bằng trình phát lúc gắn; `videoStatus = READY` ngay.
+  - `BUNNY`: trình duyệt tải **thẳng** lên Bunny Stream bằng TUS (server chỉ tạo video + ký chữ ký 1 giờ, API key không rời server).
+    Tải xong → `PROCESSING`; hỏi Bunny mỗi 10 giây → `READY` (lưu `durationSeconds`) hoặc `FAILED`. Phát bằng iframe kèm **token hết hạn sau 6 giờ**,
+    tạo ở server mỗi lần mở bài. Cần đủ `BUNNY_STREAM_LIBRARY_ID`, `BUNNY_STREAM_API_KEY`, `BUNNY_STREAM_TOKEN_KEY`.
+  - Thay video / đổi nguồn / gỡ video / **xoá hẳn** bài: xoá video cũ trên Bunny (lỗi chỉ ghi log, không chặn). **Ẩn** bài: giữ video.
+  - Bài chỉ tính được hoàn thành khi `videoStatus = READY` và có `durationSeconds`.
 - VIDEO xong khi `maxWatchedSeconds ≥ durationSeconds × minWatchPercent / 100`. Vị trí nhảy quá `maxWatchedSeconds + 15` giây là tua → không tăng `maxWatchedSeconds`.
-- DOCUMENT xong khi người học bấm "Đã đọc xong".
+  - Tiến độ video gửi về `POST /api/learn/progress` (mỗi 10 giây khi phát, khi tạm dừng / hết video, `sendBeacon` lúc rời trang) →
+    `recordVideoProgress` (`src/lib/learning.ts`). **Chống gửi số giả:** `maxWatchedSeconds` chỉ tăng tối đa
+    (thời gian thực từ `lesson_progress.updatedAt`) × 2 + 5 giây; luôn ghi `lastPositionSeconds`. Trình duyệt kéo về khi tua vượt; bài đã xong tua tự do.
+- **Mở bài = bắt đầu học** (`startLearning`): lượt học `NOT_STARTED → IN_PROGRESS` + `startedAt`; bài VIDEO / DOCUMENT chưa xong
+  được tạo / chạm `lesson_progress` (`updatedAt` = lúc mở — mốc cho chống gửi số giả và 15 giây của tài liệu). Mọi kiểm tra quyền học bài
+  dùng `getLessonAccess`: lượt học khác CANCELLED + bài chưa ẩn thuộc khoá + không bị khoá tuần tự. Không ghi `audit_logs` cho tiến độ học.
+- DOCUMENT xong khi người học bấm "Đã đọc xong" — chỉ nhận khi bài đã mở ≥ 15 giây (server kiểm tra theo `lesson_progress.updatedAt`).
+- **Hoàn thành bài / khoá** — `completeLesson` (1 transaction, dùng chung cho video, tài liệu, bài kiểm tra): đánh dấu bài xong (đã xong thì giữ),
+  tính lại `progressPercent`; đủ 100% → `COMPLETED`, `completedAt`, `completedVersion = acknowledgedVersion = currentVersion`, `acknowledgedAt`,
+  gọi `onCourseCompleted` (Việc 22 cấp chứng nhận, Việc 23 mở khoá tiếp theo trong lộ trình). Lượt đã COMPLETED không bị hạ trạng thái khi xem lại.
+- **Xem file** (`/api/files/...`, `src/lib/file-access.ts`): file khoá học (`courses/...`: ảnh bìa, PDF bài học) chỉ trả cho người có lượt học
+  khoá đó (khác CANCELLED) hoặc GROUP_ADMIN / COMPANY_ADMIN / CONTENT_EDITOR thấy được khoá theo phạm vi (Quy tắc 1); sai → 403.
+  File không gắn khoá nào → 404. File khác: chỉ cần đăng nhập.
 - QUIZ: rút ngẫu nhiên `questionCount` câu từ `questions` của **cùng khoá** với điều kiện `isActive AND isApproved` (và `topic = lessons.questionTopic` nếu có). Số lần làm tính trong phiên bản hiện tại (`courseVersion`), tối đa `maxAttempts`. Xong khi có 1 lần `passed = true`. Hết giờ → chấm câu đã chọn và tự nộp. Chỉ trả đáp án đúng về trình duyệt khi `showAnswers = true` và đã nộp.
 - `progressPercent` = bài xong ÷ tổng bài × 100, tính lại mỗi khi một bài xong.
 
@@ -85,6 +137,13 @@ PostgreSQL 17 · Prisma 6 · tên bảng `snake_case` (`@@map`), cột `camelCas
 - Công ty chỉ có 2 cấp: công ty con luôn có `parentId` = công ty tổng. Công ty tổng không được tạm ngưng, không sửa mã (chỉ sửa tên).
 - Admin tập đoàn tạo tài khoản `COMPANY_ADMIN` cho công ty con (mã NV in hoa, duy nhất toàn tập đoàn, mật khẩu tạm, `mustChangePassword = true`).
 - Các cột `lark*` để trống ở phase 1 (dành cho đồng bộ Lark giai đoạn 2).
+- **Import Excel** (`/org/users/import`): mỗi file = 1 công ty. Mã NV chưa có → tạo mới; đã có trong **cùng công ty** → chỉ cập nhật
+  họ tên, email, điện thoại, phòng ban, chức danh, ngày vào làm (ô trống = giữ nguyên; không đổi vai trò, trạng thái, mật khẩu);
+  đã có ở công ty khác → lỗi. Chỉ lưu khi cả file không còn dòng lỗi; lúc xác nhận kiểm tra lại toàn bộ ở server; ghi theo lô 100 dòng / transaction.
+  Vai trò được import: LEARNER / MANAGER / CONTENT_EDITOR.
+- **Mật khẩu tạm khi import** băm bcrypt **cost 10** (thay vì 12) để import nhanh — chấp nhận được vì `mustChangePassword = true`,
+  người dùng phải đổi ngay lần đầu đăng nhập và mật khẩu tự đổi vẫn băm **cost 12**. Mật khẩu tạm chỉ trả về **1 lần** trong file tải ngay sau import,
+  không lưu ở đâu khác, không ghi vào `audit_logs` (audit chỉ có 1 dòng `USERS_IMPORTED`: công ty, tên file, số tạo mới / cập nhật, danh sách mã NV).
 
 ## Quy tắc 6 — Khác
 
@@ -93,7 +152,21 @@ PostgreSQL 17 · Prisma 6 · tên bảng `snake_case` (`@@map`), cột `camelCas
 - Quá hạn = `dueDate < now() AND status NOT IN (COMPLETED, CANCELLED)` — tính khi truy vấn, không lưu.
 - Chứng nhận có `expiresAt` hết hạn → tác vụ hằng ngày đặt lại enrollment như bản MAJOR.
 - Mẫu chứng nhận: lấy logo / người ký của công ty người học; cột nào trống thì lấy của công ty tổng.
-- Mọi thao tác quản trị ghi `audit_logs`.
+- Mọi thao tác quản trị ghi `audit_logs` — **chỉ qua `logAudit(tx, …)`** (`src/lib/audit.ts`), trong cùng transaction với thay đổi dữ liệu.
+  Mã thao tác phải có trong `AUDIT_ACTION_LABELS` (thiếu nhãn tiếng Việt → lỗi biên dịch). `logAudit` tự bỏ khoá `password` / `passwordHash` / `*Password` khỏi metadata.
+  Nhật ký **chỉ ghi thêm**: không có chức năng sửa / xoá. Phạm vi xem: Admin công ty chỉ dòng có `companyId` = công ty mình; Admin tập đoàn xem tất cả.
+  Index: `[companyId, createdAt]`, `[createdAt]` (xem toàn hệ thống theo ngày), `[actorId, createdAt]` (thao tác của 1 người), `[entityType, entityId]`.
+
+## Quy tắc 7 — Lưu file (ảnh bìa, PDF…)
+
+- Mọi file đi qua `src/lib/storage.ts` (`saveFile` / `readFile` / `deleteFile`). Hiện lưu trên ổ đĩa ở `UPLOAD_DIR`
+  (mặc định `./uploads`; Docker: `/app/uploads` gắn volume `uploads`). Đổi sang S3 / Bunny Storage: chỉ sửa file đó.
+- Cột lưu file (VD `courses.thumbnailUrl`) chứa **key** dạng `courses/thumbnails/<id ngẫu nhiên>.<đuôi>`, không chứa URL hay tên file gốc.
+  Hiển thị qua `/api/files/<key>` (bắt buộc đăng nhập; kiểm tra quyền theo khoá học ở Việc 15).
+- Loại file kiểm tra theo **nội dung** (magic bytes), không theo đuôi: ảnh JPG / PNG / WEBP ≤ 2MB, PDF ≤ 20MB.
+  Key chỉ gồm `a-z 0-9 - /` + đuôi hợp lệ → không có `../`. File không bao giờ bị ghi đè (mỗi lần tải là key mới).
+- Thay ảnh: lưu file mới → cập nhật DB → thành công mới xoá file cũ (DB lỗi thì xoá file vừa lưu).
+- Lưu ý: server action giới hạn body 6MB (`next.config.ts`) — tải PDF lớn (≤ 20MB) cần nâng giới hạn hoặc tải qua route handler.
 
 ## Thay đổi database
 

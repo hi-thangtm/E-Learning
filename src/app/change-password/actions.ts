@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { requireUser } from "@/lib/current-user";
+import { logAudit } from "@/lib/audit";
 
 export type ChangePasswordState = { error?: string };
 
@@ -56,15 +57,13 @@ export async function changePasswordAction(
       where: { id: user.id },
       data: { passwordHash, mustChangePassword: false },
     }),
-    prisma.auditLog.create({
-      data: {
+    logAudit(prisma, {
         actorId: user.id,
         companyId: user.companyId,
         action: "USER_PASSWORD_CHANGED",
         entityType: "User",
         entityId: user.id,
-      },
-    }),
+      }),
   ]);
 
   redirect("/dashboard");

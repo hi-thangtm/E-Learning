@@ -8,11 +8,14 @@
  *   - Cài đặt hệ thống mặc định
  *   - Dữ liệu mẫu: 5 chức danh, công ty con CTYA, tài khoản Admin công ty con CTYA-ADMIN,
  *     phòng ban 2–3 cấp cho TONG và CTYA, 2 học viên mẫu NV001 / CTYA-NV001
+ *   - 15 nhân viên mẫu (NV002–NV009, CTYA-NV002–CTYA-NV008): đủ phòng ban, chức danh, vai trò,
+ *     vài trưởng phòng và 2 người đã khoá
+ *   - 2 khoá học mẫu DEMO-QT-01, DEMO-AT-01 giao cho NV004 (có tiến độ, 1 khoá quá hạn) và NV001
  *
  * Chạy lại nhiều lần vẫn an toàn: cái gì đã có thì giữ nguyên, không ghi đè.
  * Thông tin lấy từ các biến SEED_* trong .env
  */
-import { Prisma, PrismaClient } from "@prisma/client";
+import { Prisma, PrismaClient, type Role } from "@prisma/client";
 import bcrypt from "bcryptjs";
 
 const prisma = new PrismaClient();
@@ -211,6 +214,236 @@ async function main() {
     });
     console.log(`✔ Học viên mẫu: ${learner.employeeCode} — ${learner.fullName}`);
   }
+
+  // 8. Nhân viên mẫu (Việc 6A) — rải đủ phòng ban, chức danh, vai trò để thử trang Người dùng
+  await seedSampleEmployees({
+    adminPassword,
+    companies: { TONG: company.id, CTYA: subsidiary.id },
+    departments: { TONG: groupDepartments, CTYA: subsidiaryDepartments },
+  });
+
+  // 9. Khoá học + tiến độ mẫu (Việc 14) — để thấy “Tiếp tục học”, ✓ / 🔒, quá hạn ở cổng học viên
+  await seedDemoLearning({ companyId: company.id, adminCode });
+}
+
+/** Hạn = 23:59:59 giờ VN của ngày (hôm nay + days). */
+function vnDueAfterDays(days: number): Date {
+  const vn = new Date(Date.now() + 7 * 3600_000);
+  return new Date(Date.UTC(vn.getUTCFullYear(), vn.getUTCMonth(), vn.getUTCDate() + days, 23 - 7, 59, 59));
+}
+
+const DEMO_COURSES = [
+  {
+    code: "DEMO-QT-01",
+    title: "Quy trình bán hàng chuẩn",
+    category: "Quy trình",
+    description:
+      "Nắm các bước bán hàng chuẩn của tập đoàn: từ tiếp cận khách hàng, tư vấn, báo giá đến chăm sóc sau bán.\nKhoá học gồm 5 bài đọc ngắn, học lần lượt từng bài.",
+    sections: [
+      { title: "Tổng quan quy trình", lessons: ["Giới thiệu quy trình bán hàng", "Các bước tiếp cận khách hàng"] },
+      { title: "Thực hành", lessons: ["Báo giá và chốt đơn", "Chăm sóc sau bán", "Tổng kết khoá học"] },
+    ],
+  },
+  {
+    code: "DEMO-AT-01",
+    title: "An toàn lao động cơ bản",
+    category: "An toàn",
+    description: "Các quy định an toàn tối thiểu tại văn phòng và kho hàng.",
+    sections: [{ title: "Nội dung", lessons: ["Nhận diện mối nguy", "Xử lý khi có sự cố"] }],
+  },
+];
+
+/** Tạo khoá mẫu + giao cho NV004 / NV001 (chỉ khi khoá mẫu chưa có — chạy lại không trùng). */
+async function seedDemoLearning(args: { companyId: string; adminCode: string }) {
+  if (await prisma.course.findUnique({ where: { code: DEMO_COURSES[0].code }, select: { id: true } })) {
+    console.log("• Khoá học mẫu đã có — giữ nguyên");
+    return;
+  }
+  const [admin, nv004, nv001] = await Promise.all(
+    [args.adminCode, "NV004", "NV001"].map((employeeCode) =>
+      prisma.user.findUnique({ where: { employeeCode }, select: { id: true } }),
+    ),
+  );
+  if (!admin || !nv004 || !nv001) {
+    console.log("• Thiếu tài khoản mẫu (ADMIN / NV004 / NV001) — bỏ qua khoá học mẫu");
+    return;
+  }
+  const categories = new Map(
+    (await prisma.courseCategory.findMany({ select: { id: true, name: true } })).map((c) => [c.name, c.id]),
+  );
+  const now = new Date();
+
+  await prisma.$transaction(async (tx) => {
+    const lessonIds: Record<string, string[]> = {};
+    const courseIds: Record<string, string> = {};
+    for (const c of DEMO_COURSES) {
+      const course = await tx.course.create({
+        data: {
+          ownerCompanyId: args.companyId,
+          categoryId: categories.get(c.category) ?? null,
+          code: c.code,
+          title: c.title,
+          description: c.description,
+          status: "PUBLISHED",
+          currentVersion: 1,
+          versions: {
+            create: { versionNo: 1, changeType: "INITIAL", status: "PUBLISHED", publishedById: admin.id, publishedAt: now },
+          },
+        },
+        select: { id: true },
+      });
+      courseIds[c.code] = course.id;
+      lessonIds[c.code] = [];
+      for (const [si, s] of c.sections.entries()) {
+        const section = await tx.courseSection.create({
+          data: { courseId: course.id, title: s.title, sortOrder: si },
+          select: { id: true },
+        });
+        for (const [li, title] of s.lessons.entries()) {
+          const lesson = await tx.lesson.create({
+            data: {
+              sectionId: section.id,
+              title,
+              type: "DOCUMENT",
+              sortOrder: li,
+              content: `<h2>${title}</h2><p>Nội dung mẫu của bài “${title}”. Đọc kỹ và bấm hoàn thành để mở bài tiếp theo.</p>`,
+            },
+            select: { id: true },
+          });
+          lessonIds[c.code].push(lesson.id);
+        }
+      }
+    }
+
+    const [qt, at] = ["DEMO-QT-01", "DEMO-AT-01"];
+    // NV004: khoá 1 đang học (bài 1 xong, bài 2 học dở) — còn 2 ngày (cam); khoá 2 chưa học, đã quá hạn 3 ngày (đỏ)
+    await tx.enrollment.createMany({
+      data: [
+        {
+          userId: nv004.id,
+          courseId: courseIds[qt],
+          source: "ASSIGNED",
+          assignedById: admin.id,
+          status: "IN_PROGRESS",
+          progressPercent: 20,
+          startedAt: now,
+          dueDate: vnDueAfterDays(2),
+        },
+        {
+          userId: nv004.id,
+          courseId: courseIds[at],
+          source: "ASSIGNED",
+          assignedById: admin.id,
+          dueDate: vnDueAfterDays(-3),
+        },
+        // NV001: được giao khoá 1, chưa học
+        {
+          userId: nv001.id,
+          courseId: courseIds[qt],
+          source: "ASSIGNED",
+          assignedById: admin.id,
+          dueDate: vnDueAfterDays(30),
+        },
+      ],
+    });
+    await tx.lessonProgress.createMany({
+      data: [
+        { userId: nv004.id, lessonId: lessonIds[qt][0], isCompleted: true, completedAt: now },
+        { userId: nv004.id, lessonId: lessonIds[qt][1], isCompleted: false },
+      ],
+    });
+  });
+  console.log("✔ Khoá học mẫu: DEMO-QT-01 (5 bài), DEMO-AT-01 (2 bài) — giao cho NV004 (có tiến độ) và NV001");
+}
+
+type SampleEmployee = {
+  employeeCode: string;
+  fullName: string;
+  company: "TONG" | "CTYA";
+  department: string;
+  position: string;
+  role: Role;
+  email: string;
+  phone: string;
+  hireDate: string;
+  inactive?: boolean;
+  /** Làm trưởng phòng này (chỉ gán khi phòng chưa có trưởng phòng) */
+  manages?: string;
+};
+
+const SAMPLE_EMPLOYEES: SampleEmployee[] = [
+  // --- Công ty tổng ---
+  { employeeCode: "NV002", fullName: "Lê Hoàng Minh", company: "TONG", department: "KD", position: "TP", role: "MANAGER", email: "minh.le@tong.vn", phone: "0901 000 002", hireDate: "2018-03-01", manages: "KD" },
+  { employeeCode: "NV003", fullName: "Phạm Thu Hà", company: "TONG", department: "KD-N2", position: "TP", role: "MANAGER", email: "ha.pham@tong.vn", phone: "0901 000 003", hireDate: "2019-07-15", manages: "KD-N2" },
+  { employeeCode: "NV004", fullName: "Võ Đức Thắng", company: "TONG", department: "KD-N1-T1", position: "NVKD", role: "LEARNER", email: "thang.vo@tong.vn", phone: "0901 000 004", hireDate: "2022-02-10" },
+  { employeeCode: "NV005", fullName: "Đặng Ngọc Lan", company: "TONG", department: "KT", position: "KT", role: "LEARNER", email: "lan.dang@tong.vn", phone: "0901 000 005", hireDate: "2021-09-01" },
+  { employeeCode: "NV006", fullName: "Bùi Quang Huy", company: "TONG", department: "HCNS", position: "NVHC", role: "CONTENT_EDITOR", email: "huy.bui@tong.vn", phone: "0901 000 006", hireDate: "2020-05-20" },
+  { employeeCode: "NV007", fullName: "Hoàng Mai Anh", company: "TONG", department: "HCNS", position: "TP", role: "MANAGER", email: "anh.hoang@tong.vn", phone: "0901 000 007", hireDate: "2017-11-01", manages: "HCNS" },
+  { employeeCode: "NV008", fullName: "Đỗ Văn Khoa", company: "TONG", department: "KD-N1", position: "NVKD", role: "LEARNER", email: "khoa.do@tong.vn", phone: "0901 000 008", hireDate: "2021-01-04", inactive: true },
+  { employeeCode: "NV009", fullName: "Ngô Thị Thanh", company: "TONG", department: "KT", position: "TP", role: "MANAGER", email: "thanh.ngo@tong.vn", phone: "0901 000 009", hireDate: "2016-06-01", manages: "KT" },
+  // --- Công ty con CTYA ---
+  { employeeCode: "CTYA-NV002", fullName: "Phan Văn Long", company: "CTYA", department: "KD", position: "TP", role: "MANAGER", email: "long.phan@ctya.vn", phone: "0902 000 002", hireDate: "2019-03-11", manages: "KD" },
+  { employeeCode: "CTYA-NV003", fullName: "Trịnh Thị Hồng", company: "CTYA", department: "KD-MB", position: "NVKD", role: "LEARNER", email: "hong.trinh@ctya.vn", phone: "0902 000 003", hireDate: "2022-08-01" },
+  { employeeCode: "CTYA-NV004", fullName: "Lý Minh Tuấn", company: "CTYA", department: "KD-MB-HN", position: "NVKD", role: "LEARNER", email: "tuan.ly@ctya.vn", phone: "0902 000 004", hireDate: "2023-04-17" },
+  { employeeCode: "CTYA-NV005", fullName: "Huỳnh Bảo Ngọc", company: "CTYA", department: "KT", position: "KT", role: "CONTENT_EDITOR", email: "ngoc.huynh@ctya.vn", phone: "0902 000 005", hireDate: "2020-10-05" },
+  { employeeCode: "CTYA-NV006", fullName: "Mai Xuân Phúc", company: "CTYA", department: "KT", position: "TP", role: "COMPANY_ADMIN", email: "phuc.mai@ctya.vn", phone: "0902 000 006", hireDate: "2018-12-03", manages: "KT" },
+  { employeeCode: "CTYA-NV007", fullName: "Đinh Thị Yến", company: "CTYA", department: "KD-MB-HN", position: "NVKD", role: "LEARNER", email: "yen.dinh@ctya.vn", phone: "0902 000 007", hireDate: "2022-01-10", inactive: true },
+  { employeeCode: "CTYA-NV008", fullName: "Tạ Quốc Bảo", company: "CTYA", department: "KD-MB", position: "TP", role: "MANAGER", email: "bao.ta@ctya.vn", phone: "0902 000 008", hireDate: "2019-09-23", manages: "KD-MB" },
+];
+
+/** Upsert theo mã nhân viên (đã có thì giữ nguyên, không ghi đè). Gán trưởng phòng chỉ khi phòng chưa có. */
+async function seedSampleEmployees(args: {
+  adminPassword: string;
+  companies: Record<SampleEmployee["company"], string>;
+  departments: Record<SampleEmployee["company"], Map<string, string>>;
+}) {
+  const positions = new Map(
+    (await prisma.position.findMany({ select: { id: true, code: true } })).map((p) => [p.code, p.id]),
+  );
+  // Cùng 1 mật khẩu cho mọi tài khoản mẫu -> băm 1 lần
+  const passwordHash = await bcrypt.hash(args.adminPassword, 12);
+
+  let created = 0;
+  let managers = 0;
+  for (const e of SAMPLE_EMPLOYEES) {
+    const companyId = args.companies[e.company];
+    const departmentId = args.departments[e.company].get(e.department) ?? null;
+    const before = await prisma.user.findUnique({ where: { employeeCode: e.employeeCode }, select: { id: true } });
+
+    const user = await prisma.user.upsert({
+      where: { employeeCode: e.employeeCode },
+      update: {},
+      create: {
+        employeeCode: e.employeeCode,
+        fullName: e.fullName,
+        email: e.email,
+        phone: e.phone,
+        hireDate: new Date(`${e.hireDate}T00:00:00.000Z`),
+        role: e.role,
+        status: e.inactive ? "INACTIVE" : "ACTIVE",
+        companyId,
+        departmentId,
+        positionId: positions.get(e.position) ?? null,
+        passwordHash,
+        mustChangePassword: true,
+      },
+      select: { id: true, companyId: true, status: true },
+    });
+    if (!before) created++;
+
+    // Trưởng phòng mẫu: người phải còn ở đúng công ty, đang làm; phòng chưa có trưởng phòng
+    const managedId = e.manages ? args.departments[e.company].get(e.manages) : undefined;
+    if (managedId && user.companyId === companyId && user.status === "ACTIVE") {
+      const result = await prisma.department.updateMany({
+        where: { id: managedId, managerId: null },
+        data: { managerId: user.id },
+      });
+      managers += result.count;
+    }
+  }
+  console.log(
+    `✔ Nhân viên mẫu: ${SAMPLE_EMPLOYEES.length} (mới tạo ${created}, gán thêm ${managers} trưởng phòng) — mật khẩu = SEED_ADMIN_PASSWORD`,
+  );
 }
 
 main()

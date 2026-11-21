@@ -15,6 +15,9 @@ coverage
 .env.*
 !.env.example
 
+# File người dùng tải lên (lưu trong volume, không đưa vào image)
+uploads
+
 # File Docker không cần trong image
 docker-compose*.yml
 docker/

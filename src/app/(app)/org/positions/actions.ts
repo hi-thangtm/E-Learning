@@ -6,6 +6,7 @@ import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { requireRole } from "@/lib/current-user";
 import { fieldErrors, formValues, type ActionState } from "@/lib/action-state";
+import { logAudit } from "@/lib/audit";
 
 /**
  * Chức danh dùng chung toàn tập đoàn — CHỈ Admin tập đoàn được thêm / sửa / ẩn hiện.
@@ -63,16 +64,14 @@ export async function createPositionAction(_prev: ActionState, formData: FormDat
   try {
     await prisma.$transaction(async (tx) => {
       const position = await tx.position.create({ data: { code, name } });
-      await tx.auditLog.create({
-        data: {
+      await logAudit(tx, {
           actorId: user.id,
           companyId: user.companyId,
           action: "POSITION_CREATED",
           entityType: "Position",
           entityId: position.id,
           metadata: { code, name },
-        },
-      });
+        });
     });
   } catch (error) {
     if (isUniqueViolation(error)) return duplicateCode(code, formData);
@@ -114,8 +113,7 @@ export async function updatePositionAction(_prev: ActionState, formData: FormDat
   try {
     await prisma.$transaction([
       prisma.position.update({ where: { id: current.id }, data: { code, name } }),
-      prisma.auditLog.create({
-        data: {
+      logAudit(prisma, {
           actorId: user.id,
           companyId: user.companyId,
           action: "POSITION_UPDATED",
@@ -125,8 +123,7 @@ export async function updatePositionAction(_prev: ActionState, formData: FormDat
             before: { code: current.code, name: current.name },
             after: { code, name },
           },
-        },
-      }),
+        }),
     ]);
   } catch (error) {
     if (isUniqueViolation(error)) return duplicateCode(code, formData);
@@ -153,16 +150,14 @@ export async function togglePositionAction(positionId: string): Promise<ActionSt
 
   await prisma.$transaction([
     prisma.position.update({ where: { id: current.id }, data: { isActive } }),
-    prisma.auditLog.create({
-      data: {
+    logAudit(prisma, {
         actorId: user.id,
         companyId: user.companyId,
         action: "POSITION_TOGGLED",
         entityType: "Position",
         entityId: current.id,
         metadata: { code: current.code, isActive },
-      },
-    }),
+      }),
   ]);
 
   revalidatePath(PATH);

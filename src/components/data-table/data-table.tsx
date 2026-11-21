@@ -5,6 +5,7 @@ import { DataTableEmpty } from "./data-table-empty";
 import { DataTableFilter, type FilterOption } from "./data-table-filter";
 import { DataTablePageSize } from "./data-table-page-size";
 import { DataTablePagination } from "./data-table-pagination";
+import { DataTableRow } from "./data-table-row";
 import { DataTableSearch } from "./data-table-search";
 
 /**
@@ -51,6 +52,9 @@ export function DataTable<T>({
   filters = [],
   toolbar,
   empty,
+  rowHref,
+  extraFilters,
+  extraFilterParams,
 }: {
   pathname: string;
   searchParams: SearchParams;
@@ -65,24 +69,31 @@ export function DataTable<T>({
   /** Nút bên phải thanh công cụ (VD: "+ Thêm") */
   toolbar?: ReactNode;
   empty: { title: string; description?: string; action?: ReactNode };
+  /** Bấm cả dòng để mở trang / panel chi tiết (link, nút trong dòng vẫn hoạt động riêng) */
+  rowHref?: (row: T) => string;
+  /** Ô lọc tuỳ biến (VD: khoảng ngày) — chèn vào lưới bộ lọc, sau các ô chọn */
+  extraFilters?: ReactNode;
+  /** Tham số URL của extraFilters — để biết đang có lọc (hiện “Xoá bộ lọc” khi rỗng) */
+  extraFilterParams?: string[];
 }) {
-  const filterParams = ["q", ...filters.map((f) => f.param)];
+  const filterParams = ["q", ...filters.map((f) => f.param), ...(extraFilterParams ?? [])];
   const filtered = filterParams.some((key) => !!searchParams[key]) || page > 1;
 
   return (
     <div className="overflow-hidden rounded-md bg-card shadow-md">
-      {filters.length > 0 && (
+      {(filters.length > 0 || extraFilters) && (
         <div className="p-6">
           <h2 className="mb-4 text-lg font-medium text-foreground">Bộ lọc</h2>
           <div className="grid grid-cols-3 gap-6">
             {filters.map((f) => (
               <DataTableFilter key={f.param} {...f} />
             ))}
+            {extraFilters}
           </div>
         </div>
       )}
 
-      <div className={cn("flex items-center justify-between gap-4 p-6", filters.length > 0 && "border-t border-border")}>
+      <div className={cn("flex items-center justify-between gap-4 p-6", (filters.length > 0 || extraFilters) && "border-t border-border")}>
         <DataTablePageSize pageSize={pageSize} />
         <div className="flex items-center gap-4">
           <DataTableSearch placeholder={searchPlaceholder} />
@@ -116,24 +127,29 @@ export function DataTable<T>({
                 </td>
               </tr>
             ) : (
-              rows.map((row) => (
-                <tr
-                  key={rowKey(row)}
-                  className="border-b border-border transition-colors last:border-0 hover:bg-muted/50"
-                >
-                  {columns.map((col) => (
-                    <td
-                      key={col.key}
-                      className={cn(
-                        "h-[50px] px-4 align-middle text-[15px] whitespace-nowrap text-muted-foreground first:pl-6 last:pr-6",
-                        col.className,
-                      )}
-                    >
-                      {col.cell(row)}
-                    </td>
-                  ))}
-                </tr>
-              ))
+              rows.map((row) => {
+                const cells = columns.map((col) => (
+                  <td
+                    key={col.key}
+                    className={cn(
+                      "h-[50px] px-4 align-middle text-[15px] whitespace-nowrap text-muted-foreground first:pl-6 last:pr-6",
+                      col.className,
+                    )}
+                  >
+                    {col.cell(row)}
+                  </td>
+                ));
+                const rowClass = "border-b border-border transition-colors last:border-0 hover:bg-muted/50";
+                return rowHref ? (
+                  <DataTableRow key={rowKey(row)} href={rowHref(row)} className={rowClass}>
+                    {cells}
+                  </DataTableRow>
+                ) : (
+                  <tr key={rowKey(row)} className={rowClass}>
+                    {cells}
+                  </tr>
+                );
+              })
             )}
           </tbody>
         </table>

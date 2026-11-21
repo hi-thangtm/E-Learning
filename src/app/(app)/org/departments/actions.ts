@@ -7,6 +7,7 @@ import { prisma } from "@/lib/db";
 import { requireRole, type CurrentUser } from "@/lib/current-user";
 import { fieldErrors, formValues, type ActionState } from "@/lib/action-state";
 import { wouldCreateCycle } from "@/lib/tree";
+import { logAudit } from "@/lib/audit";
 
 /**
  * Phòng ban — Admin tập đoàn (mọi công ty) và Admin công ty (chỉ công ty mình).
@@ -140,8 +141,7 @@ async function assignManager(
   if (promote) {
     await tx.user.update({ where: { id: args.manager.id }, data: { role: "MANAGER" } });
   }
-  await tx.auditLog.create({
-    data: {
+  await logAudit(tx, {
       actorId: args.actorId,
       companyId: args.companyId,
       action: "DEPARTMENT_MANAGER_ASSIGNED",
@@ -154,8 +154,7 @@ async function assignManager(
         previousManagerId: args.previousManagerId,
         ...(promote && { roleChange: { from: "LEARNER", to: "MANAGER" } }),
       },
-    },
-  });
+    });
   return promote;
 }
 
@@ -199,16 +198,14 @@ export async function createDepartmentAction(_prev: ActionState, formData: FormD
           managerId: manager?.id ?? null,
         },
       });
-      await tx.auditLog.create({
-        data: {
+      await logAudit(tx, {
           actorId: user.id,
           companyId: companyId.data,
           action: "DEPARTMENT_CREATED",
           entityType: "Department",
           entityId: department.id,
           metadata: { code: input.code, name: input.name, parentId: input.parentId, managerId: manager?.id ?? null },
-        },
-      });
+        });
       if (!manager) return false;
       return assignManager(tx, {
         actorId: user.id,
@@ -275,8 +272,7 @@ export async function updateDepartmentAction(_prev: ActionState, formData: FormD
         where: { id: current.id },
         data: { code: input.code, name: input.name, parentId: input.parentId, managerId: manager?.id ?? null },
       });
-      await tx.auditLog.create({
-        data: {
+      await logAudit(tx, {
           actorId: user.id,
           companyId: current.companyId,
           action: "DEPARTMENT_UPDATED",
@@ -286,8 +282,7 @@ export async function updateDepartmentAction(_prev: ActionState, formData: FormD
             before: { code: current.code, name: current.name, parentId: current.parentId, managerId: current.managerId },
             after: { code: input.code, name: input.name, parentId: input.parentId, managerId: manager?.id ?? null },
           },
-        },
-      });
+        });
       // Gỡ trưởng phòng (manager = null): KHÔNG hạ vai trò, chỉ ghi trong DEPARTMENT_UPDATED
       if (!manager || !managerChanged) return false;
       return assignManager(tx, {
@@ -348,16 +343,14 @@ export async function toggleDepartmentAction(departmentId: string): Promise<Acti
 
   await prisma.$transaction([
     prisma.department.update({ where: { id: current.id }, data: { isActive } }),
-    prisma.auditLog.create({
-      data: {
+    logAudit(prisma, {
         actorId: user.id,
         companyId: current.companyId,
         action: "DEPARTMENT_TOGGLED",
         entityType: "Department",
         entityId: current.id,
         metadata: { code: current.code, isActive },
-      },
-    }),
+      }),
   ]);
 
   revalidatePath(PATH);

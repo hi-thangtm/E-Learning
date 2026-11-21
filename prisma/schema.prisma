@@ -77,6 +77,19 @@ enum LessonType {
   QUIZ
 }
 
+/// Nguồn video của bài VIDEO (không lưu file video trên server)
+enum VideoProvider {
+  YOUTUBE // Video "Không công khai" trên YouTube — ai có link đều xem được
+  BUNNY   // Bunny Stream — phát bằng iframe có token hết hạn
+}
+
+/// Trạng thái video (Bunny cần thời gian xử lý sau khi tải lên)
+enum VideoStatus {
+  PROCESSING
+  READY
+  FAILED
+}
+
 enum EnrollmentSource {
   RULE     // Bắt buộc: tự động theo quy tắc (công ty / phòng ban / chức danh)
   ASSIGNED // Được giao: quản trị giao tay cho từng người
@@ -297,6 +310,8 @@ model CourseSection {
   courseId  String
   title     String
   sortOrder Int      @default(0)
+  // Khoá đã phát hành: không xoá hẳn, chỉ ẩn (học viên không thấy, giữ lịch sử học)
+  isArchived Boolean @default(false)
   createdAt DateTime @default(now())
 
   course  Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
@@ -313,9 +328,13 @@ model Lesson {
   title     String
   type      LessonType
   sortOrder Int        @default(0)
+  // Khoá đã phát hành: không xoá hẳn, chỉ ẩn (không tính vào tiến độ, giữ lesson_progress / quiz_attempts)
+  isArchived Boolean   @default(false)
 
   // --- VIDEO ---
-  bunnyVideoId    String? // Mã video trên Bunny Stream
+  videoProvider   VideoProvider?
+  videoId         String? // YouTube: mã 11 ký tự; Bunny: guid video
+  videoStatus     VideoStatus?
   durationSeconds Int?
   minWatchPercent Int     @default(90) // Xem đủ % mới tính hoàn thành
 
@@ -584,6 +603,8 @@ model AuditLog {
 
   @@index([entityType, entityId])
   @@index([companyId, createdAt])
+  @@index([createdAt]) // Nhật ký toàn hệ thống theo khoảng ngày (Admin tập đoàn)
+  @@index([actorId, createdAt]) // Thao tác do 1 người làm (trang chi tiết người dùng)
   @@map("audit_logs")
 }
 

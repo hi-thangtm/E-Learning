@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/combobox";
 import {
   Dialog,
+  DialogBody,
   DialogClose,
   DialogContent,
   DialogDescription,
@@ -142,118 +143,120 @@ function DepartmentForm({
   const err = state.errors ?? {};
 
   return (
-    <form action={formAction} className="grid grid-cols-2 gap-4" noValidate>
+    <form action={formAction} className="contents" noValidate>
       {department && <input type="hidden" name="id" value={department.id} />}
       <input type="hidden" name="companyId" value={companyId} />
       <input type="hidden" name="parentId" value={parentId === ROOT ? "" : parentId} />
       <input type="hidden" name="managerId" value={manager?.id ?? ""} />
 
-      <FormField
-        label="Mã phòng ban"
-        htmlFor="code"
-        required
-        error={err.code}
-        hint="Chữ in hoa không dấu, không trùng trong công ty. VD: KD"
-      >
-        <Input
-          id="code"
-          name="code"
-          defaultValue={state.values?.code ?? department?.code}
-          placeholder="VD: KD"
-          maxLength={20}
-          autoComplete="off"
-          autoFocus
-          className="uppercase placeholder:normal-case"
-          aria-invalid={!!err.code}
-        />
-      </FormField>
-
-      <FormField label="Tên phòng ban" htmlFor="name" required error={err.name}>
-        <Input
-          id="name"
-          name="name"
-          defaultValue={state.values?.name ?? department?.name}
-          placeholder="VD: Phòng Kinh doanh"
-          maxLength={100}
-          autoComplete="off"
-          aria-invalid={!!err.name}
-        />
-      </FormField>
-
-      <FormField label="Phòng cha" htmlFor="parent-select" error={err.parentId} className="col-span-2">
-        <Select items={parentItems} value={parentId} onValueChange={(v) => setParentId(v ? String(v) : ROOT)}>
-          <SelectTrigger id="parent-select" className="w-full" aria-invalid={!!err.parentId}>
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {parentItems.map((item) => (
-              <SelectItem key={item.value} value={item.value} disabled={item.disabled}>
-                {item.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </FormField>
-
-      <FormField
-        label="Trưởng phòng"
-        htmlFor="manager-input"
-        error={err.managerId}
-        hint="Tìm theo tên hoặc mã nhân viên. Để trống nếu chưa có."
-        className="col-span-2"
-      >
-        <Combobox
-          items={managerOptions}
-          value={manager}
-          onValueChange={(v) => setManager(v ?? null)}
-          itemToStringLabel={(e) => `${e.fullName} (${e.employeeCode})`}
-          isItemEqualToValue={(a, b) => a.id === b.id}
-          filter={(e, query) => {
-            const needle = normalizeSearch(query);
-            return (
-              normalizeSearch(e.fullName).includes(needle) || normalizeSearch(e.employeeCode).includes(needle)
-            );
-          }}
+      <DialogBody className="grid grid-cols-2 gap-4">
+        <FormField
+          label="Mã phòng ban"
+          htmlFor="code"
+          required
+          error={err.code}
+          hint="Chữ in hoa không dấu, không trùng trong công ty. VD: KD"
         >
-          <ComboboxInput
-            id="manager-input"
-            placeholder="Chọn trưởng phòng..."
-            showClear
-            className="w-full"
-            aria-invalid={!!err.managerId}
+          <Input
+            id="code"
+            name="code"
+            defaultValue={state.values?.code ?? department?.code}
+            placeholder="VD: KD"
+            maxLength={20}
+            autoComplete="off"
+            autoFocus
+            className="uppercase placeholder:normal-case"
+            aria-invalid={!!err.code}
           />
-          <ComboboxContent>
-            <ComboboxEmpty>Không tìm thấy nhân viên phù hợp.</ComboboxEmpty>
-            <ComboboxList>
-              {(e: EmployeeOption) => (
-                <ComboboxItem key={e.id} value={e}>
-                  <div className="min-w-0">
-                    <p className="truncate">{e.fullName}</p>
-                    <p className="truncate text-[13px] text-muted-foreground">
-                      {e.employeeCode} · {ROLE_LABELS[e.role]}
-                    </p>
-                  </div>
-                </ComboboxItem>
-              )}
-            </ComboboxList>
-          </ComboboxContent>
-        </Combobox>
-      </FormField>
+        </FormField>
 
-      {willPromote && (
-        <div
-          role="status"
-          className="col-span-2 flex items-start gap-2 rounded-md bg-warning/16 px-4 py-3 text-[13px] text-warning"
+        <FormField label="Tên phòng ban" htmlFor="name" required error={err.name}>
+          <Input
+            id="name"
+            name="name"
+            defaultValue={state.values?.name ?? department?.name}
+            placeholder="VD: Phòng Kinh doanh"
+            maxLength={100}
+            autoComplete="off"
+            aria-invalid={!!err.name}
+          />
+        </FormField>
+
+        <FormField label="Phòng cha" htmlFor="parent-select" error={err.parentId} className="col-span-2">
+          <Select items={parentItems} value={parentId} onValueChange={(v) => setParentId(v ? String(v) : ROOT)}>
+            <SelectTrigger id="parent-select" className="w-full" aria-invalid={!!err.parentId}>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {parentItems.map((item) => (
+                <SelectItem key={item.value} value={item.value} disabled={item.disabled}>
+                  {item.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </FormField>
+
+        <FormField
+          label="Trưởng phòng"
+          htmlFor="manager-input"
+          error={err.managerId}
+          hint="Tìm theo tên hoặc mã nhân viên. Để trống nếu chưa có."
+          className="col-span-2"
         >
-          <TriangleAlert className="mt-0.5 size-4 shrink-0" />
-          <span>
-            <strong className="font-medium">{manager.fullName}</strong> đang là {ROLE_LABELS.LEARNER} — sẽ được
-            nâng lên {ROLE_LABELS.MANAGER} khi lưu.
-          </span>
-        </div>
-      )}
+          <Combobox
+            items={managerOptions}
+            value={manager}
+            onValueChange={(v) => setManager(v ?? null)}
+            itemToStringLabel={(e) => `${e.fullName} (${e.employeeCode})`}
+            isItemEqualToValue={(a, b) => a.id === b.id}
+            filter={(e, query) => {
+              const needle = normalizeSearch(query);
+              return (
+                normalizeSearch(e.fullName).includes(needle) || normalizeSearch(e.employeeCode).includes(needle)
+              );
+            }}
+          >
+            <ComboboxInput
+              id="manager-input"
+              placeholder="Chọn trưởng phòng..."
+              showClear
+              className="w-full"
+              aria-invalid={!!err.managerId}
+            />
+            <ComboboxContent>
+              <ComboboxEmpty>Không tìm thấy nhân viên phù hợp.</ComboboxEmpty>
+              <ComboboxList>
+                {(e: EmployeeOption) => (
+                  <ComboboxItem key={e.id} value={e}>
+                    <div className="min-w-0">
+                      <p className="truncate">{e.fullName}</p>
+                      <p className="truncate text-[13px] text-muted-foreground">
+                        {e.employeeCode} · {ROLE_LABELS[e.role]}
+                      </p>
+                    </div>
+                  </ComboboxItem>
+                )}
+              </ComboboxList>
+            </ComboboxContent>
+          </Combobox>
+        </FormField>
 
-      <DialogFooter className="col-span-2 pt-2">
+        {willPromote && (
+          <div
+            role="status"
+            className="col-span-2 flex items-start gap-2 rounded-md bg-warning/16 px-4 py-3 text-[13px] text-warning"
+          >
+            <TriangleAlert className="mt-0.5 size-4 shrink-0" />
+            <span>
+              <strong className="font-medium">{manager.fullName}</strong> đang là {ROLE_LABELS.LEARNER} — sẽ được
+              nâng lên {ROLE_LABELS.MANAGER} khi lưu.
+            </span>
+          </div>
+        )}
+      </DialogBody>
+
+      <DialogFooter>
         <DialogClose render={<Button type="button" variant="outline" disabled={pending} />}>Huỷ</DialogClose>
         <Button type="submit" disabled={pending}>
           {pending ? "Đang lưu..." : "Lưu"}

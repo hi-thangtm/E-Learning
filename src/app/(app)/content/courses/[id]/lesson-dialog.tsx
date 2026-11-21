@@ -1,0 +1,335 @@
+"use client";
+
+import { useActionState, useEffect, useEffectEvent, useRef, useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
+import { FileText, FileUp, Info, ListChecks, PlayCircle, Trash2 } from "lucide-react";
+import { toast } from "sonner";
+import { FormField } from "@/components/form-field";
+import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogBody,
+  DialogClose,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Switch } from "@/components/ui/switch";
+import { initialActionState } from "@/lib/action-state";
+import { fileUrl } from "@/lib/file-url";
+import { removeLessonFileAction, updateLessonAction } from "./content-actions";
+import type { ContentLesson } from "./content-types";
+import { DocumentEditor } from "./document-editor";
+import { VideoFields } from "./video-fields";
+
+const TYPE_META = {
+  VIDEO: { label: "Bài video", icon: PlayCircle },
+  DOCUMENT: { label: "Bài tài liệu", icon: FileText },
+  QUIZ: { label: "Bài kiểm tra", icon: ListChecks },
+} as const;
+
+const PDF_MAX_BYTES = 20 * 1024 * 1024;
+
+/** Dialog chi tiết bài theo loại. Điều khiển bằng open / onOpenChange; cha đổi `key` theo bài để form luôn mới. */
+export function LessonDialog({
+  lesson,
+  open,
+  onOpenChange,
+  readOnly,
+  bunnyEnabled,
+}: {
+  lesson: ContentLesson;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  readOnly: boolean;
+  bunnyEnabled: boolean;
+}) {
+  const meta = TYPE_META[lesson.type];
+  const Icon = meta.icon;
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-3xl">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Icon className="size-5 text-primary" />
+            {meta.label}
+            {lesson.isArchived && <span className="text-[13px] font-normal text-muted-foreground">(đã ẩn khỏi học viên)</span>}
+          </DialogTitle>
+          <DialogDescription>
+            {readOnly ? "Bạn chỉ được xem bài này." : "Thay đổi được lưu khi bấm “Lưu bài học”."}
+          </DialogDescription>
+        </DialogHeader>
+        <LessonForm lesson={lesson} readOnly={readOnly} bunnyEnabled={bunnyEnabled} onDone={() => onOpenChange(false)} />
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function LessonForm({
+  lesson,
+  readOnly,
+  bunnyEnabled,
+  onDone,
+}: {
+  lesson: ContentLesson;
+  readOnly: boolean;
+  bunnyEnabled: boolean;
+  onDone: () => void;
+}) {
+  const [state, formAction, pending] = useActionState(updateLessonAction, initialActionState);
+  const err = state.errors ?? {};
+  const v = state.values;
+
+  // onDone do cha truyền (hàm mới mỗi lần render) -> đọc qua Effect Event để effect chỉ chạy khi có kết quả mới
+  const finish = useEffectEvent(() => onDone());
+  useEffect(() => {
+    if (state.ok) {
+      if (state.message) toast.success(state.message);
+      finish();
+    } else if (state.message) {
+      toast.error(state.message);
+    }
+  }, [state]);
+
+  return (
+    <form action={formAction} noValidate className="contents">
+      <input type="hidden" name="id" value={lesson.id} />
+      <DialogBody className="grid gap-4">
+        <fieldset disabled={readOnly || pending} className="grid gap-4">
+          <FormField label="Tên bài" htmlFor="lesson-title" required error={err.title}>
+            <Input
+              id="lesson-title"
+              name="title"
+              defaultValue={v?.title ?? lesson.title}
+              maxLength={200}
+              autoComplete="off"
+              aria-invalid={!!err.title}
+            />
+          </FormField>
+
+          {lesson.type === "DOCUMENT" && <DocumentFields lesson={lesson} readOnly={readOnly} error={err.content} />}
+          {lesson.type === "VIDEO" && (
+            <>
+              <FormField
+                label="% xem tối thiểu để hoàn thành"
+                htmlFor="minWatchPercent"
+                required
+                error={err.minWatchPercent}
+                hint="Học viên phải xem thật (không tua) đủ % này mới tính xong bài. Lưu bằng nút “Lưu bài học”."
+              >
+                <Input
+                  id="minWatchPercent"
+                  name="minWatchPercent"
+                  type="number"
+                  min={1}
+                  max={100}
+                  defaultValue={v?.minWatchPercent ?? lesson.minWatchPercent}
+                  className="w-32"
+                  aria-invalid={!!err.minWatchPercent}
+                />
+              </FormField>
+              <VideoFields lesson={lesson} bunnyEnabled={bunnyEnabled} readOnly={readOnly} />
+            </>
+          )}
+          {lesson.type === "QUIZ" && <QuizFields lesson={lesson} errors={err} values={v} />}
+        </fieldset>
+      </DialogBody>
+
+      {!readOnly && (
+        <DialogFooter>
+          <DialogClose render={<Button type="button" variant="outline" disabled={pending} />}>Huỷ</DialogClose>
+          <Button type="submit" disabled={pending}>
+            {pending ? "Đang lưu..." : "Lưu bài học"}
+          </Button>
+        </DialogFooter>
+      )}
+    </form>
+  );
+}
+
+// --- TÀI LIỆU -----------------------------------------------------------------------------------
+
+function DocumentFields({ lesson, readOnly, error }: { lesson: ContentLesson; readOnly: boolean; error?: string }) {
+  const router = useRouter();
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [file, setFile] = useState<{ key: string; name: string } | null>(
+    lesson.fileKey ? { key: lesson.fileKey, name: lesson.fileName ?? "tai-lieu.pdf" } : null,
+  );
+  const [uploading, setUploading] = useState(false);
+  const [removing, startRemoving] = useTransition();
+
+  async function upload(picked: File | undefined) {
+    if (!picked) return;
+    if (inputRef.current) inputRef.current.value = "";
+    // Báo sớm ở trình duyệt; server vẫn kiểm tra lại theo NỘI DUNG file
+    if (picked.size > PDF_MAX_BYTES) return void toast.error("File PDF tối đa 20MB.");
+
+    setUploading(true);
+    try {
+      const body = new FormData();
+      body.set("file", picked);
+      const res = await fetch(`/api/lessons/${lesson.id}/document`, { method: "POST", body });
+      const data = (await res.json().catch(() => ({}))) as { ok?: boolean; fileKey?: string; fileName?: string; error?: string };
+      if (!res.ok || !data.ok || !data.fileKey) {
+        toast.error(data.error ?? "Không tải được file, vui lòng thử lại.");
+        return;
+      }
+      setFile({ key: data.fileKey, name: data.fileName ?? picked.name });
+      toast.success("Đã tải file PDF lên.");
+      router.refresh();
+    } catch {
+      toast.error("Không tải được file, vui lòng thử lại.");
+    } finally {
+      setUploading(false);
+    }
+  }
+
+  function remove() {
+    startRemoving(async () => {
+      const result = await removeLessonFileAction(lesson.id);
+      if (result.ok) {
+        setFile(null);
+        toast.success(result.message ?? "Đã gỡ file.");
+      } else {
+        toast.error(result.message ?? "Không gỡ được file.");
+      }
+    });
+  }
+
+  return (
+    <>
+      <FormField
+        label="Nội dung"
+        htmlFor="lesson-content"
+        error={error}
+        hint="Phải có nội dung HOẶC file PDF đính kèm. Định dạng ngoài thanh công cụ sẽ bị lọc bỏ khi lưu."
+      >
+        <DocumentEditor name="content" initialHtml={lesson.content} disabled={readOnly} invalid={!!error} />
+      </FormField>
+
+      <div className="grid gap-2">
+        <div className="flex items-center justify-between gap-4">
+          <p className="text-[13px] text-foreground">File PDF đính kèm</p>
+          {!readOnly && (
+            <div className="flex gap-2">
+              <input
+                ref={inputRef}
+                type="file"
+                accept="application/pdf,.pdf"
+                className="sr-only"
+                id="lesson-pdf"
+                onChange={(e) => upload(e.target.files?.[0])}
+              />
+              <Button type="button" variant="outline" size="sm" disabled={uploading || removing} onClick={() => inputRef.current?.click()}>
+                <FileUp />
+                {uploading ? "Đang tải lên..." : file ? "Thay file" : "Tải PDF lên"}
+              </Button>
+              {file && (
+                <Button type="button" variant="ghost" size="sm" className="text-destructive" disabled={uploading || removing} onClick={remove}>
+                  <Trash2 />
+                  {removing ? "Đang gỡ..." : "Gỡ file"}
+                </Button>
+              )}
+            </div>
+          )}
+        </div>
+        {file ? (
+          <div className="overflow-hidden rounded-md border border-border">
+            <p className="flex items-center gap-2 border-b border-border bg-muted/40 px-3 py-2 text-[13px] text-foreground">
+              <FileText className="size-4 text-destructive" />
+              <span className="truncate">{file.name}</span>
+            </p>
+            <iframe src={fileUrl(file.key)} title={`Xem trước ${file.name}`} className="h-[480px] w-full bg-muted" />
+          </div>
+        ) : (
+          <p className="rounded-md border border-dashed border-border px-4 py-6 text-center text-[13px] text-muted-foreground">
+            Chưa có file. PDF tối đa 20MB — tải lên được lưu ngay, không cần bấm Lưu.
+          </p>
+        )}
+      </div>
+    </>
+  );
+}
+
+// --- KIỂM TRA -----------------------------------------------------------------------------------
+
+function QuizFields({
+  lesson,
+  errors,
+  values,
+}: {
+  lesson: ContentLesson;
+  errors: Record<string, string>;
+  values?: Record<string, string>;
+}) {
+  const [showAnswers, setShowAnswers] = useState(values ? values.showAnswers === "1" : lesson.showAnswers);
+  const num = (key: keyof ContentLesson) => values?.[key] ?? (lesson[key] === null ? "" : String(lesson[key]));
+
+  return (
+    <>
+      <p className="flex items-start gap-2 rounded-md bg-info/16 px-4 py-2.5 text-[13px] text-info">
+        <Info className="mt-0.5 size-4 shrink-0" />
+        Câu hỏi soạn ở Ngân hàng câu hỏi (Việc 16). Mỗi lần làm, hệ thống rút ngẫu nhiên số câu bên dưới.
+      </p>
+      <FormField
+        label="Chủ đề câu hỏi"
+        htmlFor="questionTopic"
+        error={errors.questionTopic}
+        hint="Để trống = rút từ toàn bộ ngân hàng câu hỏi của khoá."
+      >
+        <Input
+          id="questionTopic"
+          name="questionTopic"
+          defaultValue={values?.questionTopic ?? lesson.questionTopic}
+          maxLength={100}
+          placeholder="VD: An toàn điện"
+          aria-invalid={!!errors.questionTopic}
+        />
+      </FormField>
+      <div className="grid grid-cols-2 gap-4">
+        <FormField label="Số câu rút ngẫu nhiên" htmlFor="questionCount" required error={errors.questionCount}>
+          <Input id="questionCount" name="questionCount" type="number" min={1} max={200} defaultValue={num("questionCount")} aria-invalid={!!errors.questionCount} />
+        </FormField>
+        <FormField label="Điểm đạt (0–100)" htmlFor="passingScore" required error={errors.passingScore}>
+          <Input id="passingScore" name="passingScore" type="number" min={0} max={100} defaultValue={num("passingScore")} aria-invalid={!!errors.passingScore} />
+        </FormField>
+        <FormField label="Thời gian (phút)" htmlFor="timeLimitMinutes" error={errors.timeLimitMinutes} hint="Để trống = không giới hạn.">
+          <Input
+            id="timeLimitMinutes"
+            name="timeLimitMinutes"
+            type="number"
+            min={1}
+            max={600}
+            defaultValue={num("timeLimitMinutes")}
+            placeholder="Không giới hạn"
+            aria-invalid={!!errors.timeLimitMinutes}
+          />
+        </FormField>
+        <FormField label="Số lần làm tối đa" htmlFor="maxAttempts" error={errors.maxAttempts} hint="Để trống = không giới hạn.">
+          <Input
+            id="maxAttempts"
+            name="maxAttempts"
+            type="number"
+            min={1}
+            max={100}
+            defaultValue={num("maxAttempts")}
+            placeholder="Không giới hạn"
+            aria-invalid={!!errors.maxAttempts}
+          />
+        </FormField>
+      </div>
+      <input type="hidden" name="showAnswers" value={showAnswers ? "1" : "0"} />
+      <div className="flex items-start gap-3">
+        <Switch id="showAnswers" checked={showAnswers} onCheckedChange={setShowAnswers} className="mt-0.5" />
+        <label htmlFor="showAnswers" className="cursor-pointer">
+          <span className="block text-[15px] text-foreground">Cho xem đáp án sau khi nộp</span>
+          <span className="block text-[13px] text-muted-foreground">Học viên xem được đáp án đúng và giải thích sau mỗi lần nộp bài.</span>
+        </label>
+      </div>
+    </>
+  );
+}

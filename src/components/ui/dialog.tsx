@@ -53,7 +53,9 @@ function DialogContent({
       <DialogPrimitive.Popup
         data-slot="dialog-content"
         className={cn(
-          "fixed top-1/2 left-1/2 z-50 grid w-full max-w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 gap-6 rounded-xl bg-popover p-6 text-[15px] text-popover-foreground shadow-lg duration-100 outline-none sm:max-w-sm data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95",
+          // Cột: header (cố định) – DialogBody (cuộn) – footer (cố định). Không bao giờ cao hơn màn hình.
+          // overflow-y-auto chỉ là dự phòng cho dialog chưa dùng DialogBody.
+          "fixed top-1/2 left-1/2 z-50 flex max-h-[calc(100dvh-4rem)] w-full max-w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 flex-col gap-6 overflow-y-auto rounded-xl bg-popover p-6 text-[15px] text-popover-foreground shadow-lg duration-100 outline-none sm:max-w-sm data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95",
           className
         )}
         {...props}
@@ -84,7 +86,7 @@ function DialogHeader({ className, ...props }: React.ComponentProps<"div">) {
   return (
     <div
       data-slot="dialog-header"
-      className={cn("flex flex-col gap-2", className)}
+      className={cn("flex shrink-0 flex-col gap-2 pr-8", className)}
       {...props}
     />
   )
@@ -102,7 +104,7 @@ function DialogFooter({
     <div
       data-slot="dialog-footer"
       className={cn(
-        "flex flex-col-reverse gap-4 sm:flex-row sm:justify-end",
+        "flex shrink-0 flex-col-reverse gap-4 sm:flex-row sm:justify-end",
         className
       )}
       {...props}
@@ -114,6 +116,28 @@ function DialogFooter({
         </DialogPrimitive.Close>
       )}
     </div>
+  )
+}
+
+/**
+ * Phần thân dialog — phần DUY NHẤT được cuộn khi nội dung dài; header và footer luôn nhìn thấy.
+ * Lề âm + padding ngang để viền focus của ô nhập không bị cắt và thanh cuộn nằm sát mép dialog.
+ *
+ *   <DialogContent>
+ *     <DialogHeader>…</DialogHeader>
+ *     <form action={…} className="contents">   // form "trong suốt": body + footer là con trực tiếp của cột
+ *       <DialogBody className="grid gap-4">…ô nhập…</DialogBody>
+ *       <DialogFooter>…Huỷ / Lưu…</DialogFooter>
+ *     </form>
+ *   </DialogContent>
+ */
+function DialogBody({ className, ...props }: React.ComponentProps<"div">) {
+  return (
+    <div
+      data-slot="dialog-body"
+      className={cn("-mx-6 min-h-0 flex-1 overflow-y-auto px-6 py-1", className)}
+      {...props}
+    />
   )
 }
 
@@ -148,6 +172,7 @@ function DialogDescription({
 
 export {
   Dialog,
+  DialogBody,
   DialogClose,
   DialogContent,
   DialogDescription,

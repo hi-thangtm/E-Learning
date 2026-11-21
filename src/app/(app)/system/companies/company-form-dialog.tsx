@@ -6,6 +6,7 @@ import { FormField } from "@/components/form-field";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
+  DialogBody,
   DialogClose,
   DialogContent,
   DialogDescription,
@@ -77,50 +78,52 @@ function CompanyForm({ company, onSuccess }: { company?: CompanyFormValue; onSuc
   const codeLocked = company?.isGroup ?? false;
 
   return (
-    <form action={formAction} className="grid gap-4" noValidate>
+    <form action={formAction} className="contents" noValidate>
       {company && <input type="hidden" name="id" value={company.id} />}
 
-      <FormField
-        label="Mã công ty"
-        htmlFor="code"
-        required={!codeLocked}
-        error={state.errors?.code}
-        hint={
-          codeLocked
-            ? "Không sửa được mã công ty tổng."
-            : "Chữ in hoa không dấu, không khoảng trắng. VD: CTYB"
-        }
-      >
-        <Input
-          id="code"
-          name="code"
-          defaultValue={state.values?.code ?? company?.code}
-          placeholder="VD: CTYB"
-          maxLength={20}
-          autoComplete="off"
-          autoFocus={!codeLocked}
-          readOnly={codeLocked}
-          className="uppercase placeholder:normal-case read-only:bg-muted read-only:text-muted-foreground"
-          aria-invalid={!!state.errors?.code}
-          aria-describedby={state.errors?.code ? "code-error" : undefined}
-        />
-      </FormField>
+      <DialogBody className="grid gap-4">
+        <FormField
+          label="Mã công ty"
+          htmlFor="code"
+          required={!codeLocked}
+          error={state.errors?.code}
+          hint={
+            codeLocked
+              ? "Không sửa được mã công ty tổng."
+              : "Chữ in hoa không dấu, không khoảng trắng. VD: CTYB"
+          }
+        >
+          <Input
+            id="code"
+            name="code"
+            defaultValue={state.values?.code ?? company?.code}
+            placeholder="VD: CTYB"
+            maxLength={20}
+            autoComplete="off"
+            autoFocus={!codeLocked}
+            readOnly={codeLocked}
+            className="uppercase placeholder:normal-case read-only:bg-muted read-only:text-muted-foreground"
+            aria-invalid={!!state.errors?.code}
+            aria-describedby={state.errors?.code ? "code-error" : undefined}
+          />
+        </FormField>
 
-      <FormField label="Tên công ty" htmlFor="name" required error={state.errors?.name}>
-        <Input
-          id="name"
-          name="name"
-          defaultValue={state.values?.name ?? company?.name}
-          placeholder="VD: Công ty Thành viên B"
-          maxLength={150}
-          autoComplete="off"
-          autoFocus={codeLocked}
-          aria-invalid={!!state.errors?.name}
-          aria-describedby={state.errors?.name ? "name-error" : undefined}
-        />
-      </FormField>
+        <FormField label="Tên công ty" htmlFor="name" required error={state.errors?.name}>
+          <Input
+            id="name"
+            name="name"
+            defaultValue={state.values?.name ?? company?.name}
+            placeholder="VD: Công ty Thành viên B"
+            maxLength={150}
+            autoComplete="off"
+            autoFocus={codeLocked}
+            aria-invalid={!!state.errors?.name}
+            aria-describedby={state.errors?.name ? "name-error" : undefined}
+          />
+        </FormField>
+      </DialogBody>
 
-      <DialogFooter className="pt-2">
+      <DialogFooter>
         <DialogClose render={<Button type="button" variant="outline" disabled={pending} />}>Huỷ</DialogClose>
         <Button type="submit" disabled={pending}>
           {pending ? "Đang lưu..." : "Lưu"}

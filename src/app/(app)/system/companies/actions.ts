@@ -7,6 +7,7 @@ import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { requireRole } from "@/lib/current-user";
 import { fieldErrors, formValues, type ActionState } from "@/lib/action-state";
+import { logAudit } from "@/lib/audit";
 
 /**
  * Công ty con — CHỈ Admin tập đoàn. Chỉ có 2 cấp: công ty tổng (parentId = NULL) → các công ty con.
@@ -115,16 +116,14 @@ export async function createCompanyAction(_prev: ActionState, formData: FormData
   try {
     await prisma.$transaction(async (tx) => {
       const company = await tx.company.create({ data: { code, name, parentId: parent.id } });
-      await tx.auditLog.create({
-        data: {
+      await logAudit(tx, {
           actorId: user.id,
           companyId: company.id,
           action: "COMPANY_CREATED",
           entityType: "Company",
           entityId: company.id,
           metadata: { code, name },
-        },
-      });
+        });
     });
   } catch (error) {
     if (isUniqueViolation(error)) return duplicateCompanyCode(code, formData);
@@ -171,8 +170,7 @@ export async function updateCompanyAction(_prev: ActionState, formData: FormData
   try {
     await prisma.$transaction([
       prisma.company.update({ where: { id: current.id }, data: { code, name } }),
-      prisma.auditLog.create({
-        data: {
+      logAudit(prisma, {
           actorId: user.id,
           companyId: current.id,
           action: "COMPANY_UPDATED",
@@ -182,8 +180,7 @@ export async function updateCompanyAction(_prev: ActionState, formData: FormData
             before: { code: current.code, name: current.name },
             after: { code, name },
           },
-        },
-      }),
+        }),
     ]);
   } catch (error) {
     if (isUniqueViolation(error)) return duplicateCompanyCode(code, formData);
@@ -217,16 +214,14 @@ export async function toggleCompanyAction(companyId: string): Promise<ActionStat
 
   await prisma.$transaction([
     prisma.company.update({ where: { id: current.id }, data: { isActive } }),
-    prisma.auditLog.create({
-      data: {
+    logAudit(prisma, {
         actorId: user.id,
         companyId: current.id,
         action: isActive ? "COMPANY_ACTIVATED" : "COMPANY_SUSPENDED",
         entityType: "Company",
         entityId: current.id,
         metadata: { code: current.code, activeUsers: current._count.users },
-      },
-    }),
+      }),
   ]);
 
   revalidatePath(PATH);
@@ -280,16 +275,14 @@ export async function createCompanyAdminAction(_prev: ActionState, formData: For
           companyId: company.id,
         },
       });
-      await tx.auditLog.create({
-        data: {
+      await logAudit(tx, {
           actorId: user.id,
           companyId: company.id,
           action: "COMPANY_ADMIN_CREATED",
           entityType: "User",
           entityId: admin.id,
           metadata: { employeeCode, fullName, companyCode: company.code },
-        },
-      });
+        });
     });
   } catch (error) {
     if (isUniqueViolation(error)) return duplicateEmployeeCode(employeeCode, formData);

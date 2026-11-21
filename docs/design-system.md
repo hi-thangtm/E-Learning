@@ -158,6 +158,8 @@ Nguồn: `src/@core/theme/customShadows.ts`. Đã khai báo trong `globals.css`.
 **Dialog** (`overrides/dialog.ts`)
 - Bo 8px (`rounded-xl`), `shadow-lg`.
 - Tiêu đề h5, padding 24px. Nội dung padding 24px. Hàng nút padding 24px, các nút cách nhau 16px.
+- **Không bao giờ cao hơn màn hình**: `DialogContent` cao tối đa `calc(100dvh - 4rem)`, bố cục cột
+  **header (cố định) – `DialogBody` (cuộn) – footer (cố định)**. Nút Huỷ / Lưu luôn nhìn thấy, chỉ phần thân cuộn. Chi tiết ở mục 5.3.
 
 ---
 
@@ -269,28 +271,41 @@ Cả bảng nằm trong **một card**:
 
 Theo `views/pages/dialog-examples/` và `views/apps/user/list/AddUserDrawer.tsx`.
 
+Cấu trúc **bắt buộc** cho mọi dialog: **header cố định – thân cuộn – footer cố định**
+(`src/components/ui/dialog.tsx`). Dialog không bao giờ cao quá màn hình: nội dung dài (xem trước video, trình soạn thảo, PDF…)
+thì chỉ `DialogBody` cuộn, nút Huỷ / Lưu luôn nhìn thấy (kể cả cửa sổ chỉ cao ~700px).
+
 ```tsx
 <Dialog>
-  <DialogContent className="max-w-2xl rounded-xl p-0 shadow-lg">
-    <DialogHeader className="p-6 pb-0 text-center">
-      <DialogTitle className="text-lg font-medium">Thêm người dùng</DialogTitle>
-      <DialogDescription className="text-[15px]">Nhập thông tin nhân viên mới</DialogDescription>
+  <DialogContent className="sm:max-w-2xl">          {/* cao tối đa 100dvh − 4rem, flex cột */}
+    <DialogHeader>                                  {/* cố định */}
+      <DialogTitle>Thêm người dùng</DialogTitle>
+      <DialogDescription>Nhập thông tin nhân viên mới</DialogDescription>
     </DialogHeader>
-    <form action={formAction} className="grid grid-cols-2 gap-4 p-6">
-      <div className="grid gap-1">
-        <Label htmlFor="employeeCode">Mã nhân viên</Label>
-        <Input id="employeeCode" name="employeeCode" placeholder="VD: NV001" />
-        <p className="text-[13px] text-destructive">{state.errors?.employeeCode}</p>
-      </div>
-      {/* ... các ô khác; ô dài dùng col-span-2 */}
-      <DialogFooter className="col-span-2 justify-center gap-4 pt-2">
-        <Button type="button" variant="outline">Huỷ</Button>
+    {/* form “trong suốt” (display: contents): body + footer là con trực tiếp của cột */}
+    <form action={formAction} className="contents" noValidate>
+      <input type="hidden" name="id" value={id} />    {/* input ẩn đặt ngoài DialogBody */}
+      <DialogBody className="grid grid-cols-2 gap-4">  {/* PHẦN DUY NHẤT được cuộn */}
+        <FormField label="Mã nhân viên" htmlFor="employeeCode" required error={err.employeeCode}>
+          <Input id="employeeCode" name="employeeCode" />
+        </FormField>
+        {/* ... các ô khác; ô dài dùng col-span-2 */}
+      </DialogBody>
+      <DialogFooter>                                 {/* cố định, KHÔNG thêm col-span / pt */}
+        <DialogClose render={<Button type="button" variant="outline" disabled={pending} />}>Huỷ</DialogClose>
         <Button type="submit" disabled={pending}>{pending ? "Đang lưu..." : "Lưu"}</Button>
       </DialogFooter>
     </form>
   </DialogContent>
 </Dialog>
 ```
+
+- Bố cục lưới của form (VD `grid grid-cols-2 gap-4`) đặt ở `DialogBody`, không đặt ở `<form>`.
+- `DialogBody` có lề âm + padding ngang để viền focus của ô nhập không bị cắt và thanh cuộn sát mép dialog.
+- Dialog không có form (VD màn hiện mật khẩu): `DialogHeader` – `DialogBody` – `DialogFooter` như trên.
+- Độ rộng: dialog ngắn `sm:max-w-lg`; form 2 cột `sm:max-w-2xl`; **dialog bài học (cả 3 loại) `sm:max-w-3xl`**.
+- Khung xem trước video trong dialog: tối đa **640px**, tỉ lệ 16:9, căn giữa (`mx-auto max-w-[640px]`).
+- Hộp xác nhận (`AlertDialog`) cũng cao tối đa `100dvh − 4rem` và tự cuộn nếu mô tả dài.
 
 - Form ngắn (≤ 8 ô): dialog. Form dài hoặc nhiều tab: trang riêng. Form cần nhìn bảng phía sau: `Sheet` bên phải (như `AddUserDrawer`, rộng 400px).
 - Lưới 2 cột, ô dài (mô tả, ghi chú) chiếm 2 cột.

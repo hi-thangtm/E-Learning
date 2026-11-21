@@ -6,6 +6,7 @@ import { FormField } from "@/components/form-field";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
+  DialogBody,
   DialogClose,
   DialogContent,
   DialogDescription,
@@ -69,44 +70,46 @@ function PositionForm({ position, onSuccess }: { position?: PositionFormValue; o
   }, [state, onSuccess]);
 
   return (
-    <form action={formAction} className="grid gap-4" noValidate>
+    <form action={formAction} className="contents" noValidate>
       {position && <input type="hidden" name="id" value={position.id} />}
 
-      <FormField
-        label="Mã chức danh"
-        htmlFor="code"
-        required
-        error={state.errors?.code}
-        hint="Chữ in hoa không dấu, không khoảng trắng. VD: NVKD"
-      >
-        <Input
-          id="code"
-          name="code"
-          defaultValue={state.values?.code ?? position?.code}
-          placeholder="VD: NVKD"
-          maxLength={20}
-          autoComplete="off"
-          autoFocus
-          className="uppercase placeholder:normal-case"
-          aria-invalid={!!state.errors?.code}
-          aria-describedby={state.errors?.code ? "code-error" : undefined}
-        />
-      </FormField>
+      <DialogBody className="grid gap-4">
+        <FormField
+          label="Mã chức danh"
+          htmlFor="code"
+          required
+          error={state.errors?.code}
+          hint="Chữ in hoa không dấu, không khoảng trắng. VD: NVKD"
+        >
+          <Input
+            id="code"
+            name="code"
+            defaultValue={state.values?.code ?? position?.code}
+            placeholder="VD: NVKD"
+            maxLength={20}
+            autoComplete="off"
+            autoFocus
+            className="uppercase placeholder:normal-case"
+            aria-invalid={!!state.errors?.code}
+            aria-describedby={state.errors?.code ? "code-error" : undefined}
+          />
+        </FormField>
 
-      <FormField label="Tên chức danh" htmlFor="name" required error={state.errors?.name}>
-        <Input
-          id="name"
-          name="name"
-          defaultValue={state.values?.name ?? position?.name}
-          placeholder="VD: Nhân viên kinh doanh"
-          maxLength={100}
-          autoComplete="off"
-          aria-invalid={!!state.errors?.name}
-          aria-describedby={state.errors?.name ? "name-error" : undefined}
-        />
-      </FormField>
+        <FormField label="Tên chức danh" htmlFor="name" required error={state.errors?.name}>
+          <Input
+            id="name"
+            name="name"
+            defaultValue={state.values?.name ?? position?.name}
+            placeholder="VD: Nhân viên kinh doanh"
+            maxLength={100}
+            autoComplete="off"
+            aria-invalid={!!state.errors?.name}
+            aria-describedby={state.errors?.name ? "name-error" : undefined}
+          />
+        </FormField>
+      </DialogBody>
 
-      <DialogFooter className="pt-2">
+      <DialogFooter>
         <DialogClose render={<Button type="button" variant="outline" disabled={pending} />}>Huỷ</DialogClose>
         <Button type="submit" disabled={pending}>
           {pending ? "Đang lưu..." : "Lưu"}
