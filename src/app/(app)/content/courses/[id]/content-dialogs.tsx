@@ -4,7 +4,7 @@ import { useState, useTransition } from "react";
 import type { LessonType } from "@prisma/client";
 import { FileText, ListChecks, PlayCircle } from "lucide-react";
 import { toast } from "sonner";
-import { FormField } from "@/components/form-field";
+import { FormField, FormGrid } from "@/components/form-field";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -62,7 +62,8 @@ export function SectionNameDialog({
           <DialogDescription>Chương gom các bài học theo chủ đề. Học viên học lần lượt từng chương.</DialogDescription>
         </DialogHeader>
         <form onSubmit={submit} noValidate className="contents">
-          <DialogBody className="grid gap-4">
+          <DialogBody>
+            <FormGrid>
             <FormField label="Tên chương" htmlFor="section-title" required error={error ?? undefined}>
               <Input
                 id="section-title"
@@ -75,6 +76,7 @@ export function SectionNameDialog({
                 aria-invalid={!!error}
               />
             </FormField>
+            </FormGrid>
           </DialogBody>
           <DialogFooter>
             <DialogClose render={<Button type="button" variant="outline" disabled={pending} />}>Huỷ</DialogClose>
@@ -138,7 +140,8 @@ export function AddLessonDialog({
           <DialogDescription>Chọn loại bài và đặt tên. Sau đó điền chi tiết bài ở bước tiếp theo.</DialogDescription>
         </DialogHeader>
         <form onSubmit={submit} noValidate className="contents">
-          <DialogBody className="grid gap-4">
+          <DialogBody>
+            <FormGrid>
             <div role="radiogroup" aria-label="Loại bài" className="grid grid-cols-3 gap-4">
               {TYPES.map((t) => {
                 const Icon = t.icon;
@@ -176,6 +179,7 @@ export function AddLessonDialog({
                 aria-invalid={!!error}
               />
             </FormField>
+            </FormGrid>
           </DialogBody>
           <DialogFooter>
             <DialogClose render={<Button type="button" variant="outline" disabled={pending} />}>Huỷ</DialogClose>

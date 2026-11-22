@@ -2,9 +2,10 @@
 
 import { useActionState, useEffect, useEffectEvent, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { FileText, FileUp, Info, ListChecks, PlayCircle, Trash2 } from "lucide-react";
+import Link from "next/link";
+import { FileText, FileUp, Info, ListChecks, PlayCircle, Trash2, TriangleAlert } from "lucide-react";
 import { toast } from "sonner";
-import { FormField } from "@/components/form-field";
+import { FormField, FormGrid } from "@/components/form-field";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -17,9 +18,12 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { initialActionState } from "@/lib/action-state";
 import { fileUrl } from "@/lib/file-url";
+import type { TopicStats } from "@/lib/question-labels";
+import { cn } from "@/lib/utils";
 import { removeLessonFileAction, updateLessonAction } from "./content-actions";
 import type { ContentLesson } from "./content-types";
 import { DocumentEditor } from "./document-editor";
@@ -40,12 +44,16 @@ export function LessonDialog({
   onOpenChange,
   readOnly,
   bunnyEnabled,
+  courseId,
+  questionBank,
 }: {
   lesson: ContentLesson;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   readOnly: boolean;
   bunnyEnabled: boolean;
+  courseId: string;
+  questionBank: TopicStats;
 }) {
   const meta = TYPE_META[lesson.type];
   const Icon = meta.icon;
@@ -63,7 +71,14 @@ export function LessonDialog({
             {readOnly ? "Bạn chỉ được xem bài này." : "Thay đổi được lưu khi bấm “Lưu bài học”."}
           </DialogDescription>
         </DialogHeader>
-        <LessonForm lesson={lesson} readOnly={readOnly} bunnyEnabled={bunnyEnabled} onDone={() => onOpenChange(false)} />
+        <LessonForm
+          lesson={lesson}
+          readOnly={readOnly}
+          bunnyEnabled={bunnyEnabled}
+          courseId={courseId}
+          questionBank={questionBank}
+          onDone={() => onOpenChange(false)}
+        />
       </DialogContent>
     </Dialog>
   );
@@ -73,11 +88,15 @@ function LessonForm({
   lesson,
   readOnly,
   bunnyEnabled,
+  courseId,
+  questionBank,
   onDone,
 }: {
   lesson: ContentLesson;
   readOnly: boolean;
   bunnyEnabled: boolean;
+  courseId: string;
+  questionBank: TopicStats;
   onDone: () => void;
 }) {
   const [state, formAction, pending] = useActionState(updateLessonAction, initialActionState);
@@ -98,8 +117,9 @@ function LessonForm({
   return (
     <form action={formAction} noValidate className="contents">
       <input type="hidden" name="id" value={lesson.id} />
-      <DialogBody className="grid gap-4">
-        <fieldset disabled={readOnly || pending} className="grid gap-4">
+      <DialogBody>
+        <fieldset disabled={readOnly || pending} className="min-w-0">
+          <FormGrid>
           <FormField label="Tên bài" htmlFor="lesson-title" required error={err.title}>
             <Input
               id="lesson-title"
@@ -135,7 +155,10 @@ function LessonForm({
               <VideoFields lesson={lesson} bunnyEnabled={bunnyEnabled} readOnly={readOnly} />
             </>
           )}
-          {lesson.type === "QUIZ" && <QuizFields lesson={lesson} errors={err} values={v} />}
+          {lesson.type === "QUIZ" && (
+            <QuizFields lesson={lesson} errors={err} values={v} bank={questionBank} courseId={courseId} />
+          )}
+          </FormGrid>
         </fieldset>
       </DialogBody>
 
@@ -257,42 +280,88 @@ function DocumentFields({ lesson, readOnly, error }: { lesson: ContentLesson; re
 
 // --- KIỂM TRA -----------------------------------------------------------------------------------
 
+const ALL_TOPICS = "__all__";
+
 function QuizFields({
   lesson,
   errors,
   values,
+  bank,
+  courseId,
 }: {
   lesson: ContentLesson;
   errors: Record<string, string>;
   values?: Record<string, string>;
+  /** Số câu đang dùng theo chủ đề trong ngân hàng của khoá */
+  bank: TopicStats;
+  courseId: string;
 }) {
   const [showAnswers, setShowAnswers] = useState(values ? values.showAnswers === "1" : lesson.showAnswers);
   const num = (key: keyof ContentLesson) => values?.[key] ?? (lesson[key] === null ? "" : String(lesson[key]));
+
+  // Chủ đề: chọn trong ngân hàng của khoá (kèm số câu đang dùng); chủ đề đang lưu mà không còn câu vẫn hiện "(0 câu)"
+  const [topic, setTopic] = useState<string>((values?.questionTopic ?? lesson.questionTopic) || ALL_TOPICS);
+  const [count, setCount] = useState(num("questionCount"));
+  const named = bank.topics.filter((t): t is { topic: string; count: number } => t.topic !== null);
+  const topicItems = [
+    { value: ALL_TOPICS, label: `Tất cả chủ đề (${bank.total} câu)` },
+    ...named.map((t) => ({ value: t.topic, label: `${t.topic} (${t.count} câu)` })),
+    ...(topic !== ALL_TOPICS && !named.some((t) => t.topic === topic) ? [{ value: topic, label: `${topic} (0 câu)` }] : []),
+  ];
+  const available = topic === ALL_TOPICS ? bank.total : (named.find((t) => t.topic === topic)?.count ?? 0);
+  const wanted = Number(count);
+  const tooMany = Number.isInteger(wanted) && wanted > available;
 
   return (
     <>
       <p className="flex items-start gap-2 rounded-md bg-info/16 px-4 py-2.5 text-[13px] text-info">
         <Info className="mt-0.5 size-4 shrink-0" />
-        Câu hỏi soạn ở Ngân hàng câu hỏi (Việc 16). Mỗi lần làm, hệ thống rút ngẫu nhiên số câu bên dưới.
+        <span>
+          Mỗi lần làm, hệ thống rút ngẫu nhiên số câu bên dưới từ{" "}
+          <Link href={`/content/questions?course=${courseId}`} target="_blank" className="font-medium underline underline-offset-2">
+            Ngân hàng câu hỏi
+          </Link>{" "}
+          của khoá (chỉ câu đang dùng).
+        </span>
       </p>
-      <FormField
-        label="Chủ đề câu hỏi"
-        htmlFor="questionTopic"
-        error={errors.questionTopic}
-        hint="Để trống = rút từ toàn bộ ngân hàng câu hỏi của khoá."
-      >
-        <Input
-          id="questionTopic"
-          name="questionTopic"
-          defaultValue={values?.questionTopic ?? lesson.questionTopic}
-          maxLength={100}
-          placeholder="VD: An toàn điện"
-          aria-invalid={!!errors.questionTopic}
-        />
+      <input type="hidden" name="questionTopic" value={topic === ALL_TOPICS ? "" : topic} />
+      <FormField label="Chủ đề câu hỏi" htmlFor="questionTopic-select" error={errors.questionTopic}>
+        <Select items={topicItems} value={topic} onValueChange={(v) => setTopic(v ? String(v) : ALL_TOPICS)}>
+          <SelectTrigger id="questionTopic-select" className="w-full" aria-invalid={!!errors.questionTopic}>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {topicItems.map((item) => (
+              <SelectItem key={item.value} value={item.value}>
+                {item.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </FormField>
-      <div className="grid grid-cols-2 gap-4">
+      <p
+        role="status"
+        className={cn(
+          "-mt-2 flex items-center gap-2 text-[13px]",
+          tooMany ? "rounded-md bg-warning/16 px-3 py-2 text-warning" : "text-muted-foreground",
+        )}
+      >
+        {tooMany && <TriangleAlert className="size-4 shrink-0" />}
+        Ngân hàng có {available} câu phù hợp
+        {tooMany ? ` — ít hơn số câu rút (${wanted}). Thêm câu hỏi hoặc giảm số câu trước khi phát hành.` : "."}
+      </p>
+      <FormGrid cols={2}>
         <FormField label="Số câu rút ngẫu nhiên" htmlFor="questionCount" required error={errors.questionCount}>
-          <Input id="questionCount" name="questionCount" type="number" min={1} max={200} defaultValue={num("questionCount")} aria-invalid={!!errors.questionCount} />
+          <Input
+            id="questionCount"
+            name="questionCount"
+            type="number"
+            min={1}
+            max={200}
+            value={count}
+            onChange={(e) => setCount(e.target.value)}
+            aria-invalid={!!errors.questionCount}
+          />
         </FormField>
         <FormField label="Điểm đạt (0–100)" htmlFor="passingScore" required error={errors.passingScore}>
           <Input id="passingScore" name="passingScore" type="number" min={0} max={100} defaultValue={num("passingScore")} aria-invalid={!!errors.passingScore} />
@@ -321,7 +390,7 @@ function QuizFields({
             aria-invalid={!!errors.maxAttempts}
           />
         </FormField>
-      </div>
+      </FormGrid>
       <input type="hidden" name="showAnswers" value={showAnswers ? "1" : "0"} />
       <div className="flex items-start gap-3">
         <Switch id="showAnswers" checked={showAnswers} onCheckedChange={setShowAnswers} className="mt-0.5" />

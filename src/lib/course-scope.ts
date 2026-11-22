@@ -1,3 +1,4 @@
+import "server-only";
 import type { Prisma } from "@prisma/client";
 import type { CurrentUser } from "@/lib/current-user";
 import { prisma } from "@/lib/db";

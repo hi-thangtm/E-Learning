@@ -1,15 +1,17 @@
 import type { Metadata } from "next";
-import { Plus } from "lucide-react";
+import { Plus, Star } from "lucide-react";
 import type { Prisma } from "@prisma/client";
 import { CourseStatusBadge, courseVersionLabel } from "@/components/course-status-badge";
 import { CourseThumbnail } from "@/components/course-thumbnail";
 import { DataTable, type DataTableColumn, type DataTableFilterConfig } from "@/components/data-table/data-table";
 import { PageHeader } from "@/components/page-header";
+import { StatusBadge } from "@/components/status-badge";
 import { Button } from "@/components/ui/button";
 import { canEditCourse, courseVisibleWhere } from "@/lib/course-scope";
 import { requireRole } from "@/lib/current-user";
 import { prisma } from "@/lib/db";
 import { formatDateTime, formatNumber } from "@/lib/format";
+import { formatRating, getRatingSummaries } from "@/lib/reviews";
 import { getEnumParam, getParam, parseTableParams, type SearchParams } from "@/lib/table-params";
 import { CourseCreateDialog } from "./course-create-dialog";
 
@@ -25,6 +27,7 @@ export default async function CoursesPage({ searchParams }: { searchParams: Prom
   const sp = await searchParams;
   const { q, page, pageSize, skip, take } = parseTableParams(sp);
   const status = getEnumParam(sp, "status", STATUS_VALUES);
+  const proposal = getEnumParam(sp, "proposal", ["pending"] as const);
 
   const [categories, companies, scope] = await Promise.all([
     prisma.courseCategory.findMany({
@@ -53,6 +56,7 @@ export default async function CoursesPage({ searchParams }: { searchParams: Prom
       ...(categoryId ? [{ categoryId }] : []),
       ...(status ? [{ status }] : []),
       ...(ownerCompanyId ? [{ ownerCompanyId }] : []),
+      ...(proposal ? [{ versions: { some: { status: "PROPOSED" as const } } }] : []),
     ],
   };
 
@@ -74,10 +78,18 @@ export default async function CoursesPage({ searchParams }: { searchParams: Prom
         ownerCompanyId: true,
         ownerCompany: { select: { code: true, name: true } },
         category: { select: { name: true, isActive: true } },
-        _count: { select: { enrollments: { where: { status: { not: "CANCELLED" } } } } },
+        _count: {
+          select: {
+            enrollments: { where: { status: { not: "CANCELLED" } } },
+            versions: { where: { status: "PROPOSED" } },
+          },
+        },
       },
     }),
   ]);
+
+  // Đánh giá (Việc 25): ★ điểm TB · số lượt
+  const ratings = await getRatingSummaries(courses.map((c) => c.id));
 
   type Row = (typeof courses)[number];
 
@@ -94,8 +106,9 @@ export default async function CoursesPage({ searchParams }: { searchParams: Prom
             </p>
             <p className="flex items-center gap-2 text-[13px]">
               {c.code}
+              {c._count.versions > 0 && <StatusBadge tone="warning">Chờ duyệt MAJOR</StatusBadge>}
               {!canEditCourse(actor, c) && (
-                <span className="rounded-sm bg-muted px-1.5 text-[12px] text-muted-foreground">Chỉ xem</span>
+                <span className="inline-flex shrink-0 items-center rounded-sm bg-muted px-1.5 text-[12px] whitespace-nowrap text-muted-foreground">Chỉ xem</span>
               )}
             </p>
           </div>
@@ -134,6 +147,23 @@ export default async function CoursesPage({ searchParams }: { searchParams: Prom
       className: "w-28 text-right",
       cell: (c) => formatNumber(c._count.enrollments),
     },
+    {
+      key: "rating",
+      header: "Đánh giá",
+      className: "w-32",
+      cell: (c) => {
+        const r = ratings.get(c.id);
+        return r ? (
+          <span className="inline-flex items-center gap-1 whitespace-nowrap">
+            <Star className="size-3.5 fill-warning text-warning" />
+            <span className="text-foreground">{formatRating(r.average)}</span>
+            <span className="text-muted-foreground">· {formatNumber(r.total)}</span>
+          </span>
+        ) : (
+          <span className="text-foreground/45">—</span>
+        );
+      },
+    },
     { key: "updated", header: "Cập nhật", className: "w-40", cell: (c) => formatDateTime(c.updatedAt) },
   ];
 
@@ -162,6 +192,12 @@ export default async function CoursesPage({ searchParams }: { searchParams: Prom
         { value: "PUBLISHED", label: "Đã phát hành" },
         { value: "ARCHIVED", label: "Lưu trữ" },
       ],
+    },
+    {
+      param: "proposal",
+      label: "Đề xuất",
+      allLabel: "Tất cả khoá",
+      options: [{ value: "pending", label: "Có đề xuất chờ duyệt" }],
     },
   );
 

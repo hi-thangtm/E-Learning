@@ -6,7 +6,9 @@ import { DataTableSearch } from "@/components/data-table/data-table-search";
 import { PageHeader } from "@/components/page-header";
 import { requireUser } from "@/lib/current-user";
 import { prisma } from "@/lib/db";
+import { getPendingAcknowledgements } from "@/lib/acknowledgements";
 import { getMyEnrollmentCounts, getMyEnrollments, getNextLessonIds, MY_TABS, type MyTab } from "@/lib/learning";
+import { getPathLocks, lockKey } from "@/lib/path-lock";
 import { buildHref, getEnumParam, getParam, type SearchParams } from "@/lib/table-params";
 import { cn } from "@/lib/utils";
 import { CourseCard } from "./course-card";
@@ -44,14 +46,21 @@ export default async function MyCoursesPage({ searchParams }: { searchParams: Pr
   });
   const categoryId = categories.find((c) => c.id === getParam(sp, "category"))?.id;
 
-  const [enrollments, counts] = await Promise.all([
+  const [enrollments, counts, pendingUpdates] = await Promise.all([
     getMyEnrollments(user.id, { tab, q, categoryId }),
     getMyEnrollmentCounts(user.id, { q, categoryId }),
+    getPendingAcknowledgements(user.id),
   ]);
-  const nextLessons = await getNextLessonIds(
-    user.id,
-    enrollments.filter((e) => e.status !== "COMPLETED").map((e) => e.course.id),
-  );
+  // Khoá đã học xong nhưng chưa xác nhận bản MINOR mới -> badge "Có cập nhật"
+  const updatedCourses = new Set(pendingUpdates.map((p) => p.courseId));
+  const [nextLessons, pathLocks] = await Promise.all([
+    getNextLessonIds(
+      user.id,
+      enrollments.filter((e) => e.status !== "COMPLETED").map((e) => e.course.id),
+    ),
+    // Khoá 🔒 theo lộ trình (Việc 23B)
+    getPathLocks(enrollments.map((e) => ({ userId: user.id, courseId: e.course.id, learningPathId: e.learningPathId }))),
+  ]);
   const filtered = !!q || !!categoryId;
 
   return (
@@ -76,7 +85,7 @@ export default async function MyCoursesPage({ searchParams }: { searchParams: Pr
                 {TAB_LABELS[t]}
                 <span
                   className={cn(
-                    "rounded-full px-2 text-[12px] tabular-nums",
+                    "inline-flex shrink-0 items-center rounded-full px-2 text-[12px] whitespace-nowrap tabular-nums",
                     t === "overdue" && counts.overdue > 0
                       ? "bg-destructive/16 text-destructive"
                       : active
@@ -125,7 +134,13 @@ export default async function MyCoursesPage({ searchParams }: { searchParams: Pr
           ) : (
             <div className="grid grid-cols-3 gap-6">
               {enrollments.map((e) => (
-                <CourseCard key={e.id} enrollment={e} nextLessonId={nextLessons.get(e.course.id) ?? null} />
+                <CourseCard
+                  key={e.id}
+                  enrollment={e}
+                  nextLessonId={nextLessons.get(e.course.id) ?? null}
+                  hasUpdate={updatedCourses.has(e.course.id)}
+                  pathLock={pathLocks.get(lockKey(user.id, e.course.id)) ?? null}
+                />
               ))}
             </div>
           )}

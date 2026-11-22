@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { Info, TriangleAlert, Users } from "lucide-react";
 import { toast } from "sonner";
 import { FormField } from "@/components/form-field";
+import { SegmentedControl } from "@/components/segmented-control";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -15,30 +16,41 @@ import { formatNumber } from "@/lib/format";
 import { flattenTree } from "@/lib/tree";
 import { cn } from "@/lib/utils";
 import { previewRuleAction, saveRuleAction } from "./actions";
-import type { RuleFormOptions, RuleFormValue, RulePreview } from "./types";
+import type { RuleFormOptions, RuleFormValue, RuleKind, RulePreview } from "./types";
 
 const NONE = "__none__";
 const WHOLE_GROUP = "__group__";
 
 /**
  * Form tạo / sửa quy tắc giao tự động. Xem trước trực tiếp khi đổi điều kiện (chờ 400ms).
- * Khi sửa: khoá học cố định; thu hẹp nhóm không thu hồi lượt đã giao.
+ * Quy tắc giao khoá học HOẶC lộ trình. Khi sửa: loại + khoá / lộ trình cố định; thu hẹp nhóm không thu hồi lượt đã giao.
  */
-export function RuleForm({ options, rule, initialCourseId }: { options: RuleFormOptions; rule?: RuleFormValue; initialCourseId?: string | null }) {
+export function RuleForm({
+  options,
+  rule,
+  initial,
+}: {
+  options: RuleFormOptions;
+  rule?: RuleFormValue;
+  initial?: { kind: RuleKind; id: string } | null;
+}) {
   const router = useRouter();
   const [state, formAction, pending] = useActionState(saveRuleAction, initialActionState);
   const err = state.errors ?? {};
 
   const [name, setName] = useState(rule?.name ?? "");
-  const [courseId, setCourseId] = useState(rule?.courseId ?? initialCourseId ?? "");
+  const [kind, setKind] = useState<RuleKind>(rule?.kind ?? initial?.kind ?? "course");
+  const [courseId, setCourseId] = useState(rule?.subjectId ?? initial?.id ?? "");
   const [dueInDays, setDueInDays] = useState(String(rule?.dueInDays ?? options.defaultDays));
   const [companyId, setCompanyId] = useState(rule ? rule.targetCompanyId : options.isGroupAdmin ? "" : options.actorCompanyId);
   const [departmentId, setDepartmentId] = useState(rule?.departmentId ?? "");
   const [includeSub, setIncludeSub] = useState(rule?.includeSubDepartments ?? true);
   const [positionId, setPositionId] = useState(rule?.positionId ?? "");
 
-  const course = options.courses.find((c) => c.id === courseId);
-  // Khoá của công ty con -> công ty áp dụng cố định = công ty đó
+  const subjects = kind === "path" ? options.paths : options.courses;
+  const noun = kind === "path" ? "lộ trình" : "khoá học";
+  const course = subjects.find((c) => c.id === courseId);
+  // Khoá / lộ trình của công ty con -> công ty áp dụng cố định = công ty đó
   const lockedCompany = course && course.ownerCompanyId !== options.groupCompanyId ? course.ownerCompanyId : !options.isGroupAdmin ? options.actorCompanyId : null;
   const effectiveCompany = lockedCompany ?? companyId;
 
@@ -61,7 +73,7 @@ export function RuleForm({ options, rule, initialCourseId }: { options: RuleForm
         try {
           setPreview(
             await previewRuleAction(
-              { courseId, targetCompanyId: effectiveCompany, departmentId, positionId, includeSubDepartments: includeSub },
+              { kind, subjectId: courseId, targetCompanyId: effectiveCompany, departmentId, positionId, includeSubDepartments: includeSub },
               Number(dueInDays) || options.defaultDays,
               rule?.id,
             ),
@@ -72,9 +84,9 @@ export function RuleForm({ options, rule, initialCourseId }: { options: RuleForm
       });
     }, 400);
     return () => clearTimeout(t);
-  }, [courseId, effectiveCompany, departmentId, positionId, includeSub, dueInDays, options.defaultDays, rule?.id]);
+  }, [kind, courseId, effectiveCompany, departmentId, positionId, includeSub, dueInDays, options.defaultDays, rule?.id]);
 
-  const courseItems = options.courses.map((c) => ({
+  const courseItems = subjects.map((c) => ({
     value: c.id,
     label: `${c.title} (${c.code}) · công ty ${c.ownerCode}${c.published ? "" : " — không còn phát hành"}`,
   }));
@@ -95,9 +107,10 @@ export function RuleForm({ options, rule, initialCourseId }: { options: RuleForm
   ];
 
   return (
-    <form action={formAction} noValidate className="grid grid-cols-5 gap-6">
+    <form action={formAction} noValidate className="grid grid-cols-5 items-start gap-6">
       {rule && <input type="hidden" name="id" value={rule.id} />}
-      <input type="hidden" name="courseId" value={courseId} />
+      <input type="hidden" name="kind" value={kind} />
+      <input type="hidden" name="subjectId" value={courseId} />
       <input type="hidden" name="targetCompanyId" value={effectiveCompany} />
       <input type="hidden" name="departmentId" value={departmentId} />
       <input type="hidden" name="positionId" value={positionId} />
@@ -109,10 +122,34 @@ export function RuleForm({ options, rule, initialCourseId }: { options: RuleForm
           <Input id="name" name="name" value={name} onChange={(e) => setName(e.target.value)} maxLength={150} placeholder="VD: Nhân viên kinh doanh học Quy trình bán hàng" aria-invalid={!!err.name} />
         </FormField>
 
-        <FormField label="Khoá học" htmlFor="course-select" required error={err.courseId} hint={rule ? "Không đổi được khoá học của quy tắc đã tạo." : "Chỉ khoá đã phát hành trong phạm vi của bạn."}>
-          <Select items={courseItems} value={courseId || null} disabled={!!rule} onValueChange={(v) => { setCourseId(v ? String(v) : ""); setDepartmentId(""); }}>
-            <SelectTrigger id="course-select" className="w-full" aria-invalid={!!err.courseId}>
-              <SelectValue placeholder="Chọn khoá học" />
+        <FormField label="Giao" htmlFor="rule-kind" hint={rule ? "Không đổi được loại của quy tắc đã tạo." : undefined}>
+          <SegmentedControl
+            id="rule-kind"
+            ariaLabel="Quy tắc giao khoá học hay lộ trình"
+            options={[
+              { value: "course", label: "Khoá học" },
+              { value: "path", label: "Lộ trình" },
+            ]}
+            value={kind}
+            disabled={!!rule}
+            onChange={(k) => {
+              setKind(k);
+              setCourseId("");
+              setPreview(null);
+            }}
+          />
+        </FormField>
+
+        <FormField
+          label={kind === "path" ? "Lộ trình" : "Khoá học"}
+          htmlFor="course-select"
+          required
+          error={err.subjectId}
+          hint={rule ? `Không đổi được ${noun} của quy tắc đã tạo.` : `Chỉ ${noun} đã phát hành trong phạm vi của bạn.`}
+        >
+          <Select key={kind} items={courseItems} value={courseId || null} disabled={!!rule} onValueChange={(v) => { setCourseId(v ? String(v) : ""); setDepartmentId(""); }}>
+            <SelectTrigger id="course-select" className="w-full" aria-invalid={!!err.subjectId}>
+              <SelectValue placeholder={`Chọn ${noun}`} />
             </SelectTrigger>
             <SelectContent>
               {courseItems.map((i) => (
@@ -137,7 +174,7 @@ export function RuleForm({ options, rule, initialCourseId }: { options: RuleForm
             label="Công ty"
             htmlFor="company-select"
             error={err.targetCompanyId}
-            hint={lockedCompany ? (course && course.ownerCompanyId !== options.groupCompanyId ? "Khoá của công ty con chỉ áp dụng trong công ty đó." : "Bạn chỉ tạo quy tắc cho công ty mình.") : undefined}
+            hint={lockedCompany ? (course && course.ownerCompanyId !== options.groupCompanyId ? `${kind === "path" ? "Lộ trình" : "Khoá"} của công ty con chỉ áp dụng trong công ty đó.` : "Bạn chỉ tạo quy tắc cho công ty mình.") : undefined}
           >
             <Select
               items={companyItems}
@@ -198,7 +235,7 @@ export function RuleForm({ options, rule, initialCourseId }: { options: RuleForm
 
         <p className="flex items-start gap-2 rounded-md bg-info/16 px-4 py-2.5 text-[13px] text-info">
           <Info className="mt-0.5 size-4 shrink-0" />
-          Lưu quy tắc sẽ giao ngay cho mọi người đang khớp, và tự giao cho người vào nhóm sau này. Thu hẹp nhóm không thu hồi lượt đã giao, chỉ áp dụng thêm cho người mới khớp.
+          {kind === "path" ? "Lộ trình được giao = mọi khoá của lộ trình, cùng một hạn. " : ""}Lưu quy tắc sẽ giao ngay cho mọi người đang khớp, và tự giao cho người vào nhóm sau này. Thu hẹp nhóm không thu hồi lượt đã giao, chỉ áp dụng thêm cho người mới khớp.
         </p>
 
         <div className="flex justify-end gap-4 border-t border-border pt-4">
@@ -218,7 +255,7 @@ export function RuleForm({ options, rule, initialCourseId }: { options: RuleForm
           Xem trước
         </h2>
         {!courseId ? (
-          <p className="text-[15px] text-muted-foreground">Chọn khoá học để xem ai sẽ được giao.</p>
+          <p className="text-[15px] text-muted-foreground">Chọn {noun} để xem ai sẽ được giao.</p>
         ) : !preview ? (
           <p className="text-[15px] text-muted-foreground">Đang tính...</p>
         ) : !preview.ok ? (
@@ -229,14 +266,20 @@ export function RuleForm({ options, rule, initialCourseId }: { options: RuleForm
             {!preview.coursePublished && (
               <p className="flex items-start gap-2 rounded-md bg-warning/16 px-3 py-2 text-[13px] text-warning">
                 <TriangleAlert className="mt-0.5 size-4 shrink-0" />
-                Khoá không còn phát hành — quy tắc tạm không giao.
+                {preview.kind === "path" ? "Lộ trình" : "Khoá"} không còn phát hành — quy tắc tạm không giao.
               </p>
             )}
             <p className="text-[15px] text-foreground">
               Hiện có <strong className="font-medium">{formatNumber(preview.matched)}</strong> người khớp:{" "}
               <span className="text-success">{formatNumber(preview.newCount)} giao mới</span>,{" "}
-              <span>{formatNumber(preview.existingCount)} đã có</span>,{" "}
-              <span className="text-muted-foreground">{formatNumber(preview.completedCount)} đã hoàn thành</span>.
+              <span>
+                {formatNumber(preview.existingCount)} đã có{preview.kind === "path" ? " lộ trình" : ""}
+              </span>
+              ,{" "}
+              <span className="text-muted-foreground">
+                {formatNumber(preview.completedCount)} đã hoàn thành{preview.kind === "path" ? " toàn bộ" : ""}
+              </span>
+              .
             </p>
             {preview.users.length > 0 && (
               <ul className="grid gap-1 border-t border-border pt-3 text-[15px]">

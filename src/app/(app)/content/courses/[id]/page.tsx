@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { redirect } from "next/navigation";
-import { Construction, Eye, TriangleAlert } from "lucide-react";
+import { Eye, TriangleAlert } from "lucide-react";
 import { LessonBody } from "@/components/learning/lesson-body";
 import { LessonShell } from "@/components/learning/lesson-shell";
 import { getLessonDetail, getPreviewOutline } from "@/lib/learning";
@@ -8,19 +9,22 @@ import { canEditCourse, findCourseInScope } from "@/lib/course-scope";
 import { requireRole } from "@/lib/current-user";
 import { prisma } from "@/lib/db";
 import { isBunnyConfigured } from "@/lib/bunny";
+import { ACTIVE_QUESTION_WHERE, getQuizBankIssues, getTopicStats } from "@/lib/question-bank";
+import { getSetting } from "@/lib/settings";
+import { canManageMajor, canProposeMajor, canPublishMinor, isUpdatable } from "@/lib/versioning";
 import { isBlankHtml } from "@/lib/sanitize";
 import { getParam, type SearchParams } from "@/lib/table-params";
 import { ContentEditor } from "./content-editor";
 import type { ContentSection } from "./content-types";
 import { CourseHeader } from "./course-header";
 import { CourseInfoForm } from "./course-info-form";
+import { CourseReviews } from "./course-reviews";
 import { COURSE_TABS, CourseTabs, type CourseTab } from "./course-tabs";
+import { ProposalBanner } from "./proposal-banner";
+import { VersionHistory } from "./version-history";
 
 export const metadata: Metadata = { title: "Soạn khoá học" };
 
-const PLACEHOLDER: Record<Exclude<CourseTab, "info" | "content" | "preview">, string> = {
-  reviews: "Điểm sao và nhận xét của học viên sau khi học xong.",
-};
 
 export default async function CourseEditorPage({
   params,
@@ -129,15 +133,55 @@ export default async function CourseEditorPage({
       : [];
   const published = course.currentVersion > 0;
 
+  // Ngân hàng câu hỏi: số câu đang dùng (nút ở thanh trên) + thống kê chủ đề và lỗi bài kiểm tra (tab Nội dung)
+  const [activeQuestions, questionBank] = await Promise.all([
+    prisma.question.count({ where: { courseId: course.id, ...ACTIVE_QUESTION_WHERE } }),
+    tab === "content" ? getTopicStats(course.id) : Promise.resolve(null),
+  ]);
+  // getQuizBankIssues dùng chung với bước phát hành (Việc 21)
+  const quizIssues = questionBank ? await getQuizBankIssues(course.id, questionBank) : [];
+
   // Tab Xem trước: như học viên thấy (bỏ bài / chương ẩn), mở mọi bài, không ghi tiến độ
   const previewOutline = tab === "preview" ? await getPreviewOutline(course.id) : null;
   const previewLessons = previewOutline?.sections.flatMap((s) => s.lessons) ?? [];
   const previewLessonId = (previewLessons.find((l) => l.id === getParam(sp, "lesson")) ?? previewLessons[0])?.id;
   const previewLesson = previewLessonId ? await getLessonDetail(previewLessonId) : null;
 
+  // Bản cập nhật MINOR / MAJOR (Việc 21A): quyền + đề xuất MAJOR đang chờ duyệt
+  const [pendingProposal, defaultDueDays] = await Promise.all([
+    prisma.courseVersion.findFirst({
+      where: { courseId: course.id, status: "PROPOSED" },
+      orderBy: { proposedAt: "desc" },
+      select: { id: true, changeSummary: true, dueInDays: true, proposedAt: true, createdAt: true, proposedBy: { select: { fullName: true } } },
+    }),
+    getSetting("DEFAULT_DUE_DAYS"),
+  ]);
+  const update = {
+    updatable: isUpdatable(course),
+    allowMinor: canPublishMinor(actor, course),
+    allowMajor: canManageMajor(actor, course),
+    allowPropose: canProposeMajor(actor, course),
+    majorBlockedReason: pendingProposal && canProposeMajor(actor, course) ? "Khoá đang có 1 đề xuất MAJOR chờ duyệt." : null,
+    defaultDueDays,
+  };
+
   return (
     <>
-      <CourseHeader course={course} canEdit={canEdit} />
+      <CourseHeader course={course} canEdit={canEdit} questionCount={activeQuestions} update={update} />
+
+      {pendingProposal && (
+        <ProposalBanner
+          course={{ id: course.id, code: course.code, title: course.title }}
+          canManage={update.allowMajor}
+          proposal={{
+            id: pendingProposal.id,
+            proposerName: pendingProposal.proposedBy?.fullName ?? "Không rõ",
+            proposedAt: (pendingProposal.proposedAt ?? pendingProposal.createdAt).toISOString(),
+            summaryHtml: pendingProposal.changeSummary ?? "",
+            dueInDays: pendingProposal.dueInDays ?? defaultDueDays,
+          }}
+        />
+      )}
 
       <section className="rounded-md bg-card shadow-md">
         <CourseTabs courseId={course.id} active={tab} />
@@ -163,9 +207,24 @@ export default async function CourseEditorPage({
               {published && (
                 <p role="status" className="flex items-start gap-2 rounded-md bg-warning/16 px-4 py-3 text-[15px] text-warning">
                   <TriangleAlert className="mt-0.5 size-5 shrink-0" />
-                  Khoá đã phát hành — thay đổi có hiệu lực ngay với học viên. Sửa xong, hãy phát hành phiên bản mới để báo
-                  cho người học (Việc 21).
+                  Khoá đã phát hành — sửa xong, hãy Phát hành bản cập nhật để báo cho người học.
                 </p>
+              )}
+              {quizIssues.length > 0 && (
+                <div role="status" className="flex items-start gap-2 rounded-md bg-warning/16 px-4 py-3 text-[15px] text-warning">
+                  <TriangleAlert className="mt-0.5 size-5 shrink-0" />
+                  <div className="space-y-1">
+                    <p className="font-medium">Bài kiểm tra cần xử lý trước khi phát hành</p>
+                    <ul className="list-disc space-y-0.5 pl-5 text-[13px]">
+                      {quizIssues.map((issue) => (
+                        <li key={issue}>{issue}</li>
+                      ))}
+                    </ul>
+                    <Link href={`/content/questions?course=${course.id}`} className="inline-block text-[13px] font-medium underline underline-offset-2">
+                      Mở ngân hàng câu hỏi
+                    </Link>
+                  </div>
+                </div>
               )}
               {!canEdit && (
                 <p className="rounded-md bg-muted px-4 py-3 text-[13px] text-muted-foreground">
@@ -178,8 +237,11 @@ export default async function CourseEditorPage({
                 readOnly={!canEdit}
                 published={published}
                 bunnyEnabled={isBunnyConfigured()}
+                questionBank={questionBank ?? { total: 0, topics: [] }}
               />
             </div>
+          ) : tab === "versions" ? (
+            <VersionHistory courseId={course.id} />
           ) : tab === "preview" ? (
             previewOutline && previewLesson ? (
               <div className="-m-6 overflow-hidden rounded-b-md">
@@ -211,13 +273,7 @@ export default async function CourseEditorPage({
               </div>
             )
           ) : (
-            <div className="flex flex-col items-center justify-center gap-3 py-16 text-center">
-              <div className="flex size-16 items-center justify-center rounded-full bg-primary/16 text-primary">
-                <Construction className="size-8" />
-              </div>
-              <p className="text-lg font-medium text-foreground">Sẽ có ở bước sau</p>
-              <p className="max-w-sm text-[15px] text-muted-foreground">{PLACEHOLDER[tab]}</p>
-            </div>
+            <CourseReviews actor={actor} courseId={course.id} searchParams={sp} />
           )}
         </div>
       </section>

@@ -23,6 +23,7 @@ export default async function EditRulePage({ params }: { params: Promise<{ id: s
             id: true,
             name: true,
             courseId: true,
+            learningPathId: true,
             dueInDays: true,
             targetCompanyId: true,
             departmentId: true,
@@ -32,9 +33,10 @@ export default async function EditRulePage({ params }: { params: Promise<{ id: s
           },
         })
       : null;
-  if (!rule || !rule.courseId) redirect("/assign/rules");
+  const subjectId = rule?.courseId ?? rule?.learningPathId;
+  if (!rule || !subjectId) redirect("/assign/rules");
 
-  const options = await loadRuleFormOptions(actor, rule.courseId);
+  const options = await loadRuleFormOptions(actor, { courseId: rule.courseId, pathId: rule.learningPathId });
 
   return (
     <>
@@ -53,7 +55,8 @@ export default async function EditRulePage({ params }: { params: Promise<{ id: s
         rule={{
           id: rule.id,
           name: rule.name,
-          courseId: rule.courseId,
+          kind: rule.courseId ? "course" : "path",
+          subjectId,
           dueInDays: rule.dueInDays ?? options.defaultDays,
           targetCompanyId: rule.targetCompanyId ?? "",
           departmentId: rule.departmentId ?? "",

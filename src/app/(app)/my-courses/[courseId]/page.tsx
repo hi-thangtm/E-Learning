@@ -14,16 +14,26 @@ import {
   Play,
   PlayCircle,
   RotateCcw,
+  Route,
+  BadgeCheck,
+  RefreshCcw,
 } from "lucide-react";
 import { CourseThumbnail } from "@/components/course-thumbnail";
 import { ProgressRing } from "@/components/progress";
 import { StatusBadge } from "@/components/status-badge";
 import { buttonVariants } from "@/components/ui/button";
 import { defaultCoverUrl } from "@/lib/course-cover";
+import { getPendingAcknowledgements, getVersionNote } from "@/lib/acknowledgements";
+import { LessonContent } from "@/components/learning/lesson-content";
+import { VersionUpdateBanner } from "@/components/learning/version-update-banner";
 import { requireUser } from "@/lib/current-user";
 import { LEARNER_SOURCE_LABELS } from "@/lib/enrollment-labels";
 import { formatDate } from "@/lib/format";
 import { dueHint, getCourseOutline, getMyEnrollment, type OutlineLesson } from "@/lib/learning";
+import { cancellableSelfEnrollment } from "@/lib/library";
+import { canReview, getMyReview } from "@/lib/reviews";
+import { CancelEnrollmentButton } from "./cancel-enrollment-button";
+import { MyReview } from "./my-review";
 import { cn } from "@/lib/utils";
 import { formatDuration } from "@/lib/youtube";
 
@@ -40,8 +50,17 @@ export default async function MyCourseDetailPage({ params }: { params: Promise<{
   const enrollment = await getMyEnrollment(user.id, courseId);
   if (!enrollment) redirect("/my-courses");
 
-  const outline = await getCourseOutline(user.id, courseId);
   const course = enrollment.course;
+  const [outline, pendingUpdates, versionNote, cancellable, reviewable, myReview] = await Promise.all([
+    getCourseOutline(user.id, courseId),
+    getPendingAcknowledgements(user.id, courseId),
+    getVersionNote(courseId, enrollment, course.currentVersion),
+    // Tự đăng ký, chưa học gì -> cho huỷ đăng ký (Việc 24)
+    enrollment.source === "SELF" && enrollment.status === "NOT_STARTED" ? cancellableSelfEnrollment(user.id, courseId) : null,
+    // Đánh giá (Việc 25): chỉ khi đã học xong
+    canReview(user.id, courseId),
+    getMyReview(user.id, courseId),
+  ]);
   const overdue = !!enrollment.dueDate && enrollment.dueDate < new Date() && enrollment.status !== "COMPLETED";
   const hint = enrollment.status === "COMPLETED" ? null : dueHint(enrollment.dueDate, overdue);
   const source = LEARNER_SOURCE_LABELS[enrollment.source];
@@ -57,6 +76,8 @@ export default async function MyCourseDetailPage({ params }: { params: Promise<{
           ? { label: "Bắt đầu học", lessonId: outline.nextLessonId, icon: Play }
           : { label: "Tiếp tục học", lessonId: outline.nextLessonId, icon: Play };
   const MainIcon = main?.icon;
+  // Khoá 🔒 theo lộ trình (Việc 23B): nút chính chuyển thành “Xem lộ trình”
+  const pathLock = outline.pathLock;
 
   return (
     <div className="space-y-6">
@@ -131,7 +152,12 @@ export default async function MyCourseDetailPage({ params }: { params: Promise<{
               </>
             )}
           </p>
-          {main?.lessonId && MainIcon && (
+          {pathLock ? (
+            <Link href={`/learning-paths/${pathLock.pathId}`} className={cn(buttonVariants({ variant: "secondary" }), "w-full")}>
+              <Route />
+              Xem lộ trình
+            </Link>
+          ) : main?.lessonId && MainIcon && (
             <Link
               href={`/learn/${course.id}/${main.lessonId}`}
               prefetch={false}
@@ -141,8 +167,56 @@ export default async function MyCourseDetailPage({ params }: { params: Promise<{
               {main.label}
             </Link>
           )}
+          {cancellable && <CancelEnrollmentButton courseId={course.id} courseTitle={course.title} />}
         </div>
       </section>
+
+      {pathLock && (
+        <section role="status" className="flex items-start gap-3 rounded-md border border-border bg-muted px-5 py-4">
+          <Lock className="mt-0.5 size-5 shrink-0 text-muted-foreground" />
+          <div className="space-y-1">
+            <p className="text-[15px] font-medium text-foreground">
+              Khoá này thuộc lộ trình “{pathLock.pathTitle}” và chưa được mở
+            </p>
+            <p className="text-[15px] text-muted-foreground">
+              Hoàn thành <span className="font-medium text-foreground">{pathLock.blockedBy.title}</span> để mở khoá này.{" "}
+              <Link href={`/learning-paths/${pathLock.pathId}`} className="text-primary hover:underline">
+                Xem lộ trình
+              </Link>
+            </p>
+          </div>
+        </section>
+      )}
+
+      {/* Phiên bản: cần xác nhận bản MINOR / đã nắm bản hiện tại / phải học lại do MAJOR */}
+      <VersionUpdateBanner items={pendingUpdates} single />
+      {pendingUpdates.length === 0 && versionNote?.kind === "current" && (
+        <p className="flex items-center gap-2 rounded-md bg-success/8 px-4 py-3 text-[15px] text-success">
+          <BadgeCheck className="size-5 shrink-0" />
+          Bạn đã nắm phiên bản v{versionNote.version}
+          {versionNote.acknowledgedAt && ` (cập nhật ${formatDate(versionNote.acknowledgedAt)})`}.
+        </p>
+      )}
+      {versionNote?.kind === "major" && (
+        <section role="status" className="rounded-md border border-warning/40 bg-warning/16 p-5">
+          <p className="flex items-center gap-2 text-[15px] font-medium text-warning">
+            <RefreshCcw className="size-5 shrink-0" />
+            Khoá có thay đổi lớn ở phiên bản v{versionNote.versionNo} — bạn cần học lại
+          </p>
+          {versionNote.summaryHtml && (
+            <details className="mt-2">
+              <summary className="cursor-pointer text-[13px] font-medium text-primary">Xem tóm tắt thay đổi</summary>
+              <div className="mt-2 rounded-md bg-card p-4">
+                <LessonContent html={versionNote.summaryHtml} />
+              </div>
+            </details>
+          )}
+        </section>
+      )}
+
+      {reviewable && (
+        <MyReview courseId={course.id} initial={myReview && { rating: myReview.rating, comment: myReview.comment }} />
+      )}
 
       {/* Mục lục */}
       <section className="rounded-md bg-card shadow-md">

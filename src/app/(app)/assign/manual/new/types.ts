@@ -18,13 +18,22 @@ export type LearnerRow = {
   positionName: string | null;
   /** Trạng thái lượt giao hiện có của khoá đang chọn (null = chưa được giao) */
   enrollmentStatus: EnrollmentStatus | null;
+  /** Giao lộ trình: HAS = đã có lộ trình, DONE = đã xong mọi khoá của lộ trình */
+  pathState: "HAS" | "DONE" | null;
 };
 
+/** Đối tượng giao: khoá học hoặc lộ trình (Việc 23A). */
+export type TargetKind = "course" | "path";
+export type Target = { kind: TargetKind; id: string };
+
 export type WizardCourse = {
+  kind: TargetKind;
   id: string;
   code: string;
   title: string;
   ownerCode: string;
+  /** Lộ trình: số khoá */
+  courseCount: number;
   /** Công ty có người học được giao khoá này ("all" = mọi công ty trong phạm vi) */
   learnerCompanies: string[] | "all";
 };

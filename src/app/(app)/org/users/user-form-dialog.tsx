@@ -4,7 +4,8 @@ import { useActionState, useCallback, useEffect, useMemo, useRef, useState, type
 import type { Role } from "@prisma/client";
 import { Eye, EyeOff, TriangleAlert } from "lucide-react";
 import { toast } from "sonner";
-import { FormField } from "@/components/form-field";
+import { FormField, FormGrid } from "@/components/form-field";
+import { SegmentedControl } from "@/components/segmented-control";
 import {
   AlertDialog,
   AlertDialogCancel,
@@ -31,7 +32,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { initialActionState } from "@/lib/action-state";
 import { ROLE_LABELS } from "@/lib/roles";
 import { flattenTree } from "@/lib/tree";
-import { cn } from "@/lib/utils";
 import { createUserAction, updateUserAction } from "./actions";
 import type { CreateUserState, UserFormValue } from "./types";
 import { useUserFormOptions } from "./user-form-options";
@@ -224,7 +224,8 @@ function UserForm({
         <input ref={confirmRef} type="hidden" name="confirmTransfer" defaultValue="" />
         {!user && <input type="hidden" name="passwordMode" value={passwordMode} />}
 
-        <DialogBody className="grid grid-cols-2 gap-4">
+        <DialogBody>
+          <FormGrid cols={2}>
           <FormField
             label="Mã nhân viên"
             htmlFor="employeeCode"
@@ -261,7 +262,7 @@ function UserForm({
           {codeChanged && (
             <p
               role="status"
-              className="col-span-2 flex items-center gap-2 rounded-md bg-warning/16 px-4 py-2.5 text-[13px] text-warning"
+              className="col-span-full flex items-center gap-2 rounded-md bg-warning/16 px-4 py-2.5 text-[13px] text-warning"
             >
               <TriangleAlert className="size-4 shrink-0" />
               Nhân viên sẽ đăng nhập bằng mã mới “{employeeCode.trim().toUpperCase()}”.
@@ -408,7 +409,7 @@ function UserForm({
               label="Mật khẩu ban đầu"
               htmlFor="password"
               error={err.password}
-              className="col-span-2"
+              span="full"
               hint={
                 passwordMode === "auto"
                   ? "Hệ thống tự sinh 10 ký tự (chữ + số) và hiện 1 lần sau khi lưu."
@@ -416,30 +417,15 @@ function UserForm({
               }
             >
               <div className="flex items-center gap-4">
-                <div role="radiogroup" aria-label="Cách tạo mật khẩu" className="inline-flex rounded-lg bg-muted p-1">
-                  {(
-                    [
-                      ["auto", "Tự sinh"],
-                      ["manual", "Tự nhập"],
-                    ] as const
-                  ).map(([mode, label]) => (
-                    <button
-                      key={mode}
-                      type="button"
-                      role="radio"
-                      aria-checked={passwordMode === mode}
-                      onClick={() => setPasswordMode(mode)}
-                      className={cn(
-                        "h-[30px] rounded-md px-3.5 text-[13px] font-medium transition-colors outline-none focus-visible:ring-3 focus-visible:ring-ring/50",
-                        passwordMode === mode
-                          ? "bg-card text-primary shadow-xs"
-                          : "text-muted-foreground hover:text-foreground",
-                      )}
-                    >
-                      {label}
-                    </button>
-                  ))}
-                </div>
+                <SegmentedControl
+                  ariaLabel="Cách tạo mật khẩu"
+                  value={passwordMode}
+                  onChange={setPasswordMode}
+                  options={[
+                    { value: "auto", label: "Tự sinh" },
+                    { value: "manual", label: "Tự nhập" },
+                  ]}
+                />
                 {passwordMode === "manual" && (
                   <div className="relative flex-1">
                     <Input
@@ -464,6 +450,7 @@ function UserForm({
               </div>
             </FormField>
           )}
+          </FormGrid>
         </DialogBody>
 
         <DialogFooter>

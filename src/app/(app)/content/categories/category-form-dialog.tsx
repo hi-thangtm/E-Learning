@@ -2,7 +2,7 @@
 
 import { useActionState, useCallback, useEffect, useState, type ReactElement } from "react";
 import { toast } from "sonner";
-import { FormField } from "@/components/form-field";
+import { FormField, FormGrid } from "@/components/form-field";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -73,7 +73,8 @@ function CategoryForm({ category, onSuccess }: { category?: CategoryFormValue; o
     <form action={formAction} className="contents" noValidate>
       {category && <input type="hidden" name="id" value={category.id} />}
 
-      <DialogBody className="grid gap-4">
+      <DialogBody>
+        <FormGrid>
         <FormField label="Tên danh mục" htmlFor="name" required error={state.errors?.name} hint="Không trùng với danh mục khác.">
           <Input
             id="name"
@@ -113,6 +114,7 @@ function CategoryForm({ category, onSuccess }: { category?: CategoryFormValue; o
             aria-describedby={state.errors?.sortOrder ? "sortOrder-error" : undefined}
           />
         </FormField>
+        </FormGrid>
       </DialogBody>
 
       <DialogFooter>

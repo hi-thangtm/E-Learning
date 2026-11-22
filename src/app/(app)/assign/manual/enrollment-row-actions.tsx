@@ -1,10 +1,10 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { CalendarClock, EllipsisVertical, XCircle } from "lucide-react";
+import { CalendarClock, EllipsisVertical, ListPlus, XCircle } from "lucide-react";
 import { toast } from "sonner";
 import { ConfirmDialog } from "@/components/confirm-dialog";
-import { FormField } from "@/components/form-field";
+import { FormField, FormGrid } from "@/components/form-field";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -24,11 +24,12 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { cancelEnrollmentAction, extendEnrollmentAction } from "./actions";
+import { GrantAttemptsDialog } from "./grant-attempts-dialog";
 
 const ITEM = "mx-1 gap-3 rounded-md px-3 py-2 text-[15px]";
 const RULE_LOCK = "Đang giao tự động theo quy tắc — tắt quy tắc ở mục Giao tự động";
 
-/** Menu ⋮ mỗi lượt giao: Gia hạn, Huỷ giao. Quyền thật kiểm tra lại ở server. */
+/** Menu ⋮ mỗi lượt giao: Gia hạn, Cấp thêm lượt làm bài, Huỷ giao. Quyền thật kiểm tra lại ở server. */
 export function EnrollmentRowActions({
   enrollment,
 }: {
@@ -40,12 +41,15 @@ export function EnrollmentRowActions({
     dueDate: string;
     canExtend: boolean;
     canCancel: boolean;
+    /** Lượt chưa bị huỷ → cấp thêm lượt làm bài kiểm tra được */
+    canGrantAttempts: boolean;
     lockedByRule: boolean;
   };
 }) {
   const [extendOpen, setExtendOpen] = useState(false);
   const [cancelOpen, setCancelOpen] = useState(false);
-  if (!enrollment.canExtend && !enrollment.canCancel && !enrollment.lockedByRule) return null;
+  const [grantOpen, setGrantOpen] = useState(false);
+  if (!enrollment.canExtend && !enrollment.canCancel && !enrollment.canGrantAttempts && !enrollment.lockedByRule) return null;
 
   return (
     <div className="flex justify-end">
@@ -62,6 +66,12 @@ export function EnrollmentRowActions({
             <DropdownMenuItem className={ITEM} onClick={() => setExtendOpen(true)}>
               <CalendarClock className="size-[18px]" />
               Gia hạn
+            </DropdownMenuItem>
+          )}
+          {enrollment.canGrantAttempts && (
+            <DropdownMenuItem className={ITEM} onClick={() => setGrantOpen(true)}>
+              <ListPlus className="size-[18px]" />
+              Cấp thêm lượt làm bài
             </DropdownMenuItem>
           )}
           {enrollment.lockedByRule ? (
@@ -84,6 +94,7 @@ export function EnrollmentRowActions({
       </DropdownMenu>
 
       {extendOpen && <ExtendDialog enrollment={enrollment} onClose={() => setExtendOpen(false)} />}
+      {grantOpen && <GrantAttemptsDialog enrollment={enrollment} onClose={() => setGrantOpen(false)} />}
       {cancelOpen && (
         <ConfirmDialog
           open
@@ -138,10 +149,12 @@ function ExtendDialog({
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={submit} noValidate className="contents">
-          <DialogBody className="grid gap-4">
+          <DialogBody>
+            <FormGrid>
             <FormField label="Hạn mới" htmlFor="extend-date" required error={error ?? undefined} hint="Hết ngày này (giờ Việt Nam) mới tính quá hạn.">
               <Input id="extend-date" type="date" value={date} onChange={(e) => setDate(e.target.value)} aria-invalid={!!error} />
             </FormField>
+            </FormGrid>
           </DialogBody>
           <DialogFooter>
             <DialogClose render={<Button type="button" variant="outline" disabled={pending} />}>Huỷ</DialogClose>

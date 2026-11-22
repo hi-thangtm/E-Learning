@@ -37,6 +37,22 @@ export function formatDateTime(date: Date | string | null | undefined): string {
   return `${p.day}/${p.month}/${p.year} ${p.hour}:${p.minute}`;
 }
 
+/**
+ * Thời gian tương đối tiếng Việt: "vừa xong" / "5 phút trước" / "3 giờ trước" (cùng ngày) / "hôm qua" / dd/MM/yyyy.
+ * Ngày tính theo giờ Việt Nam.
+ */
+export function formatRelative(date: Date | string, now: Date = new Date()): string {
+  const d = new Date(date);
+  const diffMs = now.getTime() - d.getTime();
+  const minutes = Math.floor(diffMs / 60_000);
+  if (diffMs < 60_000) return "vừa xong";
+  const today = vnIsoDate(now);
+  const day = vnIsoDate(d);
+  if (day === today) return minutes < 60 ? `${minutes} phút trước` : `${Math.floor(minutes / 60)} giờ trước`;
+  if (day === addDaysIso(today, -1)) return "hôm qua";
+  return formatDate(d);
+}
+
 /** Số có dấu chấm ngăn cách hàng nghìn (1.234). */
 export function formatNumber(value: number): string {
   return new Intl.NumberFormat("vi-VN").format(value);

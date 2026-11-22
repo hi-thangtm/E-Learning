@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { Plus, TriangleAlert } from "lucide-react";
+import { Plus, Route, TriangleAlert } from "lucide-react";
 import type { Prisma } from "@prisma/client";
 import { DataTable, type DataTableColumn } from "@/components/data-table/data-table";
 import { PageHeader } from "@/components/page-header";
@@ -27,20 +27,29 @@ export default async function RulesPage({ searchParams }: { searchParams: Promis
   const status = getEnumParam(sp, "status", STATUS_VALUES);
   const scope: Prisma.AssignmentRuleWhereInput = isGroupAdmin ? {} : { ownerCompanyId: actor.companyId };
 
-  const courses = await prisma.course.findMany({
-    where: { assignmentRules: { some: scope } },
-    orderBy: { code: "asc" },
-    select: { id: true, code: true, title: true },
-  });
+  const [courses, paths] = await Promise.all([
+    prisma.course.findMany({
+      where: { assignmentRules: { some: scope } },
+      orderBy: { code: "asc" },
+      select: { id: true, code: true, title: true },
+    }),
+    prisma.learningPath.findMany({
+      where: { assignmentRules: { some: scope } },
+      orderBy: { code: "asc" },
+      select: { id: true, code: true, title: true },
+    }),
+  ]);
   const courseId = courses.find((c) => c.id === getParam(sp, "course"))?.id;
+  const pathId = paths.find((p) => p.id === getParam(sp, "path"))?.id;
 
   const where: Prisma.AssignmentRuleWhereInput = {
     AND: [
       scope,
-      { courseId: { not: null } },
+      { OR: [{ courseId: { not: null } }, { learningPathId: { not: null } }] },
       ...(q ? [{ name: { contains: q, mode: "insensitive" as const } }] : []),
       ...(status ? [{ isActive: status === "active" }] : []),
       ...(courseId ? [{ courseId }] : []),
+      ...(pathId ? [{ learningPathId: pathId }] : []),
     ],
   };
 
@@ -58,6 +67,7 @@ export default async function RulesPage({ searchParams }: { searchParams: Promis
         isActive: true,
         includeSubDepartments: true,
         course: { select: { id: true, code: true, title: true, status: true } },
+        learningPath: { select: { id: true, code: true, title: true, status: true } },
         targetCompany: { select: { name: true } },
         department: { select: { name: true } },
         position: { select: { name: true } },
@@ -97,9 +107,24 @@ export default async function RulesPage({ searchParams }: { searchParams: Promis
     },
     {
       key: "course",
-      header: "Khoá học",
+      header: "Khoá học / lộ trình",
       cell: (r) =>
-        r.course ? (
+        r.learningPath ? (
+          <div className="min-w-0 max-w-64">
+            <span className="flex items-center gap-1.5 text-foreground" title={r.learningPath.title}>
+              <Route className="size-4 shrink-0 text-primary" aria-label="Lộ trình" />
+              <span className="truncate">{r.learningPath.title}</span>
+            </span>
+            {r.learningPath.status !== "PUBLISHED" ? (
+              <span className="mt-0.5 inline-flex items-center gap-1 text-[12px] text-warning" title="Lộ trình không còn ở trạng thái Đã phát hành — quy tắc tạm không giao cho ai">
+                <TriangleAlert className="size-3.5" />
+                Lộ trình không còn phát hành — tạm không giao
+              </span>
+            ) : (
+              <span className="text-[13px]">Lộ trình · {r.learningPath.code}</span>
+            )}
+          </div>
+        ) : r.course ? (
           <div className="min-w-0 max-w-64">
             <span className="block truncate text-foreground" title={r.course.title}>
               {r.course.title}
@@ -169,7 +194,7 @@ export default async function RulesPage({ searchParams }: { searchParams: Promis
     <>
       <PageHeader
         title="Giao tự động"
-        description="Quy tắc giao khoá theo công ty / phòng ban / chức danh. Người vào nhóm sau này cũng tự được giao."
+        description="Quy tắc giao khoá học / lộ trình theo công ty / phòng ban / chức danh. Người vào nhóm sau này cũng tự được giao."
       />
       <DataTable
         pathname={PATHNAME}
@@ -188,6 +213,16 @@ export default async function RulesPage({ searchParams }: { searchParams: Promis
             allLabel: "Tất cả khoá học",
             options: courses.map((c) => ({ value: c.id, label: `${c.code} — ${c.title}` })),
           },
+          ...(paths.length
+            ? [
+                {
+                  param: "path",
+                  label: "Lộ trình",
+                  allLabel: "Tất cả lộ trình",
+                  options: paths.map((p) => ({ value: p.id, label: `${p.code} — ${p.title}` })),
+                },
+              ]
+            : []),
           {
             param: "status",
             label: "Trạng thái",
@@ -201,7 +236,7 @@ export default async function RulesPage({ searchParams }: { searchParams: Promis
         toolbar={addButton}
         empty={{
           title: "Chưa có quy tắc nào",
-          description: "Tạo quy tắc để tự giao khoá cho cả một nhóm, kể cả người vào sau.",
+          description: "Tạo quy tắc để tự giao khoá học / lộ trình cho cả một nhóm, kể cả người vào sau.",
           action: addButton,
         }}
       />

@@ -9,7 +9,7 @@ import { findCourseForEdit, findLessonForEdit, findSectionForEdit, isPublished }
 import { requireRole } from "@/lib/current-user";
 import { prisma } from "@/lib/db";
 import { isBlankHtml, sanitizeLessonHtml } from "@/lib/sanitize";
-import { getNumberSetting } from "@/lib/settings";
+import { getSetting } from "@/lib/settings";
 import { deleteBunnyVideo } from "@/lib/bunny";
 import { deleteFile } from "@/lib/storage";
 import type { ContentLayout } from "./content-types";
@@ -199,7 +199,7 @@ export async function createLessonAction(
   // Mặc định theo loại (sửa tiếp ở dialog chi tiết)
   const defaults: Prisma.LessonUncheckedCreateInput =
     type === "VIDEO"
-      ? { sectionId, title: "", type, minWatchPercent: await getNumberSetting("DEFAULT_MIN_WATCH_PERCENT", 90) }
+      ? { sectionId, title: "", type, minWatchPercent: await getSetting("DEFAULT_MIN_WATCH_PERCENT") }
       : type === "QUIZ"
         ? { sectionId, title: "", type, questionCount: 10, passingScore: 70, timeLimitMinutes: 15, maxAttempts: null, showAnswers: false }
         : { sectionId, title: "", type };

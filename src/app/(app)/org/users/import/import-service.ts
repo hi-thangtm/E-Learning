@@ -16,6 +16,8 @@ import {
   sheetRangeRef,
   styleHeaderRow,
   addSimpleSheet,
+  safeRow,
+  safeText,
   type Workbook,
   type Worksheet,
 } from "@/lib/excel";
@@ -215,7 +217,7 @@ export async function buildTemplateWorkbook(company: ImportCompany): Promise<Wor
   // Mã NV, điện thoại, ngày: định dạng chữ để Excel không tự đổi (mất số 0 đầu, đổi kiểu ngày theo máy)
   for (const key of ["employeeCode", "phone", "hireDate"] as const) ws.getColumn(key).numFmt = "@";
   for (const i of [0, 1] as const) {
-    const row = ws.addRow(IMPORT_COLUMNS.map((c) => c.examples[i]));
+    const row = ws.addRow(safeRow(IMPORT_COLUMNS.map((c) => c.examples[i])));
     row.font = { italic: true, color: { argb: "FF808390" } };
   }
 
@@ -231,7 +233,7 @@ export async function buildTemplateWorkbook(company: ImportCompany): Promise<Wor
     const d = activeDepartments[i];
     const p = activePositions[i];
     const r = IMPORTABLE_ROLES[i];
-    cat.addRow([d ? `${d.code} – ${d.name}` : null, p ? `${p.code} – ${p.name}` : null, r ? ROLE_LABELS[r] : null]);
+    cat.addRow(safeRow([d ? `${d.code} – ${d.name}` : null, p ? `${p.code} – ${p.name}` : null, r ? ROLE_LABELS[r] : null]));
   }
   styleHeaderRow(cat);
 
@@ -590,7 +592,7 @@ export async function buildErrorReport(result: Extract<AnalyzeResult, { rows: An
       cell.font = { ...(cell.font ?? {}), color: { argb: ERROR_TEXT } };
     }
     const cell = sheet.getCell(row.rowNumber, errorCol);
-    cell.value = entries.map(([key, message]) => `${headerOf.get(key)}: ${message}`).join("\n");
+    cell.value = safeText(entries.map(([key, message]) => `${headerOf.get(key)}: ${message}`).join("\n"));
     cell.alignment = { wrapText: true, vertical: "top" };
     cell.font = { color: { argb: ERROR_TEXT } };
   }

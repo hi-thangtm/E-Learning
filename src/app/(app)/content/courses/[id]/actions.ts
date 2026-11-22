@@ -5,6 +5,7 @@ import { Prisma, type CourseStatus } from "@prisma/client";
 import { z } from "zod";
 import { fieldErrors, formValues, type ActionState } from "@/lib/action-state";
 import { logAudit } from "@/lib/audit";
+import { getPublishChecks, type PublishCheckResult } from "@/lib/course-publish";
 import { courseCodeSchema, courseTitleSchema, optionalIdSchema } from "@/lib/course-rules";
 import { canEditCourse, findCourseInScope } from "@/lib/course-scope";
 import { requireRole } from "@/lib/current-user";
@@ -12,7 +13,7 @@ import { prisma } from "@/lib/db";
 import { deleteFile, saveFile } from "@/lib/storage";
 
 /**
- * Trang soạn khoá học — tab Thông tin, Lưu trữ / Khôi phục.
+ * Trang soạn khoá học — tab Thông tin, Lưu trữ / Khôi phục, Phát hành lần đầu.
  * Mọi action: requireRole -> tìm khoá trong phạm vi (Quy tắc 1) -> chỉ sửa khi canEditCourse.
  */
 
@@ -230,4 +231,91 @@ export async function archiveCourseAction(courseId: string): Promise<ActionState
 
 export async function restoreCourseAction(courseId: string): Promise<ActionState> {
   return setStatus(courseId, "restore");
+}
+
+// ---------------------------------------------------------------------------------------------
+// Phát hành lần đầu (INITIAL, v0 -> v1). Bản MINOR / MAJOR: Việc 21.
+// Quy tắc 2: INITIAL do Biên soạn / Admin công ty sở hữu khoá / Admin tập đoàn tự phát hành (canEditCourse).
+
+/** Lý do không phát hành lần đầu được (null = được). */
+function publishBlocker(course: { status: CourseStatus; currentVersion: number }): string | null {
+  if (course.status === "ARCHIVED") return "Khoá đang lưu trữ — khôi phục trước khi phát hành.";
+  if (course.status !== "DRAFT" || course.currentVersion > 0) return "Khoá đã phát hành. Phát hành phiên bản mới (MINOR / MAJOR) có ở Việc 21.";
+  return null;
+}
+
+export async function getPublishChecksAction(
+  courseId: string,
+): Promise<{ ok: true; result: PublishCheckResult } | { ok: false; message: string }> {
+  const actor = await requireRole([...ROLES]);
+  const id = idSchema.safeParse(courseId);
+  if (!id.success) return { ok: false, message: NO_ACCESS };
+  const course = await findCourseInScope(actor, id.data, INFO_SELECT);
+  if (!course || !canEditCourse(actor, course)) return { ok: false, message: NO_ACCESS };
+  const blocker = publishBlocker(course);
+  if (blocker) return { ok: false, message: blocker };
+  return { ok: true, result: await getPublishChecks(course.id) };
+}
+
+const publishNoteSchema = z.string().trim().max(2000, "Ghi chú tối đa 2.000 ký tự.");
+
+export async function publishCourseAction(courseId: string, note: string): Promise<ActionState> {
+  const actor = await requireRole([...ROLES]);
+  const id = idSchema.safeParse(courseId);
+  if (!id.success) return { message: NO_ACCESS };
+  const course = await findCourseInScope(actor, id.data, INFO_SELECT);
+  if (!course || !canEditCourse(actor, course)) return { message: NO_ACCESS };
+  const blocker = publishBlocker(course);
+  if (blocker) return { message: blocker };
+
+  const parsedNote = publishNoteSchema.safeParse(note ?? "");
+  if (!parsedNote.success) return { errors: { note: parsedNote.error.issues[0].message } };
+
+  // Kiểm tra lại ở server — không tin kết quả kiểm tra trên trình duyệt
+  const checks = await getPublishChecks(course.id);
+  if (!checks.passed) {
+    const failed = checks.checks.filter((c) => !c.ok).length;
+    return { message: `Còn ${failed} điều kiện chưa đạt — chưa phát hành được.` };
+  }
+
+  const now = new Date();
+  try {
+    await prisma.$transaction(async (tx) => {
+      // Cập nhật có điều kiện: 2 người bấm cùng lúc chỉ 1 người phát hành được
+      const updated = await tx.course.updateMany({
+        where: { id: course.id, status: "DRAFT", currentVersion: 0 },
+        data: { status: "PUBLISHED", currentVersion: 1 },
+      });
+      if (updated.count === 0) throw new Error("ALREADY_PUBLISHED");
+      await tx.courseVersion.create({
+        data: {
+          courseId: course.id,
+          versionNo: 1,
+          changeType: "INITIAL",
+          status: "PUBLISHED",
+          changeSummary: parsedNote.data || null,
+          publishedById: actor.id,
+          publishedAt: now,
+        },
+      });
+      await logAudit(tx, {
+        actorId: actor.id,
+        companyId: course.ownerCompanyId,
+        action: "COURSE_PUBLISHED",
+        entityType: "Course",
+        entityId: course.id,
+        metadata: { code: course.code, versionNo: 1, changeType: "INITIAL", ...checks.summary },
+      });
+    });
+  } catch (error) {
+    if (error instanceof Error && error.message === "ALREADY_PUBLISHED") return { message: "Khoá vừa được phát hành bởi người khác." };
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
+      return { message: "Khoá vừa được phát hành bởi người khác." };
+    }
+    throw error;
+  }
+
+  revalidateCourse(course.id);
+  revalidatePath("/content/courses");
+  return { ok: true, message: `Đã phát hành khoá học ${course.code} — phiên bản 1.` };
 }

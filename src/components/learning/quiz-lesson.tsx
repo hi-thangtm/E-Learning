@@ -1,39 +1,125 @@
-import { Clock, ListChecks, Repeat, Target } from "lucide-react";
+"use client";
+
+import { useState, useTransition } from "react";
+import { toast } from "sonner";
+import {
+  previewQuizStartAction,
+  previewQuizSubmitAction,
+  quizResultAction,
+  startQuizAction,
+  submitQuizAction,
+} from "@/app/(learn)/learn/quiz-actions";
 import type { LessonDetail } from "@/lib/learning";
+import type { QuizOverview, QuizPaper, QuizResult } from "@/lib/quiz";
+import { useLessonShell } from "./lesson-shell";
+import { QuizIntro } from "./quiz/quiz-intro";
+import { QuizPlayer } from "./quiz/quiz-player";
+import { QuizResultView } from "./quiz/quiz-result";
 
 type QuizDetail = Extract<LessonDetail, { type: "QUIZ" }>;
 
-/** Bài KIỂM TRA — chỉ hiện thông tin; làm bài có ở Việc 17 (chưa đánh dấu xong được). */
-export function QuizLesson({ lesson }: { lesson: QuizDetail }) {
-  const items = [
-    { icon: ListChecks, label: "Số câu hỏi", value: lesson.questionCount ? `${lesson.questionCount} câu` : "—" },
-    { icon: Target, label: "Điểm đạt", value: lesson.passingScore != null ? `${lesson.passingScore}/100` : "—" },
-    { icon: Clock, label: "Thời gian", value: lesson.timeLimitMinutes ? `${lesson.timeLimitMinutes} phút` : "Không giới hạn" },
-    { icon: Repeat, label: "Số lần làm", value: lesson.maxAttempts ? `Tối đa ${lesson.maxAttempts} lần` : "Không giới hạn" },
-  ];
+type View = { kind: "intro" } | { kind: "playing"; paper: QuizPaper } | { kind: "result"; result: QuizResult };
+
+/**
+ * Bài KIỂM TRA (feature-spec 2.5): giới thiệu → làm bài → kết quả.
+ * Học viên: đề + lưu + chấm ở server (src/lib/quiz.ts). Xem trước (người soạn): `overview = null`, làm thử không lưu, luôn hiện đáp án.
+ */
+export function QuizLesson({ lesson, overview: initialOverview }: { lesson: QuizDetail; overview: QuizOverview | null }) {
+  const { mode, onLessonCompleted, nextHref } = useLessonShell();
+  const preview = mode === "preview" || !initialOverview;
+  const [overview, setOverview] = useState(initialOverview);
+  const [view, setView] = useState<View>({ kind: "intro" });
+  const [starting, startTransition] = useTransition();
+
+  function start() {
+    startTransition(async () => {
+      try {
+        const res = preview ? await previewQuizStartAction(lesson.id) : await startQuizAction(lesson.id);
+        if (!res.ok) {
+          toast.error(res.error);
+          return;
+        }
+        setView({ kind: "playing", paper: res.data });
+      } catch {
+        toast.error("Không mở được bài kiểm tra, vui lòng thử lại.");
+      }
+    });
+  }
+
+  function viewResult(attemptId: string) {
+    startTransition(async () => {
+      const res = await quizResultAction(attemptId);
+      if (!res.ok) toast.error(res.error);
+      else setView({ kind: "result", result: res.data });
+    });
+  }
+
+  /** Nộp bài: trả về false nếu lỗi (người làm bấm nộp lại được). */
+  async function submit(paper: QuizPaper, answers: Record<string, string[]>): Promise<boolean> {
+    try {
+      if (preview || !paper.attemptId) {
+        const res = await previewQuizSubmitAction(
+          lesson.id,
+          paper.questions.map((q) => ({ questionId: q.id, selected: answers[q.id] ?? [] })),
+        );
+        if (!res.ok) {
+          toast.error(res.error);
+          return false;
+        }
+        setView({ kind: "result", result: res.data });
+        return true;
+      }
+      const res = await submitQuizAction(paper.attemptId);
+      if (!res.ok) {
+        toast.error(res.error);
+        return false;
+      }
+      setOverview(res.data.overview);
+      setView({ kind: "result", result: res.data.result });
+      if (res.data.completion) onLessonCompleted(res.data.completion);
+      return true;
+    } catch {
+      toast.error("Không nộp được bài — kiểm tra kết nối mạng rồi bấm Nộp bài lại.");
+      return false;
+    }
+  }
+
+  if (view.kind === "playing") {
+    return (
+      <QuizPlayer
+        key={view.paper.attemptId ?? "preview"}
+        title={lesson.title}
+        paper={view.paper}
+        preview={preview}
+        onSubmit={(answers) => submit(view.paper, answers)}
+      />
+    );
+  }
+
+  if (view.kind === "result") {
+    const canRetry = preview || (!!overview && !overview.passed && overview.remaining !== 0);
+    return (
+      <QuizResultView
+        title={lesson.title}
+        result={view.result}
+        preview={preview}
+        canRetry={canRetry}
+        nextHref={!preview && view.result.passed ? nextHref : null}
+        retrying={starting}
+        onRetry={start}
+        onBack={() => setView({ kind: "intro" })}
+      />
+    );
+  }
+
   return (
-    <section className="rounded-md bg-card p-8 shadow-sm">
-      <div className="flex items-center gap-3">
-        <span className="flex size-12 items-center justify-center rounded-md bg-primary/16 text-primary">
-          <ListChecks className="size-6" />
-        </span>
-        <div>
-          <p className="text-[13px] text-muted-foreground">Bài kiểm tra</p>
-          <h2 className="text-xl font-medium text-foreground">{lesson.title}</h2>
-        </div>
-      </div>
-      <dl className="mt-6 grid grid-cols-4 gap-4">
-        {items.map(({ icon: Icon, label, value }) => (
-          <div key={label} className="rounded-md border border-border p-4">
-            <dt className="flex items-center gap-2 text-[13px] text-muted-foreground">
-              <Icon className="size-4" />
-              {label}
-            </dt>
-            <dd className="mt-1 font-medium text-foreground">{value}</dd>
-          </div>
-        ))}
-      </dl>
-      <p className="mt-6 rounded-md bg-info/16 px-4 py-3 text-[15px] text-info">Bài kiểm tra có ở Việc 17.</p>
-    </section>
+    <QuizIntro
+      lesson={lesson}
+      overview={overview}
+      preview={preview}
+      pending={starting}
+      onStart={start}
+      onViewResult={viewResult}
+    />
   );
 }

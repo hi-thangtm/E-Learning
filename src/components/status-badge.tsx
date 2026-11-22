@@ -29,7 +29,8 @@ export function StatusBadge({
   return (
     <span
       className={cn(
-        "inline-flex h-6 items-center rounded-sm px-2.5 text-[13px] font-medium whitespace-nowrap",
+        // Badge không bao giờ xuống dòng / bị co lại (docs/design-system.md mục 5.4)
+        "inline-flex h-6 shrink-0 items-center rounded-sm px-2.5 text-[13px] font-medium whitespace-nowrap",
         TONE_CLASSES[tone],
         className,
       )}
@@ -45,5 +46,31 @@ export function ActiveBadge({ active }: { active: boolean }) {
     <StatusBadge tone="success">Đang dùng</StatusBadge>
   ) : (
     <StatusBadge tone="secondary">Đã ẩn</StatusBadge>
+  );
+}
+
+/**
+ * Ô đếm số dạng viên thuốc (VD “6 mới”, số cạnh tab / chip). Không xuống dòng, không co lại.
+ * `tone` theo bảng màu tonal; "muted" = nền xám; "card" = nền trắng (đặt trên nền màu nhạt).
+ */
+export function CountPill({
+  children,
+  tone = "primary",
+  className,
+}: {
+  children: ReactNode;
+  tone?: StatusTone | "muted" | "card";
+  className?: string;
+}) {
+  return (
+    <span
+      className={cn(
+        "inline-flex h-5 shrink-0 items-center rounded-full px-2 text-[12px] leading-none font-medium whitespace-nowrap tabular-nums",
+        tone === "muted" ? "bg-muted text-muted-foreground" : tone === "card" ? "bg-card text-current" : TONE_CLASSES[tone],
+        className,
+      )}
+    >
+      {children}
+    </span>
   );
 }

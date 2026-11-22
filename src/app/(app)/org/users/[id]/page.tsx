@@ -3,11 +3,13 @@ import type { ReactNode } from "react";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { Award, BookOpen, ChevronLeft, History, TriangleAlert } from "lucide-react";
+import { CertificateActions } from "@/components/certificate-actions";
 import { RoleBadge } from "@/components/role-badge";
 import { StatusBadge } from "@/components/status-badge";
 import { AuditDetailSheet } from "@/components/audit/audit-detail-sheet";
 import { AuditLogTable } from "@/components/audit/audit-log-table";
 import { AUDIT_LOG_SELECT, auditScopeWhere, enrichAuditLogs, getAuditLogDetail } from "@/lib/audit-query";
+import { CERTIFICATE_STATUS, certificateStatus } from "@/lib/certificate-status";
 import { requireRole } from "@/lib/current-user";
 import { prisma } from "@/lib/db";
 import { formatDate, formatDateTime } from "@/lib/format";
@@ -17,6 +19,7 @@ import { getAncestorIds } from "@/lib/tree";
 import { buildUserFormOptions, loadOrgCatalog } from "../form-options";
 import { UserActions } from "../user-actions";
 import { UserFormOptionsProvider } from "../user-form-options";
+import { RevokeCertificateDialog } from "./revoke-certificate-dialog";
 
 export const metadata: Metadata = { title: "Chi tiết người dùng" };
 
@@ -34,7 +37,7 @@ export default async function UserDetailPage({
   const { id } = await params;
   if (!id || id.length > 50) redirect("/org/users");
 
-  // Phạm vi ngay trong truy vấn: Admin công ty chỉ xem người công ty mình
+  // Phạm vi ngay trong truy vấn: Admin công ty chỉ xem người công ty mình (chứng nhận tải theo user đã qua kiểm tra này)
   const user = await prisma.user.findFirst({
     where: { id, ...(!isGroupAdmin && { companyId: actor.companyId }) },
     select: {
@@ -59,6 +62,13 @@ export default async function UserDetailPage({
     },
   });
   if (!user) redirect("/org/users");
+
+  // Chứng nhận của người này (đã qua kiểm tra phạm vi ở trên)
+  const certificates = await prisma.certificate.findMany({
+    where: { userId: user.id },
+    orderBy: { issuedAt: "desc" },
+    select: { id: true, code: true, courseTitle: true, courseVersion: true, issuedAt: true, expiresAt: true, revokedAt: true },
+  });
 
   const sp = await searchParams;
   const pathname = `/org/users/${user.id}`;
@@ -230,11 +240,38 @@ export default async function UserDetailPage({
           </Panel>
 
           <Panel title="Chứng nhận" icon={<Award className="size-5" />}>
-            <EmptyBlock
-              icon={<Award className="size-8" />}
-              title="Chưa có chứng nhận"
-              description="Chứng nhận của người này sẽ hiện ở đây khi có chức năng cấp chứng nhận."
-            />
+            {certificates.length === 0 ? (
+              <EmptyBlock
+                icon={<Award className="size-8" />}
+                title="Chưa có chứng nhận"
+                description="Chứng nhận được cấp tự động khi người này hoàn thành khoá học có cấp chứng nhận."
+              />
+            ) : (
+              <ul className="divide-y divide-border">
+                {certificates.map((c) => {
+                  const status = CERTIFICATE_STATUS[certificateStatus(c)];
+                  return (
+                    <li key={c.id} className="flex flex-wrap items-center justify-between gap-3 py-3 first:pt-0 last:pb-0">
+                      <div className="min-w-0">
+                        <p className="flex flex-wrap items-center gap-2 text-[15px] font-medium text-foreground">
+                          <span className="truncate">{c.courseTitle}</span>
+                          <span className="text-[13px] font-normal text-muted-foreground">v{c.courseVersion}</span>
+                          <StatusBadge tone={status.tone}>{status.label}</StatusBadge>
+                        </p>
+                        <p className="text-[13px] text-muted-foreground">
+                          {c.code} · cấp {formatDate(c.issuedAt)} · {c.expiresAt ? `hiệu lực đến ${formatDate(c.expiresAt)}` : "không thời hạn"}
+                          {c.revokedAt && ` · thu hồi ${formatDate(c.revokedAt)}`}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <CertificateActions certificateId={c.id} code={c.code} showCopy={false} />
+                        {!c.revokedAt && <RevokeCertificateDialog certificate={{ id: c.id, code: c.code, courseTitle: c.courseTitle }} />}
+                      </div>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
           </Panel>
 
           <Panel title="Nhật ký gần đây" icon={<History className="size-5" />} subtitle={`${LOG_LIMIT} thao tác mới nhất — bấm một dòng để xem chi tiết`}>

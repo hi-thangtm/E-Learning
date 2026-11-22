@@ -3,7 +3,7 @@
 import { useActionState, useEffect, useMemo, useState } from "react";
 import { TriangleAlert } from "lucide-react";
 import { toast } from "sonner";
-import { FormField } from "@/components/form-field";
+import { FormField, FormGrid } from "@/components/form-field";
 import { Button } from "@/components/ui/button";
 import {
   Combobox,
@@ -149,7 +149,8 @@ function DepartmentForm({
       <input type="hidden" name="parentId" value={parentId === ROOT ? "" : parentId} />
       <input type="hidden" name="managerId" value={manager?.id ?? ""} />
 
-      <DialogBody className="grid grid-cols-2 gap-4">
+      <DialogBody>
+          <FormGrid cols={2}>
         <FormField
           label="Mã phòng ban"
           htmlFor="code"
@@ -182,7 +183,8 @@ function DepartmentForm({
           />
         </FormField>
 
-        <FormField label="Phòng cha" htmlFor="parent-select" error={err.parentId} className="col-span-2">
+        <FormField label="Phòng cha" htmlFor="parent-select" error={err.parentId}
+              span="full">
           <Select items={parentItems} value={parentId} onValueChange={(v) => setParentId(v ? String(v) : ROOT)}>
             <SelectTrigger id="parent-select" className="w-full" aria-invalid={!!err.parentId}>
               <SelectValue />
@@ -202,7 +204,7 @@ function DepartmentForm({
           htmlFor="manager-input"
           error={err.managerId}
           hint="Tìm theo tên hoặc mã nhân viên. Để trống nếu chưa có."
-          className="col-span-2"
+              span="full"
         >
           <Combobox
             items={managerOptions}
@@ -245,7 +247,7 @@ function DepartmentForm({
         {willPromote && (
           <div
             role="status"
-            className="col-span-2 flex items-start gap-2 rounded-md bg-warning/16 px-4 py-3 text-[13px] text-warning"
+            className="col-span-full flex items-start gap-2 rounded-md bg-warning/16 px-4 py-3 text-[13px] text-warning"
           >
             <TriangleAlert className="mt-0.5 size-4 shrink-0" />
             <span>
@@ -254,7 +256,8 @@ function DepartmentForm({
             </span>
           </div>
         )}
-      </DialogBody>
+        </FormGrid>
+        </DialogBody>
 
       <DialogFooter>
         <DialogClose render={<Button type="button" variant="outline" disabled={pending} />}>Huỷ</DialogClose>

@@ -3,41 +3,45 @@
 import { useEffect, useMemo, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, ArrowRight, BookOpen, Check, Search, UserCheck, Users } from "lucide-react";
+import { ArrowLeft, ArrowRight, BookOpen, Check, Route, Search, UserCheck, Users } from "lucide-react";
 import { toast } from "sonner";
 import { Button, buttonVariants } from "@/components/ui/button";
+import { SegmentedControl } from "@/components/segmented-control";
 import { Input } from "@/components/ui/input";
-import type { AssignCounts } from "@/lib/assignment";
+import type { AssignCounts, PathPreview } from "@/lib/assignment";
 import { addDaysIso, formatDate, formatNumber, vnIsoDate } from "@/lib/format";
 import { cn } from "@/lib/utils";
-import { assignManualAction, previewManualAction } from "./actions";
+import { assignManualAction, previewManualAction, type ManualPreview } from "./actions";
 import { LearnerPicker } from "./learner-picker";
-import type { DepartmentOption, DueChoice, Option, Selection, WizardCourse } from "./types";
+import type { DepartmentOption, DueChoice, Option, Selection, Target, TargetKind, WizardCourse } from "./types";
 
-const STEPS = ["Chọn khoá", "Cách giao", "Chọn người", "Đặt hạn"] as const;
+const STEPS = ["Chọn khoá / lộ trình", "Cách giao", "Chọn người", "Đặt hạn"] as const;
 
-/** Trình giao khoá 4 bước. Mọi kiểm tra quyền / phạm vi làm lại ở server khi xem trước và khi giao. */
+/** Trình giao khoá học / lộ trình 4 bước. Mọi kiểm tra quyền / phạm vi làm lại ở server khi xem trước và khi giao. */
 export function AssignWizard({
   courses,
-  initialCourseId,
+  paths,
+  initial,
   companies,
   departments,
   positions,
   defaultDays,
 }: {
   courses: WizardCourse[];
-  initialCourseId: string | null;
+  paths: WizardCourse[];
+  initial: Target | null;
   companies: Option[];
   departments: DepartmentOption[];
   positions: Option[];
   defaultDays: number;
 }) {
   const router = useRouter();
-  const [step, setStep] = useState(initialCourseId ? 1 : 0);
-  const [courseId, setCourseId] = useState<string | null>(initialCourseId);
+  const [step, setStep] = useState(initial ? 1 : 0);
+  const [kind, setKind] = useState<TargetKind>(initial?.kind ?? "course");
+  const [courseId, setCourseId] = useState<string | null>(initial?.id ?? null);
   const [selection, setSelection] = useState<Selection>({ mode: "ids", ids: [] });
   const [due, setDue] = useState<DueChoice>({ mode: "days", days: defaultDays });
-  const course = courses.find((c) => c.id === courseId) ?? null;
+  const course = (kind === "path" ? paths : courses).find((c) => c.id === courseId) ?? null;
 
   const hasSelection = selection.mode === "filter" || selection.ids.length > 0;
 
@@ -70,7 +74,12 @@ export function AssignWizard({
       <div className="p-6">
         {step === 0 && (
           <CourseStep
-            courses={courses}
+            kind={kind}
+            onKindChange={(k) => {
+              setKind(k);
+              setCourseId(null);
+            }}
+            courses={kind === "path" ? paths : courses}
             selectedId={courseId}
             onSelect={(id) => {
               setCourseId(id);
@@ -91,7 +100,7 @@ export function AssignWizard({
                 onClick={() => setStep(2)}
               />
               <Link
-                href={`/assign/rules/new?courseId=${course.id}`}
+                href={`/assign/rules/new?${course.kind === "path" ? "pathId" : "courseId"}=${course.id}`}
                 className="flex items-start gap-4 rounded-md border border-border p-5 text-left transition-colors outline-none hover:border-primary hover:bg-primary/8 focus-visible:ring-3 focus-visible:ring-ring/50"
               >
                 <span className="flex size-12 shrink-0 items-center justify-center rounded-md bg-info/16 text-info">
@@ -158,12 +167,15 @@ export function AssignWizard({
 }
 
 function CourseSummary({ course }: { course: WizardCourse }) {
+  const Icon = course.kind === "path" ? Route : BookOpen;
   return (
     <p className="flex items-center gap-2 rounded-md bg-primary/8 px-4 py-2.5 text-[15px] text-foreground">
-      <BookOpen className="size-4 text-primary" />
+      <Icon className="size-4 text-primary" />
+      {course.kind === "path" && <span className="text-muted-foreground">Lộ trình</span>}
       <span className="font-medium">{course.title}</span>
       <span className="text-muted-foreground">
-        · {course.code} · công ty {course.ownerCode}
+        · {course.code}
+        {course.kind === "path" && ` · ${course.courseCount} khoá`} · công ty {course.ownerCode}
       </span>
     </p>
   );
@@ -188,10 +200,14 @@ function ChoiceCard({ icon, title, hint, onClick }: { icon: React.ReactNode; tit
 }
 
 function CourseStep({
+  kind,
+  onKindChange,
   courses,
   selectedId,
   onSelect,
 }: {
+  kind: TargetKind;
+  onKindChange: (kind: TargetKind) => void;
   courses: WizardCourse[];
   selectedId: string | null;
   onSelect: (id: string) => void;
@@ -202,20 +218,46 @@ function CourseStep({
     return needle ? courses.filter((c) => `${c.code} ${c.title}`.toLowerCase().includes(needle)) : courses;
   }, [courses, q]);
 
-  if (courses.length === 0) {
-    return (
-      <p className="py-10 text-center text-muted-foreground">
-        Chưa có khoá học nào đã phát hành trong phạm vi của bạn. Khoá phải được phát hành trước khi giao.
-      </p>
-    );
-  }
-
+  const noun = kind === "path" ? "lộ trình" : "khoá học";
   return (
     <div className="grid gap-4">
-      <div className="relative max-w-md">
-        <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
-        <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Tìm khoá học theo tên, mã..." aria-label="Tìm khoá học" className="pl-9" autoFocus />
+      <div className="flex flex-wrap items-center gap-4">
+        <SegmentedControl
+          ariaLabel="Giao khoá học hay lộ trình"
+          options={[
+            { value: "course", label: "Khoá học" },
+            { value: "path", label: "Lộ trình" },
+          ]}
+          value={kind}
+          onChange={(k) => {
+            setQ("");
+            onKindChange(k);
+          }}
+        />
+        <div className="relative w-full max-w-md">
+          <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            placeholder={`Tìm ${noun} theo tên, mã...`}
+            aria-label={`Tìm ${noun}`}
+            className="pl-9"
+            autoFocus
+          />
+        </div>
       </div>
+      {kind === "path" && (
+        <p className="text-[13px] text-muted-foreground">
+          Giao lộ trình = giao mọi khoá của lộ trình theo thứ tự, cùng một hạn. Khoá người học đã có giữ nguyên trạng thái (đã học xong vẫn tính là xong).
+        </p>
+      )}
+      {courses.length === 0 && (
+        <p className="py-10 text-center text-muted-foreground">
+          {kind === "path"
+            ? "Chưa có lộ trình nào đã phát hành trong phạm vi của bạn. Lộ trình phải được phát hành trước khi giao."
+            : "Chưa có khoá học nào đã phát hành trong phạm vi của bạn. Khoá phải được phát hành trước khi giao."}
+        </p>
+      )}
       <ul className="grid max-h-[50vh] gap-2 overflow-y-auto">
         {list.map((c) => (
           <li key={c.id}>
@@ -231,11 +273,13 @@ function CourseStep({
                 <span className="block truncate font-medium text-foreground">{c.title}</span>
                 <span className="text-[13px] text-muted-foreground">{c.code}</span>
               </span>
-              <span className="shrink-0 text-[13px] text-muted-foreground">Công ty {c.ownerCode}</span>
+              <span className="shrink-0 text-[13px] whitespace-nowrap text-muted-foreground">
+                {c.kind === "path" && `${c.courseCount} khoá · `}Công ty {c.ownerCode}
+              </span>
             </button>
           </li>
         ))}
-        {list.length === 0 && <li className="py-6 text-center text-muted-foreground">Không tìm thấy khoá học.</li>}
+        {courses.length > 0 && list.length === 0 && <li className="py-6 text-center text-muted-foreground">Không tìm thấy {noun}.</li>}
       </ul>
     </div>
   );
@@ -247,6 +291,13 @@ const COUNT_ROWS: { key: keyof AssignCounts; label: string; tone: string }[] = [
   { key: "shortened", label: "Đã có — rút ngắn hạn", tone: "text-info" },
   { key: "unchanged", label: "Đã có — giữ nguyên", tone: "text-muted-foreground" },
   { key: "completed", label: "Đã hoàn thành — bỏ qua", tone: "text-muted-foreground" },
+  { key: "skipped", label: "Bỏ qua (tài khoản khoá / công ty tạm ngưng)", tone: "text-warning" },
+];
+
+const PATH_ROWS: { key: keyof PathPreview; label: string; tone: string }[] = [
+  { key: "newLearners", label: "Giao mới lộ trình", tone: "text-success" },
+  { key: "alreadyHasPath", label: "Đã có lộ trình — bổ sung khoá còn thiếu / rút ngắn hạn", tone: "text-info" },
+  { key: "completedAll", label: "Đã hoàn thành toàn bộ — bỏ qua", tone: "text-muted-foreground" },
   { key: "skipped", label: "Bỏ qua (tài khoản khoá / công ty tạm ngưng)", tone: "text-warning" },
 ];
 
@@ -265,7 +316,7 @@ function DueStep({
   onDueChange: (due: DueChoice) => void;
   onDone: () => void;
 }) {
-  const [preview, setPreview] = useState<{ counts: AssignCounts; selected: number } | null>(null);
+  const [preview, setPreview] = useState<Exclude<ManualPreview, { ok: false }> | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, startLoading] = useTransition();
   const [saving, startSaving] = useTransition();
@@ -275,9 +326,9 @@ function DueStep({
     const t = setTimeout(() => {
       startLoading(async () => {
         try {
-          const r = await previewManualAction(course.id, selection, due);
+          const r = await previewManualAction({ kind: course.kind, id: course.id }, selection, due);
           if (r.ok) {
-            setPreview({ counts: r.counts, selected: r.selected });
+            setPreview(r);
             setError(null);
           } else {
             setPreview(null);
@@ -289,21 +340,30 @@ function DueStep({
       });
     }, 300);
     return () => clearTimeout(t);
-  }, [course.id, selection, due]);
+  }, [course.kind, course.id, selection, due]);
 
   const dueText =
     due.mode === "days" ? formatDate(`${addDaysIso(vnIsoDate(), due.days)}T12:00:00+07:00`) : due.date ? formatDate(`${due.date}T12:00:00+07:00`) : "—";
-  const willChange = preview ? preview.counts.created + preview.counts.reactivated + preview.counts.shortened : 0;
+  // Lộ trình: số lượt cụ thể chỉ biết khi giao (từng khoá) -> đếm theo người chưa có / đã có lộ trình
+  const willChange = !preview
+    ? 0
+    : preview.kind === "path"
+      ? preview.path.newLearners + preview.path.alreadyHasPath
+      : preview.counts.created + preview.counts.reactivated + preview.counts.shortened;
 
   function confirm() {
     startSaving(async () => {
       try {
-        const r = await assignManualAction(course.id, selection, due);
+        const r = await assignManualAction({ kind: course.kind, id: course.id }, selection, due);
         if (!r.ok) return void toast.error(r.message);
-        toast.success(`Đã giao “${course.title}”: ${r.counts.created + r.counts.reactivated} người mới, rút ngắn hạn ${r.counts.shortened} người.`);
+        toast.success(
+          course.kind === "path"
+            ? `Đã giao lộ trình “${course.title}”: ${r.newLearners} người mới, ${r.counts.created + r.counts.reactivated} lượt học khoá mới.`
+            : `Đã giao “${course.title}”: ${r.counts.created + r.counts.reactivated} người mới, rút ngắn hạn ${r.counts.shortened} người.`,
+        );
         onDone();
       } catch {
-        toast.error("Giao khoá không thành công, vui lòng thử lại.");
+        toast.error("Giao không thành công, vui lòng thử lại.");
       }
     });
   }
@@ -311,7 +371,7 @@ function DueStep({
   return (
     <div className="grid gap-6">
       <CourseSummary course={course} />
-      <div className="grid grid-cols-2 gap-6">
+      <div className="grid grid-cols-2 items-start gap-6">
         <div className="grid content-start gap-4">
           <p className="font-medium text-foreground">Hạn hoàn thành</p>
           <label className="flex items-center gap-3">
@@ -365,6 +425,15 @@ function DueStep({
             <p className="text-[15px] text-destructive">{error}</p>
           ) : !preview ? (
             <p className="text-[15px] text-muted-foreground">Đang tính...</p>
+          ) : preview.kind === "path" ? (
+            <dl className={cn("grid gap-1.5 text-[15px]", loading && "opacity-60")}>
+              {PATH_ROWS.filter((r) => r.key === "newLearners" || preview.path[r.key] > 0).map((r) => (
+                <div key={r.key} className="flex justify-between gap-4">
+                  <dt className="text-muted-foreground">{r.label}</dt>
+                  <dd className={cn("font-medium tabular-nums", r.tone)}>{formatNumber(preview.path[r.key])}</dd>
+                </div>
+              ))}
+            </dl>
           ) : (
             <dl className={cn("grid gap-1.5 text-[15px]", loading && "opacity-60")}>
               {COUNT_ROWS.filter((r) => r.key === "created" || preview.counts[r.key] > 0).map((r) => (
@@ -380,7 +449,11 @@ function DueStep({
 
       <div className="flex justify-end">
         <Button type="button" onClick={confirm} disabled={saving || loading || !preview || willChange === 0}>
-          {saving ? "Đang giao..." : `Xác nhận giao (${formatNumber(willChange)} thay đổi)`}
+          {saving
+            ? "Đang giao..."
+            : course.kind === "path"
+              ? `Xác nhận giao lộ trình (${formatNumber(willChange)} người)`
+              : `Xác nhận giao (${formatNumber(willChange)} thay đổi)`}
         </Button>
       </div>
     </div>

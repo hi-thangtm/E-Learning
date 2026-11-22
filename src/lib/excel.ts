@@ -1,4 +1,6 @@
+import "server-only";
 import ExcelJS from "exceljs";
+import { SETTING_META } from "@/lib/settings-meta";
 
 /**
  * Hàm Excel (.xlsx) dùng chung — chỉ chạy ở server. Dùng thư viện exceljs
@@ -19,9 +21,10 @@ const BORDER = "FFD1D0D4";
 export const ERROR_FILL = "FFFFDBDC"; // destructive 16%
 export const ERROR_TEXT = "FFE64449";
 
-export function createWorkbook(): Workbook {
+/** `creator` = tên hệ thống (mặc định lấy từ settings-meta; route xuất có thể truyền tên trong Cài đặt). */
+export function createWorkbook(creator: string = SETTING_META.SYSTEM_NAME.default): Workbook {
   const wb = new ExcelJS.Workbook();
-  wb.creator = "E-Learning";
+  wb.creator = creator;
   wb.created = new Date();
   return wb;
 }
@@ -56,12 +59,32 @@ export function xlsxResponse(buffer: Buffer, fileName: string): Response {
   });
 }
 
+// --- Chống chèn công thức (formula / CSV injection) — Việc 29A ------------------------------
+
+/** Ký tự đầu khiến Excel / LibreOffice có thể hiểu ô là công thức: = + - @, tab, xuống dòng. */
+const FORMULA_START = /^[=+\-@\t\r\n]/;
+
+/**
+ * Ô CHỮ do người dùng nhập (tên, nhận xét, nội dung câu hỏi...) bắt đầu bằng ký tự nguy hiểm → thêm ' ở đầu để luôn là chữ.
+ * Mọi chỗ ghi chữ ra Excel phải đi qua hàm này (addSimpleSheet đã tự áp dụng; chỗ ghi ô trực tiếp dùng safeText / safeRow).
+ */
+export function safeText<T>(value: T): T | string {
+  return typeof value === "string" && FORMULA_START.test(value) ? `'${value}` : value;
+}
+
+/** safeText cho cả dòng (dùng với ws.addRow). */
+export function safeRow<T>(values: T[]): (T | string)[] {
+  return values.map(safeText);
+}
+
 // --- Đọc ô ---------------------------------------------------------------------------------
 
 /** Giá trị ô dạng chữ (đã trim): xử lý chữ thường, số, rich text, hyperlink, công thức, ngày, đúng/sai. */
 export function cellText(cell: Cell | undefined): string {
   if (!cell) return "";
-  return valueToText(cell.value).trim();
+  const text = valueToText(cell.value).trim();
+  // Bỏ dấu ' do safeText thêm khi xuất (xuất → nhập lại không đổi nội dung)
+  return text.startsWith("'") && FORMULA_START.test(text.slice(1)) ? text.slice(1) : text;
 }
 
 function valueToText(value: ExcelJS.CellValue): string {
@@ -192,13 +215,36 @@ export function sheetRangeRef(sheetName: string, column: string, fromRow: number
   return `'${sheetName.replace(/'/g, "''")}'!$${column}$${fromRow}:$${column}$${Math.max(fromRow, toRow)}`;
 }
 
-export type SimpleColumn<T> = { header: string; width?: number; value: (row: T) => string | number | null };
+/**
+ * Cột của sheet đơn giản. Thuộc tính format:
+ * - "percent": giá trị là số 0–100 (VD 85.5) → ghi 0.855, định dạng 0.0%
+ * - "date": giá trị Date → định dạng dd/mm/yyyy (ngày giờ Việt Nam)
+ * - "datetime": giá trị Date → dd/mm/yyyy hh:mm
+ * - "number": số, định dạng #,##0.##
+ */
+export type SimpleColumn<T> = {
+  header: string;
+  width?: number;
+  format?: "percent" | "date" | "datetime" | "number";
+  value: (row: T) => string | number | Date | null;
+};
 
-/** Thêm sheet bảng đơn giản từ mảng object: tiêu đề tô màu, cố định dòng đầu. */
+const NUM_FMT = { percent: "0.0%", date: "dd/mm/yyyy", datetime: "dd/mm/yyyy hh:mm", number: "#,##0.##" } as const;
+const VN_OFFSET_MS = 7 * 60 * 60 * 1000;
+
+/** Excel không có múi giờ: dời Date sang giờ Việt Nam để ô hiển thị đúng ngày. */
+function excelValue(value: string | number | Date | null, format: SimpleColumn<unknown>["format"]): string | number | Date | null {
+  if (value === null) return null;
+  if (format === "percent" && typeof value === "number") return value / 100;
+  if (value instanceof Date) return new Date(value.getTime() + VN_OFFSET_MS);
+  return safeText(value);
+}
+
+/** Thêm sheet bảng đơn giản từ mảng object: tiêu đề đậm tô màu, cố định dòng đầu, định dạng % / ngày theo cột. */
 export function addSimpleSheet<T>(wb: Workbook, name: string, columns: SimpleColumn<T>[], rows: T[]): Worksheet {
   const ws = wb.addWorksheet(name);
-  ws.columns = columns.map((c) => ({ header: c.header, width: c.width ?? 20 }));
-  for (const row of rows) ws.addRow(columns.map((c) => c.value(row)));
+  ws.columns = columns.map((c) => ({ header: c.header, width: c.width ?? 20, ...(c.format && { style: { numFmt: NUM_FMT[c.format] } }) }));
+  for (const row of rows) ws.addRow(columns.map((c) => excelValue(c.value(row), c.format)));
   styleHeaderRow(ws);
   freezeRows(ws);
   return ws;

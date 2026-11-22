@@ -2,7 +2,7 @@
 
 import { useActionState, useCallback, useEffect, useState, type ReactElement } from "react";
 import { toast } from "sonner";
-import { FormField } from "@/components/form-field";
+import { FormField, FormGrid } from "@/components/form-field";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -81,7 +81,8 @@ function CompanyForm({ company, onSuccess }: { company?: CompanyFormValue; onSuc
     <form action={formAction} className="contents" noValidate>
       {company && <input type="hidden" name="id" value={company.id} />}
 
-      <DialogBody className="grid gap-4">
+      <DialogBody>
+        <FormGrid>
         <FormField
           label="Mã công ty"
           htmlFor="code"
@@ -121,6 +122,7 @@ function CompanyForm({ company, onSuccess }: { company?: CompanyFormValue; onSuc
             aria-describedby={state.errors?.name ? "name-error" : undefined}
           />
         </FormField>
+        </FormGrid>
       </DialogBody>
 
       <DialogFooter>

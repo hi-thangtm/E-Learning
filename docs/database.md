@@ -39,6 +39,21 @@ PostgreSQL 17 · Prisma 6 · tên bảng `snake_case` (`@@map`), cột `camelCas
 - Quy tắc giao do công ty con tạo: `targetCompanyId` bắt buộc = chính công ty đó.
 - Mọi kiểm tra quyền làm ở server (không tin dữ liệu từ trình duyệt).
 
+### Đội của tôi (`/team`, `/team/members` — `src/lib/scope.ts`, `src/lib/team-stats.ts`)
+- **Phạm vi đội** = `getTeamScope(user)` — dùng ở MỌI truy vấn Đội của tôi / Báo cáo:
+  `MANAGER` = nhân viên các phòng mình làm trưởng + mọi phòng con (duyệt cây phòng ban, kể cả phòng đã ẩn; không làm trưởng phòng nào → rỗng);
+  `COMPANY_ADMIN` = cả công ty mình; `GROUP_ADMIN` = toàn tập đoàn hoặc 1 công ty. Luôn chỉ người `ACTIVE` của công ty đang hoạt động.
+  Xem chi tiết 1 người: `assertUserInTeam`. Trưởng phòng tải được PDF chứng nhận của người trong đội.
+- **Khoá được giao** = enrollment `source` `RULE` / `ASSIGNED`, khác `CANCELLED` (tự đăng ký `SELF` không tính vào tỷ lệ).
+  **Quá hạn** = `dueDate < now` và chưa `COMPLETED`. **Chưa nắm quy trình mới** = `COMPLETED` và `acknowledgedVersion < courses.currentVersion`.
+  **Tỷ lệ hoàn thành** = đã xong ÷ được giao. Số liệu tính bằng truy vấn gộp (`GROUP BY` + `FILTER`), không lặp từng người.
+- **Nhắc nhở**: mỗi khoá được giao chưa xong (kiểu “quá hạn” hoặc “tất cả chưa hoàn thành”) của mỗi người = 1 thông báo `REMINDER`
+  (“<người nhắc> nhắc bạn hoàn thành khoá … (hạn dd/MM)” + lời nhắn ≤ 200 ký tự), `dedupeKey = reminder:<enrollmentId>:<ngày VN>`
+  → mỗi khoá chỉ nhắc 1 lần / ngày. Người nhận luôn lọc lại theo phạm vi đội ở server. Nhật ký `TEAM_REMINDER_SENT`.
+- **Báo cáo** (`/reports`, `src/lib/reports.ts`): cùng phạm vi `getTeamScope`; định nghĩa từng chỉ số ở **`docs/reports.md`**
+  (nguồn trong code: `src/lib/report-definitions.ts`). SQL gộp, tham số hoá (`Prisma.sql`). Xuất Excel ghi `REPORT_EXPORTED`;
+  “Nhắc xác nhận” bản MINOR: `REMINDER` link `/my-courses/<id>/updates`, `dedupeKey = reminder_ack:<enrollmentId>:<ngày VN>`.
+
 ### Phòng ban
 - Mã phòng ban duy nhất **trong từng công ty**. Phòng cha và trưởng phòng phải **cùng công ty** với phòng ban.
 - Không được chọn phòng cha là chính nó hoặc phòng con / cháu của nó (chống vòng lặp). Phòng cha mới phải đang dùng.
@@ -51,10 +66,36 @@ PostgreSQL 17 · Prisma 6 · tên bảng `snake_case` (`@@map`), cột `camelCas
 
 - `courses.currentVersion`: 0 = chưa phát hành. Phát hành lần đầu → 1 (`INITIAL`).
 - Phát hành = dòng `course_versions` có `status = PUBLISHED`, `versionNo = currentVersion + 1`, `publishedAt`, `publishedById` + tăng `courses.currentVersion` — trong 1 transaction.
+- **Phát hành lần đầu** (đã làm — `publishCourseAction`): chỉ khi khoá `DRAFT` + `currentVersion = 0`; người phát hành = người được sửa khoá
+  (`canEditCourse`: Admin tập đoàn mọi khoá, người khác khoá của công ty mình). Kiểm tra lại ở server bằng `getPublishChecks`
+  (`src/lib/course-publish.ts`): có ≥ 1 bài đang dùng; bài video có video `READY` + thời lượng; bài tài liệu có nội dung hoặc PDF;
+  bài kiểm tra có số câu + điểm đạt và ngân hàng đủ câu đang dùng đúng chủ đề. Đạt → `status = PUBLISHED`, `currentVersion = 1`,
+  dòng `course_versions` `INITIAL` (ghi chú phát hành lưu ở `changeSummary`), audit `COURSE_PUBLISHED`. Bản MINOR / MAJOR: Việc 21.
 - **Đề xuất MAJOR** (Biên soạn): tạo dòng `status = PROPOSED`, `versionNo = NULL`, `proposedById`, `proposedAt`. Admin **duyệt** → chuyển thành PUBLISHED như trên; **từ chối** → `REJECTED` + `reviewNote`. Mỗi khoá chỉ có tối đa 1 đề xuất PROPOSED cùng lúc.
 - `INITIAL` và `MINOR`: Biên soạn tự phát hành. `MAJOR`: chỉ `COMPANY_ADMIN` / `GROUP_ADMIN` phát hành.
 - **MAJOR**: mọi enrollment `COMPLETED` của khoá → `status = NOT_STARTED`, `progressPercent = 0`, xoá trạng thái `lesson_progress` của các bài trong khoá, `dueDate = now + dueInDays`, gửi thông báo `VERSION_MAJOR`. Lịch sử cũ (quiz_attempts, certificates) giữ nguyên vì có cột `courseVersion`.
 - **MINOR**: không đặt lại gì. Người có `acknowledgedVersion < currentVersion` thấy banner "Có cập nhật", đọc `changeSummary`, bấm xác nhận → `acknowledgedVersion = currentVersion`, `acknowledgedAt = now`.
+- **Bản cập nhật MINOR / MAJOR** (đã làm — `src/lib/versioning.ts`, trang soạn khoá: nút "Phát hành bản cập nhật", tab "Lịch sử phiên bản"):
+  - Chỉ khoá `PUBLISHED` có `currentVersion ≥ 1`. Quyền kiểm tra ở server: **MINOR** — Biên soạn / Admin công ty của công ty sở hữu, Admin tập đoàn;
+    **MAJOR trực tiếp, duyệt, từ chối** — chỉ Admin công ty của công ty sở hữu và Admin tập đoàn; **đề xuất MAJOR** — Biên soạn của công ty sở hữu.
+  - Phát hành trong 1 transaction: tăng `currentVersion` có điều kiện (chống phát hành trùng), tạo / chuyển đề xuất thành dòng `PUBLISHED`
+    (`changeSummary` HTML đã lọc, `dueInDays`), xử lý lượt học `COMPLETED` theo lô 500.
+  - MINOR: không đổi lượt học; thông báo `VERSION_MINOR` (link `/my-courses/<id>/updates`) cho người đã học xong.
+  - MAJOR: lượt học `COMPLETED` → `resetEnrollmentForRelearn` (hạn = hôm nay + `dueInDays`) + thông báo `VERSION_MAJOR`.
+    **Người đang học dở (NOT_STARTED / IN_PROGRESS) KHÔNG bị đặt lại** — giữ tiến độ. Lượt CANCELLED bỏ qua.
+  - Thông báo dedupe `version:<versionId>`. Màn xác nhận hiện số người bị ảnh hưởng; MAJOR phải gõ lại mã khoá.
+  - **Mỗi khoá tối đa 1 đề xuất PROPOSED** (gửi thêm → bị từ chối). Gửi đề xuất → thông báo `VERSION_PROPOSED` cho Admin công ty sở hữu
+    (khoá của công ty tổng → Admin tập đoàn). Từ chối bắt buộc lý do (`reviewNote`) → thông báo `VERSION_REJECTED` cho người đề xuất.
+  - Nhật ký: `COURSE_VERSION_PUBLISHED` (loại, versionNo, số người bị ảnh hưởng, danh sách lượt học bị ảnh hưởng — để tab Lịch sử đếm
+    "đã xác nhận / đã học xong lại X / Y người"), `COURSE_VERSION_PROPOSED`, `COURSE_VERSION_REJECTED` (lý do).
+- **Phía học viên** (đã làm — `src/lib/acknowledgements.ts`):
+  - Cần xác nhận = lượt học `COMPLETED` có phiên bản đã nắm (`acknowledgedVersion`, chưa có thì `completedVersion`) < `currentVersion`
+    và có bản MINOR `PUBLISHED` sau phiên bản đã nắm. **Hạn xác nhận** = cuối ngày (giờ VN) `publishedAt + dueInDays` của bản MINOR mới nhất.
+  - Hiện ở: banner "Quy trình có cập nhật" trang Tổng quan + trang giới thiệu khoá, badge "Có cập nhật" trên thẻ khoá,
+    trang `/my-courses/<id>/updates` (tóm tắt từng bản MINOR, mới nhất trên cùng).
+  - "Tôi đã đọc và nắm được" (bật sau 10 giây): chỉ chủ lượt học → `acknowledgedVersion = currentVersion`, `acknowledgedAt = now`,
+    đánh dấu đã đọc các thông báo `VERSION_MINOR` của khoá đó. Không ghi `audit_logs` (đã có `acknowledgedAt`).
+  - Lượt học bị đặt lại do MAJOR (chưa học xong lại, `completedVersion` < bản MAJOR) → trang khoá ghi "Khoá có thay đổi lớn ở phiên bản vX — bạn cần học lại" + tóm tắt.
 - Hoàn thành khoá → `completedVersion = acknowledgedVersion = currentVersion`.
 - "Đã nắm quy trình mới nhất" = `acknowledgedVersion = courses.currentVersion`.
 - Nội dung chương/bài sửa trực tiếp (không lưu bản nháp riêng); phát hành phiên bản là sự kiện báo cho người học và quyết định học lại hay chỉ xác nhận.
@@ -95,7 +136,43 @@ Lõi dùng chung: `assignCourse` / `previewAssignment` / `onUserOrgChanged` tron
   - Khoá không còn `PUBLISHED` (VD lưu trữ) → quy tắc **tự bỏ qua**, không giao cho ai (bảng quy tắc có cảnh báo).
 - **Người vào sau** — `onUserOrgChanged(userId)` chạy khi: tạo người dùng, import Excel, đổi phòng ban / chức danh / công ty, **mở khoá tài khoản**.
   Tìm mọi quy tắc đang chạy khớp công ty / chức danh / phòng ban (quy tắc “gồm phòng con” đặt ở **phòng cha / ông** cũng khớp) → giao.
-- Giao lộ trình = tạo enrollment cho từng khoá trong lộ trình, ghi `learningPathId`. Khoá sau chỉ mở khi khoá trước COMPLETED (làm ở việc Lộ trình).
+- **Lộ trình học** (`learning_paths`, `learning_path_courses`; phạm vi như khoá — `src/lib/path-scope.ts`):
+  - Soạn ở `/content/paths` (Biên soạn / Admin công ty / Admin tập đoàn). Mã in hoa, không trùng. Lộ trình công ty con chọn được khoá
+    `PUBLISHED` của công ty mình + công ty tổng; lộ trình công ty tổng chỉ chọn khoá công ty tổng.
+  - `DRAFT`: thêm / bỏ / kéo thả thứ tự. **Phát hành** cần ≥ 2 khoá, tất cả đang `PUBLISHED`.
+  - `PUBLISHED`: **không đổi thứ tự, không bỏ khoá**; chỉ “Thêm khoá vào cuối” → khoá đó tự giao cho mọi người đang có lộ trình
+    (người có lượt học khác `CANCELLED` gắn `learningPathId`), hạn = hạn muộn nhất của họ trong lộ trình (không có → hôm nay + `DEFAULT_DUE_DAYS`).
+  - Lưu trữ → không giao mới (thủ công lẫn quy tắc), lượt đã giao giữ nguyên. Khôi phục → `PUBLISHED` nếu từng phát hành (có `PATH_PUBLISHED`), ngược lại `DRAFT`.
+  - Khoá trong lộ trình bị lưu trữ → bỏ qua khi giao lộ trình; trang lộ trình hiện cảnh báo.
+  - Nhật ký: `PATH_CREATED`, `PATH_UPDATED`, `PATH_PUBLISHED`, `PATH_ARCHIVED`, `PATH_RESTORED`, `PATH_COURSE_APPENDED` (khoá, số người được giao thêm).
+- **Giao lộ trình** (`assignPath` / `previewPathAssignment`) = giao từng khoá theo thứ tự bằng `assignCourse`, **cùng một hạn** cho mọi khoá, ghi `learningPathId`:
+  - Lượt khoá đã có giữ nguyên trạng thái (đã `COMPLETED` vẫn tính là xong); nếu `learningPathId` đang NULL thì gắn lộ trình này.
+  - Xem trước theo người: chưa có lộ trình (giao mới) / đã có lộ trình / đã hoàn thành mọi khoá / bỏ qua.
+  - Không gửi thông báo từng khoá; người **chưa có** lộ trình nhận 1 thông báo `COURSE_ASSIGNED` “Bạn được giao lộ trình: …”,
+    link `/learning-paths/<id>`, `dedupeKey = path_assigned:<pathId>`. `ENROLLMENTS_ASSIGNED` ghi thêm `learningPathId`, `pathCode`.
+  - Giao thủ công: trình giao bước 1 chọn “Khoá học” / “Lộ trình”. Quy tắc giao tự động: chọn khoá học **hoặc** lộ trình (`assignment_rules.learningPathId`),
+    loại và đối tượng cố định sau khi tạo; `onUserOrgChanged` áp dụng cả quy tắc lộ trình (lộ trình `PUBLISHED`; lộ trình công ty con chỉ trong công ty đó).
+- **Thư viện tự đăng ký** (`/library`, `src/lib/library.ts`):
+  - Khoá hiển thị: `PUBLISHED` + `allowSelfEnroll` + `audience = EMPLOYEE` + `ownerCompanyId` = công ty tổng HOẶC công ty người xem.
+    Trang giới thiệu khoá không đủ điều kiện → về `/library`. Mọi điều kiện kiểm tra lại ở server khi đăng ký.
+  - Đăng ký = `assignCourse` với `source = SELF`, **không hạn** (`dueDate` NULL), `assignedById` = chính mình; lượt `CANCELLED` thì kích hoạt lại.
+    `SELF` **không gửi thông báo, không ghi `audit_logs`**. Lượt không hạn không bao giờ vào nhắc `DUE_SOON` / `OVERDUE` (lọc theo `dueDate`).
+  - **Huỷ đăng ký** (trang khoá của tôi): chỉ lượt `SELF`, `NOT_STARTED`, chưa có `lesson_progress` / `quiz_attempts` nào của khoá → `CANCELLED`. Không ghi audit.
+- **Đánh giá khoá học** (`course_reviews`, `src/lib/reviews.ts`):
+  - Chỉ người có lượt học (khác `CANCELLED`) đã `COMPLETED` hoặc có `completedVersion` (từng học xong, kể cả đang học lại sau MAJOR).
+  - Mỗi người 1 đánh giá / khoá (`@@unique courseId + userId`), gửi lại = sửa. `rating` 1–5; `comment` chữ thường ≤ 1.000 ký tự, rỗng = NULL.
+  - Người soạn / quản trị thấy nhận xét kèm tên, mã NV, phòng ban (phạm vi như `/content/courses`), xuất Excel được.
+  - Thư viện chỉ hiện điểm TB + số lượt khi **≥ 3 lượt** (ít hơn: “Chưa đủ đánh giá”), không hiện nhận xét.
+  - Không ghi `audit_logs`, không gửi thông báo.
+- **Khoá theo lộ trình** (`src/lib/path-lock.ts` — `getPathLock` / `getPathLocks`), kiểm tra ở SERVER:
+  - Lượt học có `learningPathId` bị 🔒 khi còn khoá **đứng trước** trong lộ trình mà người đó có lượt học (khác `CANCELLED`) nhưng chưa `COMPLETED`.
+    Khoá đứng trước mà người đó không có lượt học (VD đã lưu trữ nên không được giao) → bỏ qua. Lượt không có `learningPathId` → không ảnh hưởng.
+  - Áp dụng: `getCourseOutline` (mọi bài khoá), `getLessonAccess` (`reason = "path"` → trang học chuyển về `/learning-paths/<id>`; chặn luôn
+    tiến độ video / hoàn thành tài liệu / làm bài kiểm tra), trang giới thiệu khoá, Khoá học của tôi (thẻ mờ, nút “Xem lộ trình”),
+    “Cần làm” ở Tổng quan (bỏ khoá 🔒), tác vụ hằng ngày (không nhắc `DUE_SOON` / `OVERDUE` cho lượt 🔒).
+  - Hoàn thành khoá thuộc lộ trình (`onCourseCompleted`): khoá kế tiếp vừa mở → `PATH_NEXT_UNLOCKED` (dedupe `path_next:<pathId>:<courseId>`),
+    màn chúc mừng có nút “Học khoá tiếp theo”; xong mọi khoá → `PATH_COMPLETED` (dedupe `path_done:<pathId>`).
+  - Học viên xem lộ trình ở `/learning-paths` (tiến độ X/Y khoá, hạn chung = hạn muộn nhất) và `/learning-paths/<id>` (dòng thời gian các khoá).
 
 ## Quy tắc 4 — Học và kiểm tra
 
@@ -119,17 +196,51 @@ Lõi dùng chung: `assignCourse` / `previewAssignment` / `onUserOrgChanged` tron
 - **Hoàn thành bài / khoá** — `completeLesson` (1 transaction, dùng chung cho video, tài liệu, bài kiểm tra): đánh dấu bài xong (đã xong thì giữ),
   tính lại `progressPercent`; đủ 100% → `COMPLETED`, `completedAt`, `completedVersion = acknowledgedVersion = currentVersion`, `acknowledgedAt`,
   gọi `onCourseCompleted` (Việc 22 cấp chứng nhận, Việc 23 mở khoá tiếp theo trong lộ trình). Lượt đã COMPLETED không bị hạ trạng thái khi xem lại.
-- **Xem file** (`/api/files/...`, `src/lib/file-access.ts`): file khoá học (`courses/...`: ảnh bìa, PDF bài học) chỉ trả cho người có lượt học
+- **Xem file** (`/api/files/...`, `src/lib/file-access.ts`): file khoá học (`courses/...`: ảnh bìa, PDF bài học, ảnh câu hỏi) chỉ trả cho người có lượt học
   khoá đó (khác CANCELLED) hoặc GROUP_ADMIN / COMPANY_ADMIN / CONTENT_EDITOR thấy được khoá theo phạm vi (Quy tắc 1); sai → 403.
   File không gắn khoá nào → 404. File khác: chỉ cần đăng nhập.
-- QUIZ: rút ngẫu nhiên `questionCount` câu từ `questions` của **cùng khoá** với điều kiện `isActive AND isApproved` (và `topic = lessons.questionTopic` nếu có). Số lần làm tính trong phiên bản hiện tại (`courseVersion`), tối đa `maxAttempts`. Xong khi có 1 lần `passed = true`. Hết giờ → chấm câu đã chọn và tự nộp. Chỉ trả đáp án đúng về trình duyệt khi `showAnswers = true` và đã nộp.
+- QUIZ (`src/lib/quiz.ts`): rút ngẫu nhiên `questionCount` câu từ `questions` của **cùng khoá** với điều kiện `isActive AND isApproved` (và `topic = lessons.questionTopic` nếu có),
+  **xáo thứ tự câu và phương án**. Xong khi có 1 lần `passed = true` → `completeLesson`.
+  - **Số lượt tối đa = `maxAttempts + lesson_progress.bonusAttempts`** (`maxAttempts` NULL = không giới hạn), đếm số `quiz_attempts` trong
+    **phiên bản khoá hiện tại** (`courseVersion = courses.currentVersion`). Admin cấp thêm lượt ở Giao thủ công (1–5 lượt/lần, ghi `QUIZ_ATTEMPTS_GRANTED`).
+  - `quiz_attempts.answers` = snapshot đầy đủ của đề: `[{ questionId, type, content, imageUrl, options: [{id,text,isCorrect}], explanation, selected }]`
+    — chấm và xem lại theo snapshot (câu hỏi sửa sau không ảnh hưởng). `attemptNo` = số lần trước trong phiên bản + 1.
+  - Mỗi lúc chỉ 1 lượt dở; mở lại khi còn giờ → làm tiếp lượt đó. Lưu từng câu ngay khi chọn; không nhận lưu khi đã nộp hoặc quá `deadline + 30 giây`
+    (`deadline = startedAt + timeLimitMinutes`). Hết giờ → tự nộp (trình duyệt) và mỗi lần mở trang bài kiểm tra server chấm các lượt dở đã quá hạn.
+  - Chấm: câu một đáp án đúng khi chọn đúng phương án đúng; câu nhiều đáp án đúng khi tập đã chọn **trùng khớp** tập đáp án đúng (không điểm từng phần).
+    `score = round(số câu đúng ÷ tổng câu × 100)`, `passed = score ≥ passingScore`.
+  - **Đề gửi trình duyệt không có `isCorrect` và `explanation`.** Đáp án / giải thích chỉ trả về sau khi nộp và khi `showAnswers = true`.
+  - Xem trước (người soạn): làm thử không ghi `quiz_attempts`, luôn hiện đáp án. Không ghi `audit_logs` cho việc làm bài.
 - `progressPercent` = bài xong ÷ tổng bài × 100, tính lại mỗi khi một bài xong.
+
+### Ngân hàng câu hỏi (`questions`, trang `/content/questions`)
+- Câu hỏi thuộc **khoá học**. Phạm vi như khoá học (Quy tắc 1): chỉ sửa câu của khoá mình được sửa (`canEditCourse`);
+  khoá của công ty tổng thì công ty con chỉ xem / xuất Excel.
+- `options` = `[{ id, text, isCorrect }]`. **`id` ổn định**: sửa câu hỏi giữ id phương án cũ, phương án mới có id mới (không đánh lại).
+- Hợp lệ (form và import dùng chung `questionInputSchema`, `src/lib/question-bank.ts`): nội dung bắt buộc; 2–6 phương án, không rỗng,
+  không trùng (bỏ khoảng trắng thừa, không phân biệt hoa/thường); `SINGLE` = đúng 1 đáp án đúng; `MULTIPLE` = ít nhất 1.
+- Câu tạo tay / import: `isAiCreated = false`, `isApproved = true`. **Đang dùng** = `isActive AND isApproved` (được rút vào đề).
+- Tắt / bật = `isActive`. **Xoá hẳn chỉ khi khoá chưa phát hành lần nào** (`currentVersion = 0`); đã phát hành → chỉ tắt.
+  Xoá câu có ảnh → xoá file ảnh.
+- Ảnh minh hoạ lưu ở `courses/<courseId>/questions/` (tối đa 2MB, JPG/PNG/WEBP), xem qua `/api/files` theo quy tắc file khoá học.
+- Import Excel luôn **thêm mới** (tối đa 1.000 câu, 5MB), còn dòng lỗi thì không lưu gì; câu trùng nội dung với câu đã có chỉ cảnh báo.
+  File mẫu = file xuất (xuất từ khoá này, import vào khoá khác được). Không hỗ trợ ảnh.
+- Nhật ký `QUESTION_*` chỉ ghi chủ đề + 80 ký tự đầu nội dung, **không ghi đáp án**.
+- **Điều kiện phát hành bài kiểm tra** (`getQuizBankIssues` — dùng ở bước phát hành Việc 21, hiện cảnh báo ở tab Nội dung):
+  mỗi bài QUIZ đang dùng phải có `questionCount`, `passingScore`, và số câu đang dùng phù hợp chủ đề ≥ `questionCount`.
 
 ## Quy tắc 5 — Tài khoản
 
 - Admin tạo tài khoản (thủ công / import Excel): đặt mật khẩu ban đầu, `mustChangePassword = true` → chạy quy tắc bắt buộc.
 - `employeeCode` duy nhất toàn tập đoàn (là tên đăng nhập). Nếu các công ty con trùng mã, thêm tiền tố mã công ty (VD: `CTYA-00123`).
 - Sai mật khẩu 5 lần → `lockedUntil = now + 15 phút`. Đăng nhập đúng → `failedLoginCount = 0`.
+- **Đăng nhập không để lộ tài khoản** (Việc 29A, `src/auth.ts`): luôn so mật khẩu TRƯỚC — mã không tồn tại vẫn so với một hash giả cùng cost 12
+  (thời gian phản hồi như nhau). Sai mật khẩu → **luôn** chỉ báo “Mã nhân viên hoặc mật khẩu không đúng” (vẫn tăng `failedLoginCount` nếu mã tồn tại;
+  đang khoá tạm thì không đếm thêm). Chỉ khi mật khẩu ĐÚNG mới báo: đang khoá tạm / tài khoản INACTIVE / công ty tạm ngưng.
+  Giới hạn tần suất: 10 lần / phút / IP, 5 lần / phút / mã NV (`src/lib/rate-limit.ts`; IP chỉ đọc từ `X-Forwarded-For` khi `TRUST_PROXY=true`).
+- **Huỷ phiên cũ** — `users.sessionsValidAfter`: phiên (JWT, claim `authAt` = thời điểm đăng nhập) cấp TRƯỚC mốc này bị coi là hết hiệu lực
+  (`getCurrentUser` trả `null` → về trang đăng nhập). Đặt `sessionsValidAfter = now` khi: **tự đổi mật khẩu** (rồi cấp ngay phiên mới cho chính
+  trình duyệt đang đổi — các trình duyệt khác bị đăng xuất), **admin đặt lại mật khẩu**, **khoá tài khoản**, **đổi vai trò**, **chuyển công ty**.
 - Nghỉ việc → `status = INACTIVE` (không xoá). Đặt lại mật khẩu → `mustChangePassword = true`.
 - **Công ty tạm ngưng** (`companies.isActive = false`) → mọi nhân viên của công ty đó **không đăng nhập được**
   (thông báo "Công ty của bạn đang tạm ngưng sử dụng hệ thống"); phiên đang mở mất hiệu lực ở request kế tiếp
@@ -150,12 +261,52 @@ Lõi dùng chung: `assignCourse` / `previewAssignment` / `onUserOrgChanged` tron
 - Không xoá dữ liệu nghiệp vụ: dùng `INACTIVE`, `ARCHIVED`, `CANCELLED`, `isActive = false`.
 - Ghi nhiều bảng cùng lúc → `prisma.$transaction`.
 - Quá hạn = `dueDate < now() AND status NOT IN (COMPLETED, CANCELLED)` — tính khi truy vấn, không lưu.
-- Chứng nhận có `expiresAt` hết hạn → tác vụ hằng ngày đặt lại enrollment như bản MAJOR.
+- **Tác vụ hằng ngày** (`src/lib/jobs/daily.ts` → `runDailyJob`, giờ Asia/Ho_Chi_Minh). Chỉ xét người `ACTIVE` thuộc công ty đang hoạt động.
+  Mỗi phần chạy riêng (1 phần lỗi không làm hỏng phần khác), duyệt theo lô 500, mỗi lúc chỉ 1 lượt chạy (`pg_try_advisory_xact_lock`
+  giữ trong 1 transaction chỉ dùng để giữ khoá — bản xact vì Prisma dùng nhiều kết nối). Kết thúc ghi `audit_logs` `JOB_DAILY_RUN`
+  (`actorId` = người bấm, NULL = tự động; metadata: số lượng từng phần, lỗi, thời gian chạy). Chạy nhiều lần trong ngày không gửi trùng (dedupeKey).
+  - **Sắp đến hạn**: lượt học chưa COMPLETED / CANCELLED, hạn từ bây giờ tới hết ngày (hôm nay + 3) → `DUE_SOON`, link `/my-courses/<courseId>`.
+  - **Quá hạn**: hạn < bây giờ → `OVERDUE` "Khoá X đã quá hạn N ngày"; nhắc ngày đầu quá hạn rồi **mỗi 7 ngày** (tuần `w = (N − 1) / 7` trong dedupeKey).
+  - **Bài kiểm tra bỏ dở**: lượt chưa nộp, đã quá `startedAt + timeLimitMinutes + 30 giây` → chấm theo bài đã lưu (đạt → hoàn thành bài).
+  - **Chứng nhận sắp hết hạn**: chưa thu hồi, hết hạn trong 30 ngày tới → `CERTIFICATE_EXPIRING`.
+  - **Chứng nhận hết hạn → học lại**: chưa thu hồi, đã hết hạn, là chứng nhận MỚI NHẤT của người đó cho khoá đó, và lượt học khoá đó đang
+    `COMPLETED` → `resetEnrollmentForRelearn` (`src/lib/learning.ts`, dùng chung với bản MAJOR): lượt học → `NOT_STARTED`, 0%,
+    `startedAt` / `completedAt` = NULL, hạn = hôm nay + `DEFAULT_DUE_DAYS`; **giữ** `completedVersion`, `acknowledgedVersion`;
+    `lesson_progress` các bài của khoá về chưa xong (xoá vị trí video, `bonusAttempts = 0`); **không xoá** `quiz_attempts`, `certificates`.
+    Kèm thông báo "Chứng nhận khoá X đã hết hạn — vui lòng học lại". Chạy lại không làm lại vì lượt học không còn COMPLETED.
+  - **Dọn thông báo**: xoá thông báo đã đọc tạo trước 180 ngày, chưa đọc tạo trước 365 ngày (thông báo không phải dữ liệu nghiệp vụ).
+  - **Chưa xác nhận bản MINOR quá hạn**: lượt học COMPLETED chưa nắm bản hiện tại, bản MINOR mới nhất đã quá hạn xác nhận → `VERSION_MINOR`
+    "Bạn chưa xác nhận cập nhật quy trình X (quá hạn)", dedupe `ack_overdue:<enrollmentId>:v<currentVersion>:w<tuần>` (nhắc lại mỗi 7 ngày).
+  - Cách gọi: `POST /api/jobs/daily` với `Authorization: Bearer <CRON_SECRET>` (thiếu biến / sai → 401; lập lịch trên VPS ở giai đoạn I);
+    `npm run job:daily` (máy dev); Admin tập đoàn bấm "Chạy ngay" ở `/system/jobs` (xem 30 lần chạy gần nhất).
 - Mẫu chứng nhận: lấy logo / người ký của công ty người học; cột nào trống thì lấy của công ty tổng.
+- **Chứng nhận** (`src/lib/certificates.ts`, PDF `src/lib/certificate-pdf.tsx`):
+  - Cấp tự động trong transaction hoàn thành khoá (`onCourseCompleted`) khi `courses.hasCertificate`. Mã `CERT-<năm>-<6 ký tự>`
+    (bảng chữ không gây nhầm `23456789ABCDEFGHJKLMNPQRSTUVWXYZ`, sinh bằng crypto, thử lại nếu trùng). `recipientName` = họ tên lúc cấp,
+    `courseVersion` = phiên bản đã học xong, `expiresAt = issuedAt + certificateValidMonths` tháng (NULL = vĩnh viễn). Thông báo `CERTIFICATE_ISSUED`.
+  - Mỗi **lần hoàn thành** chỉ 1 chứng nhận (chạy lại / cấp bù không trùng). Học lại sau khi hết hạn = lần hoàn thành mới → chứng nhận mới.
+    Chứng nhận đã thu hồi không được cấp lại tự động.
+  - **`templateSnapshot`** `{ companyName, logoKey, signerName, signerTitle, signatureKey }` = mẫu của công ty người học lúc cấp
+    (cột trống lấy của công ty tổng). Sửa mẫu sau KHÔNG đổi chứng nhận đã cấp; file ảnh cũ còn được snapshot dùng thì không xoá.
+  - Thu hồi: `revokedAt` (không xoá) — Admin công ty (người công ty mình), Admin tập đoàn; bắt buộc lý do, audit `CERTIFICATE_REVOKED`.
+    PDF đã thu hồi có chữ chìm "ĐÃ THU HỒI". Trạng thái: Đã thu hồi / Hết hạn / Sắp hết hạn (≤ 30 ngày) / Còn hiệu lực.
+  - Tải PDF (`/api/certificates/<id>/pdf`): chủ chứng nhận, Admin công ty cùng công ty, Admin tập đoàn. Mã QR trỏ tới `<APP_URL>/verify/<mã>`.
+  - Tra cứu công khai `/verify/<mã>` (không đăng nhập, `noindex`): chỉ họ tên, khoá + phiên bản, ngày cấp, hạn, đơn vị cấp — KHÔNG mã NV, phòng ban, điểm.
+  - Mẫu theo công ty ở `/system/certificate-templates` (ảnh ≤ 1MB, lưu `companies/<id>/`), audit `CERTIFICATE_TEMPLATE_UPDATED`.
+  - Cấp bù: `npm run job:backfill-certificates`.
 - Mọi thao tác quản trị ghi `audit_logs` — **chỉ qua `logAudit(tx, …)`** (`src/lib/audit.ts`), trong cùng transaction với thay đổi dữ liệu.
   Mã thao tác phải có trong `AUDIT_ACTION_LABELS` (thiếu nhãn tiếng Việt → lỗi biên dịch). `logAudit` tự bỏ khoá `password` / `passwordHash` / `*Password` khỏi metadata.
   Nhật ký **chỉ ghi thêm**: không có chức năng sửa / xoá. Phạm vi xem: Admin công ty chỉ dòng có `companyId` = công ty mình; Admin tập đoàn xem tất cả.
   Index: `[companyId, createdAt]`, `[createdAt]` (xem toàn hệ thống theo ngày), `[actorId, createdAt]` (thao tác của 1 người), `[entityType, entityId]`.
+- **Thông báo** (`notifications`, `src/lib/notifications.ts`): luôn tạo qua `notify(db, { userIds, type, title, link, dedupeKey })`
+  (tạo hàng loạt, `skipDuplicates`). `type` thuộc danh sách trong `src/lib/notification-types.ts`. `link` phải là đường dẫn nội bộ
+  bắt đầu bằng `/` (không phải `//`), sai thì bỏ link. Không ghi `audit_logs` cho thông báo. Đọc / đánh dấu đã đọc chỉ đụng thông báo của chính người đó.
+  - **`dedupeKey`** + `@@unique([userId, dedupeKey])`: cùng người + cùng key chỉ có 1 dòng — dùng cho thông báo do tác vụ tự động tạo
+    (chạy lại không gửi trùng). Quy ước `<loại>:<đối tượng>[:<mốc>]` (chữ thường), VD `due_soon:<enrollmentId>:<yyyy-mm-dd hạn>`,
+    `overdue:<enrollmentId>:<yyyy-mm-dd hạn>:w<tuần>`, `cert_expiring:<certificateId>`, `cert_expired:<certificateId>`, `version_major:<courseId>:v<n>`.
+    Có mốc (hạn, phiên bản) để khi hạn / phiên bản đổi thì được báo lại. `NULL` = không chống trùng (VD giao khoá: giao lại sau khi huỷ vẫn báo);
+    Postgres cho phép nhiều dòng `dedupeKey` NULL.
+  - `sentToLarkAt`: giai đoạn 2 — tác vụ nền gửi tin Lark cho các dòng chưa gửi.
 
 ## Quy tắc 7 — Lưu file (ảnh bìa, PDF…)
 
@@ -167,6 +318,31 @@ Lõi dùng chung: `assignCourse` / `previewAssignment` / `onUserOrgChanged` tron
   Key chỉ gồm `a-z 0-9 - /` + đuôi hợp lệ → không có `../`. File không bao giờ bị ghi đè (mỗi lần tải là key mới).
 - Thay ảnh: lưu file mới → cập nhật DB → thành công mới xoá file cũ (DB lỗi thì xoá file vừa lưu).
 - Lưu ý: server action giới hạn body 6MB (`next.config.ts`) — tải PDF lớn (≤ 20MB) cần nâng giới hạn hoặc tải qua route handler.
+
+## Quy tắc 8 — Cài đặt hệ thống (`system_settings`)
+
+- Chỉ **Admin tập đoàn** sửa, ở `/system/settings`. Mỗi lần đổi ghi `SETTINGS_UPDATED` (`before` → `after` từng khoá đổi; khôi phục mặc định có `reset`).
+- Khai báo **1 nơi duy nhất**: `src/lib/settings-meta.ts` (nhóm, nhãn, mô tả, giới hạn, mặc định). Đọc ở server: `getSettings()` /
+  `getSetting(key)` (`src/lib/settings.ts`, React `cache` → 1 truy vấn / request). Dòng thiếu hoặc sai kiểu (zod) → dùng mặc định.
+- `value` là JSON: số, chuỗi, hoặc `null` (logo).
+
+| Khoá | Nhóm | Kiểu / giới hạn | Mặc định | Dùng ở |
+|---|---|---|---|---|
+| `SYSTEM_NAME` | Nhận diện | chuỗi 2–50 ký tự | `E-Learning` | Tiêu đề tab, thanh bên, trang đăng nhập, `/verify`, tác giả PDF chứng nhận, người tạo file Excel |
+| `SYSTEM_LOGO_KEY` | Nhận diện | key file `branding/<id>.png\|webp` hoặc `null` | `null` (biểu tượng mặc định) | Thanh bên, trang đăng nhập, `/verify` |
+| `DEFAULT_DUE_DAYS` | Mặc định khoá học | số nguyên 1–365 (ngày) | 30 | Trình giao khoá, form quy tắc, xem trước quy tắc, học lại khi chứng nhận hết hạn, khoá thêm vào lộ trình, hạn bản cập nhật |
+| `DEFAULT_MIN_WATCH_PERCENT` | Mặc định khoá học | 50–100 (%) | 90 | Điền sẵn khi tạo bài video mới |
+| `DUE_SOON_DAYS` | Nhắc nhở | 1–30 (ngày) | 3 | Tác vụ hằng ngày: nhắc sắp đến hạn |
+| `OVERDUE_REMIND_INTERVAL_DAYS` | Nhắc nhở | 1–30 (ngày) | 7 | Nhắc lại khi quá hạn + nhắc xác nhận bản MINOR quá hạn (chu kỳ `w` trong dedupeKey) |
+| `CERT_EXPIRING_DAYS` | Nhắc nhở | 7–180 (ngày) | 30 | Nhắc chứng nhận sắp hết hạn |
+| `NOTIFICATION_READ_RETENTION_DAYS` | Dọn dẹp | 30–730 (ngày) | 180 | Xoá thông báo đã đọc cũ hơn |
+| `NOTIFICATION_UNREAD_RETENTION_DAYS` | Dọn dẹp | 90–1095 (ngày) | 365 | Xoá thông báo chưa đọc cũ hơn |
+
+- **Logo**: chỉ nhận **PNG / WEBP ≤ 500KB** (kiểm tra magic bytes), **không nhận SVG** — SVG là XML có thể chứa `<script>`, `onload`,
+  `<foreignObject>`… lọc an toàn rất dễ sót. Phục vụ **công khai** qua `GET /api/branding/logo?v=<id>` (trang đăng nhập và `/verify`
+  cần khi chưa đăng nhập): chỉ trả đúng file đang đặt trong cài đặt, `Cache-Control: public, max-age=300`, `ETag`, `nosniff`.
+  Đổi / xoá logo → xoá file cũ.
+- Không đưa vào cài đặt: số lần đăng nhập sai / thời gian khoá tài khoản (`src/auth.ts`).
 
 ## Thay đổi database
 

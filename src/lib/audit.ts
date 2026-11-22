@@ -1,5 +1,6 @@
 import type { Prisma, Role } from "@prisma/client";
 import { ROLE_LABELS } from "@/lib/roles";
+import { SETTING_KEYS, SETTING_META } from "@/lib/settings-meta";
 
 /**
  * Nhật ký thao tác (audit_logs) — ghi và hiển thị.
@@ -40,6 +41,10 @@ export const AUDIT_ACTION_LABELS = {
   COURSE_UPDATED: "Sửa thông tin khoá học",
   COURSE_ARCHIVED: "Lưu trữ khoá học",
   COURSE_RESTORED: "Khôi phục khoá học",
+  COURSE_PUBLISHED: "Phát hành khoá học",
+  COURSE_VERSION_PUBLISHED: "Phát hành bản cập nhật khoá học",
+  COURSE_VERSION_PROPOSED: "Đề xuất bản cập nhật MAJOR",
+  COURSE_VERSION_REJECTED: "Từ chối đề xuất MAJOR",
   COURSE_CONTENT_REORDERED: "Sắp xếp nội dung khoá học",
   SECTION_CREATED: "Thêm chương",
   SECTION_UPDATED: "Đổi tên chương",
@@ -60,6 +65,24 @@ export const AUDIT_ACTION_LABELS = {
   ASSIGNMENT_RULE_UPDATED: "Sửa quy tắc giao tự động",
   ASSIGNMENT_RULE_DISABLED: "Tắt quy tắc giao tự động",
   ASSIGNMENT_RULE_ENABLED: "Bật quy tắc giao tự động",
+  QUESTION_CREATED: "Thêm câu hỏi",
+  QUESTION_UPDATED: "Sửa câu hỏi",
+  QUESTION_TOGGLED: "Tắt / bật câu hỏi",
+  QUESTION_DELETED: "Xoá câu hỏi",
+  QUESTIONS_IMPORTED: "Import câu hỏi từ Excel",
+  QUIZ_ATTEMPTS_GRANTED: "Cấp thêm lượt làm bài kiểm tra",
+  JOB_DAILY_RUN: "Chạy tác vụ hằng ngày",
+  CERTIFICATE_REVOKED: "Thu hồi chứng nhận",
+  CERTIFICATE_TEMPLATE_UPDATED: "Sửa mẫu chứng nhận",
+  PATH_CREATED: "Tạo lộ trình học",
+  PATH_UPDATED: "Sửa lộ trình học",
+  PATH_PUBLISHED: "Phát hành lộ trình học",
+  PATH_ARCHIVED: "Lưu trữ lộ trình học",
+  PATH_RESTORED: "Khôi phục lộ trình học",
+  PATH_COURSE_APPENDED: "Thêm khoá vào cuối lộ trình",
+  TEAM_REMINDER_SENT: "Nhắc nhở nhân viên",
+  REPORT_EXPORTED: "Xuất báo cáo",
+  SETTINGS_UPDATED: "Sửa cài đặt hệ thống",
 } as const;
 
 export type AuditAction = keyof typeof AUDIT_ACTION_LABELS;
@@ -75,6 +98,11 @@ export const ENTITY_LABELS = {
   Lesson: "Bài học",
   Enrollment: "Lượt giao khoá",
   AssignmentRule: "Quy tắc giao tự động",
+  Question: "Câu hỏi",
+  System: "Hệ thống",
+  Certificate: "Chứng nhận",
+  LearningPath: "Lộ trình học",
+  Report: "Báo cáo",
 } as const;
 
 export type AuditEntityType = keyof typeof ENTITY_LABELS;
@@ -168,8 +196,13 @@ const GROUP_ACTIONS: Record<AuditGroup, AuditAction[]> = {
     "LESSON_CREATED",
     "ENROLLMENTS_ASSIGNED",
     "ASSIGNMENT_RULE_CREATED",
+    "QUESTION_CREATED",
+    "QUESTIONS_IMPORTED",
+    "PATH_CREATED",
+    "TEAM_REMINDER_SENT",
   ],
   update: [
+    "SETTINGS_UPDATED",
     "USER_UPDATED",
     "USER_ROLE_CHANGED",
     "USER_TRANSFERRED",
@@ -182,6 +215,10 @@ const GROUP_ACTIONS: Record<AuditGroup, AuditAction[]> = {
     "CATEGORY_UPDATED",
     "COURSE_UPDATED",
     "COURSE_RESTORED",
+    "COURSE_PUBLISHED",
+    "COURSE_VERSION_PUBLISHED",
+    "COURSE_VERSION_PROPOSED",
+    "COURSE_VERSION_REJECTED",
     "COURSE_CONTENT_REORDERED",
     "SECTION_UPDATED",
     "SECTION_RESTORED",
@@ -191,6 +228,14 @@ const GROUP_ACTIONS: Record<AuditGroup, AuditAction[]> = {
     "ENROLLMENT_EXTENDED",
     "ASSIGNMENT_RULE_UPDATED",
     "ASSIGNMENT_RULE_ENABLED",
+    "QUESTION_UPDATED",
+    "QUIZ_ATTEMPTS_GRANTED",
+    "JOB_DAILY_RUN",
+    "CERTIFICATE_TEMPLATE_UPDATED",
+    "PATH_UPDATED",
+    "PATH_PUBLISHED",
+    "PATH_RESTORED",
+    "PATH_COURSE_APPENDED",
   ],
   lock: [
     "USER_LOCKED",
@@ -203,12 +248,15 @@ const GROUP_ACTIONS: Record<AuditGroup, AuditAction[]> = {
     "LESSON_VIDEO_REMOVED",
     "ENROLLMENT_CANCELLED",
     "ASSIGNMENT_RULE_DISABLED",
+    "QUESTION_DELETED",
+    "CERTIFICATE_REVOKED",
+    "PATH_ARCHIVED",
   ],
   password: ["USER_PASSWORD_RESET", "USER_PASSWORD_CHANGED"],
 };
 
 /** Ẩn / hiện: nhóm tuỳ metadata.isActive (false = ẩn -> lock, true = hiện lại -> update). */
-const TOGGLE_ACTIONS: AuditAction[] = ["DEPARTMENT_TOGGLED", "POSITION_TOGGLED", "CATEGORY_TOGGLED"];
+const TOGGLE_ACTIONS: AuditAction[] = ["DEPARTMENT_TOGGLED", "POSITION_TOGGLED", "CATEGORY_TOGGLED", "QUESTION_TOGGLED"];
 
 type Meta = Record<string, unknown>;
 
@@ -244,6 +292,7 @@ export function auditActionLabel(action: string, metadata?: unknown): string {
   if (action === "DEPARTMENT_TOGGLED") return m.isActive === false ? "Ẩn phòng ban" : "Hiện lại phòng ban";
   if (action === "POSITION_TOGGLED") return m.isActive === false ? "Ẩn chức danh" : "Hiện lại chức danh";
   if (action === "CATEGORY_TOGGLED") return m.isActive === false ? "Ẩn danh mục khoá học" : "Hiện lại danh mục khoá học";
+  if (action === "QUESTION_TOGGLED") return m.isActive === false ? "Tắt câu hỏi" : "Bật lại câu hỏi";
   if (action === "CATEGORY_UPDATED" && (m.reorder === "up" || m.reorder === "down")) return "Đổi thứ tự danh mục";
   if (action === "USER_UNLOCKED" && m.kind === "LOGIN_LOCK") return "Mở khoá tạm";
   return AUDIT_ACTION_LABELS[action as AuditAction] ?? action;
@@ -253,6 +302,11 @@ export function auditActionLabel(action: string, metadata?: unknown): string {
 // Trình bày metadata
 
 export const FIELD_LABELS: Record<string, string> = {
+  // Cài đặt hệ thống (Việc 28A): khoá cài đặt -> nhãn
+  ...Object.fromEntries(SETTING_KEYS.map((k) => [k, SETTING_META[k].label])),
+  groupTitle: "Nhóm cài đặt",
+  changed: "Số mục thay đổi",
+  reset: "Khôi phục mặc định",
   employeeCode: "Mã nhân viên",
   fullName: "Họ tên",
   email: "Email",
@@ -339,6 +393,38 @@ export const FIELD_LABELS: Record<string, string> = {
   reorder: "Di chuyển",
   from: "Trước",
   to: "Sau",
+  topic: "Chủ đề",
+  contentPreview: "Nội dung (rút gọn)",
+  affected: "Số người bị ảnh hưởng",
+  inProgress: "Số người đang học (giữ tiến độ)",
+  affectedEnrollmentIds: "Lượt học bị ảnh hưởng",
+  reason: "Lý do",
+  changeType: "Loại cập nhật",
+  versionNo: "Phiên bản",
+  versionId: "Mã phiên bản",
+  fromProposal: "Từ đề xuất",
+  logoUrl: "Logo",
+  learningPathId: "Lộ trình",
+  pathCode: "Mã lộ trình",
+  courseCount: "Số khoá",
+  assigned: "Số người được giao thêm",
+  change: "Thay đổi",
+  certificateSignerName: "Tên người ký",
+  certificateSignerTitle: "Chức vụ người ký",
+  certificateSignatureUrl: "Ảnh chữ ký",
+  count: "Số câu",
+  type: "Loại câu hỏi",
+  optionCount: "Số phương án",
+  hasImage: "Có ảnh",
+  users: "Số người",
+  notifications: "Số thông báo",
+  skipped: "Bỏ qua (đã nhắc hôm nay)",
+  mode: "Kiểu nhắc",
+  note: "Lời nhắn",
+  tab: "Báo cáo",
+  tabLabel: "Báo cáo",
+  rows: "Số dòng",
+  filters: "Bộ lọc",
 };
 
 export function fieldLabel(key: string): string {
@@ -497,6 +583,68 @@ export function describeAuditEntry(action: string, metadata: unknown): string | 
       return `Công ty ${m.companyCode ?? "?"}: tạo mới ${m.created ?? 0}, cập nhật ${m.updated ?? 0}${
         m.fileName ? ` (file ${m.fileName})` : ""
       }`;
+    case "QUESTION_CREATED":
+    case "QUESTION_UPDATED":
+    case "QUESTION_TOGGLED":
+    case "QUESTION_DELETED":
+      return (
+        [
+          m.courseCode ? `Khoá ${m.courseCode}` : null,
+          m.topic ? `chủ đề ${m.topic}` : null,
+          m.contentPreview ? `“${m.contentPreview}”` : null,
+        ]
+          .filter(Boolean)
+          .join(" · ") || null
+      );
+    case "PATH_CREATED":
+    case "PATH_PUBLISHED":
+    case "PATH_ARCHIVED":
+    case "PATH_RESTORED":
+      return `${m.code ?? ""}${m.title ? ` — ${m.title}` : ""}${typeof m.courseCount === "number" ? ` · ${m.courseCount} khoá` : ""}`;
+    case "PATH_UPDATED":
+      return `${m.code ?? ""}${m.change ? ` — ${m.change}` : ""}`;
+    case "PATH_COURSE_APPENDED":
+      return `${m.code ?? ""} — thêm khoá ${m.courseCode ?? "?"} vào cuối, giao thêm cho ${m.assigned ?? 0} người`;
+    case "TEAM_REMINDER_SENT":
+      return `${m.mode === "all" ? "Mọi khoá chưa xong" : m.mode === "ack" ? `Xác nhận cập nhật ${m.courseCode ?? ""}` : "Khoá quá hạn"} — ${m.users ?? 0} người, ${m.notifications ?? 0} thông báo${m.skipped ? ` (bỏ qua ${m.skipped} đã nhắc hôm nay)` : ""}`;
+    case "SETTINGS_UPDATED":
+      return `${m.groupTitle ?? ""}${typeof m.changed === "number" ? ` — đổi ${m.changed} mục` : ""}${m.reset ? " (khôi phục mặc định)" : ""}`;
+    case "REPORT_EXPORTED":
+      return `${m.tabLabel ?? m.tab ?? ""} — ${m.rows ?? 0} dòng${m.filters ? ` · ${m.filters}` : ""}`;
+    case "CERTIFICATE_REVOKED":
+      return `${m.code ?? ""} — ${m.learnerName ?? ""}${m.reason ? ` · lý do: ${m.reason}` : ""}`;
+    case "CERTIFICATE_TEMPLATE_UPDATED": {
+      const changed = Array.isArray(m.changedFields) ? m.changedFields.map((k) => fieldLabel(String(k)).toLowerCase()) : [];
+      return `${m.companyCode ?? ""}${changed.length ? ` — đổi ${changed.join(", ")}` : ""}`;
+    }
+    case "COURSE_VERSION_PUBLISHED":
+      return `${m.code ?? ""} — v${m.versionNo ?? "?"} ${m.changeType ?? ""}: ${m.affected ?? 0} người ${m.changeType === "MAJOR" ? "phải học lại" : "cần xác nhận"}${m.fromProposal ? " (duyệt đề xuất)" : ""}`;
+    case "COURSE_VERSION_PROPOSED":
+      return `${m.code ?? ""} — đề xuất MAJOR, hạn học lại ${m.dueInDays ?? "?"} ngày`;
+    case "COURSE_VERSION_REJECTED":
+      return `${m.code ?? ""} — lý do: ${m.reason ?? ""}`;
+    case "COURSE_PUBLISHED":
+      return `${m.code ?? ""} — phiên bản ${m.versionNo ?? "?"}${m.changeType === "INITIAL" ? " (lần đầu)" : ""}`;
+    case "JOB_DAILY_RUN": {
+      const c = asMeta(m.counts);
+      const errors = Object.keys(asMeta(m.errors)).length;
+      return [
+        `sắp hạn ${c.dueSoon ?? 0}`,
+        `quá hạn ${c.overdue ?? 0}`,
+        `chấm bài ${c.quizGraded ?? 0}`,
+        `CN sắp hết hạn ${c.certExpiring ?? 0}`,
+        `học lại ${c.certExpiredReset ?? 0}`,
+        `xoá TB ${c.notificationsDeleted ?? 0}`,
+        `nhắc xác nhận ${c.ackOverdue ?? 0}`,
+        errors > 0 ? `${errors} phần lỗi` : null,
+      ]
+        .filter(Boolean)
+        .join(" · ");
+    }
+    case "QUIZ_ATTEMPTS_GRANTED":
+      return `${m.learnerName ?? ""} — ${m.courseCode ?? ""} · bài “${m.lessonTitle ?? "?"}”: +${m.count ?? 0} lượt`;
+    case "QUESTIONS_IMPORTED":
+      return `Khoá ${m.courseCode ?? "?"}: thêm ${m.count ?? 0} câu${m.fileName ? ` (file ${m.fileName})` : ""}`;
     case "USER_UNLOCKED":
       return m.kind === "LOGIN_LOCK" ? "Gỡ khoá tạm do sai mật khẩu" : null;
     case "COMPANY_SUSPENDED":

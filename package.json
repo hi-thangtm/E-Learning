@@ -6,14 +6,20 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "job:daily": "tsx --require ./scripts/allow-server-only.cjs --env-file=.env scripts/run-daily-job.ts",
+    "job:backfill-certificates": "tsx --require ./scripts/allow-server-only.cjs --env-file=.env scripts/backfill-certificates.ts",
+    "check:auth": "tsx scripts/check-auth.ts",
+    "bench:reports": "tsx --require ./scripts/allow-server-only.cjs --env-file=.env scripts/bench-reports.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.9.0",
     "@dnd-kit/core": "^6.3.1",
     "@dnd-kit/sortable": "^10.0.0",
     "@dnd-kit/utilities": "^3.2.2",
+    "@expo-google-fonts/be-vietnam-pro": "^0.4.1",
     "@prisma/client": "^6.19.3",
+    "@react-pdf/renderer": "^4.3.0",
     "@tiptap/extension-link": "^3.35.0",
     "@tiptap/extension-underline": "^3.35.0",
     "@tiptap/pm": "^3.35.0",
@@ -22,15 +28,18 @@
     "bcryptjs": "^3.0.3",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
-    "cn": "^0.5.2",
+    "cmdk": "^1.1.1",
     "exceljs": "^4.4.0",
     "lucide-react": "^1.77.0",
     "next": "16.4.6",
     "next-auth": "^5.0.0-beta.32",
     "player.js": "^0.1.0",
+    "qrcode": "^1.5.4",
     "react": "19.3.0",
     "react-dom": "19.3.0",
+    "recharts": "^3.8.0",
     "sanitize-html": "^2.18.2",
+    "server-only": "^0.0.1",
     "shadcn": "^4.23.0",
     "sonner": "^2.0.8",
     "tailwind-merge": "^3.7.1",
@@ -42,6 +51,7 @@
     "@tailwindcss/postcss": "^4.3.5",
     "@tailwindcss/turbopack": "4.3.3",
     "@types/node": "^20",
+    "@types/qrcode": "^1.5.6",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "@types/sanitize-html": "^2.16.2",
@@ -54,6 +64,6 @@
     "typescript": "^5"
   },
   "prisma": {
-    "seed": "tsx prisma/seed.ts"
+    "seed": "tsx --require ./scripts/allow-server-only.cjs prisma/seed.ts"
   }
 }

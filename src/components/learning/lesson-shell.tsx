@@ -32,6 +32,8 @@ type ShellContext = {
   completed: boolean;
   /** Gọi khi server báo bài hiện tại đã xong → ✓, mở khoá bài sau, % mới, chúc mừng nếu xong khoá */
   onLessonCompleted: (completion: LessonCompletion) => void;
+  /** Link bài tiếp theo (null = bài cuối / bài sau còn khoá) */
+  nextHref: string | null;
 };
 
 const Ctx = createContext<ShellContext | null>(null);
@@ -58,6 +60,7 @@ export function LessonShell({
   lessonHrefs,
   backHref,
   backLabel,
+  myReview = null,
   children,
 }: {
   mode: ShellMode;
@@ -68,12 +71,18 @@ export function LessonShell({
   lessonHrefs: Record<string, string>;
   backHref: string;
   backLabel: string;
+  /** Đánh giá đã có của tôi (điền sẵn form đánh giá ở màn chúc mừng) */
+  myReview?: { rating: number; comment: string | null } | null;
   children: ReactNode;
 }) {
   const [sections, setSections] = useState(initialSections);
   const [percent, setPercent] = useState(initialPercent);
   const [outlineOpen, setOutlineOpen] = useState(true);
-  const [celebrate, setCelebrate] = useState<{ completedAt: string } | null>(null);
+  const [celebrate, setCelebrate] = useState<{
+    completedAt: string;
+    certificateId: string | null;
+    nextCourse: { id: string; title: string } | null;
+  } | null>(null);
 
   const flat = sections.flatMap((s) => s.lessons);
   const index = flat.findIndex((l) => l.id === currentLessonId);
@@ -88,12 +97,12 @@ export function LessonShell({
     const already = flat.find((l) => l.id === c.lessonId)?.completed;
     setSections((s) => relock(s, [c.lessonId]));
     setPercent(c.progressPercent);
-    if (c.courseCompleted && c.completedAt) setCelebrate({ completedAt: c.completedAt });
+    if (c.courseCompleted && c.completedAt) setCelebrate({ completedAt: c.completedAt, certificateId: c.certificateId ?? null, nextCourse: c.nextCourse ?? null });
     else if (!already) toast.success("Đã hoàn thành bài học", { description: next ? "Bài tiếp theo đã được mở." : undefined });
   }
 
   return (
-    <Ctx value={{ mode, completed: currentDone, onLessonCompleted }}>
+    <Ctx value={{ mode, completed: currentDone, onLessonCompleted, nextHref: next && !next.locked ? (lessonHrefs[next.id] ?? null) : null }}>
       <div className={cn("flex flex-col bg-background", preview ? "h-[calc(100dvh-14rem)] min-h-[600px]" : "h-dvh")}>
         {preview && (
           <p role="status" className="flex items-center gap-2 bg-warning/16 px-6 py-2.5 text-[15px] text-warning">
@@ -121,7 +130,7 @@ export function LessonShell({
               <span className="text-[13px] font-medium text-foreground tabular-nums">{percent}%</span>
             </div>
           )}
-          <span className="shrink-0 rounded-full bg-primary/16 px-3 py-1 text-[13px] font-medium text-primary tabular-nums">
+          <span className="inline-flex shrink-0 items-center rounded-full bg-primary/16 px-3 py-1 text-[13px] font-medium whitespace-nowrap text-primary tabular-nums">
             Bài {index + 1}/{flat.length}
           </span>
           <Button
@@ -192,7 +201,15 @@ export function LessonShell({
       </div>
 
       {celebrate && (
-        <CourseCompletedDialog courseTitle={course.title} completedAt={celebrate.completedAt} onClose={() => setCelebrate(null)} />
+        <CourseCompletedDialog
+          courseTitle={course.title}
+          completedAt={celebrate.completedAt}
+          certificateId={celebrate.certificateId}
+          nextCourse={celebrate.nextCourse}
+          courseId={course.id}
+          myReview={myReview}
+          onClose={() => setCelebrate(null)}
+        />
       )}
     </Ctx>
   );

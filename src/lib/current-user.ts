@@ -1,3 +1,4 @@
+import "server-only";
 import { cache } from "react";
 import { redirect } from "next/navigation";
 import type { Role } from "@prisma/client";
@@ -8,7 +9,8 @@ import { prisma } from "@/lib/db";
  * Lấy người dùng đang đăng nhập — đọc lại từ database ở mỗi request.
  *
  * Trả về null nếu: chưa đăng nhập, tài khoản không còn, đã bị khoá (INACTIVE),
- * hoặc công ty của người đó đang tạm ngưng.
+ * hoặc công ty của người đó đang tạm ngưng, hoặc phiên được cấp TRƯỚC users.sessionsValidAfter
+ * (đã đổi / đặt lại mật khẩu, bị khoá, đổi vai trò, chuyển công ty — Việc 29A).
  * `cache` giúp trong cùng 1 request chỉ truy vấn 1 lần dù gọi ở nhiều chỗ.
  */
 export const getCurrentUser = cache(async () => {
@@ -30,13 +32,19 @@ export const getCurrentUser = cache(async () => {
       companyId: true,
       departmentId: true,
       positionId: true,
+      sessionsValidAfter: true,
       company: { select: { id: true, code: true, name: true, parentId: true, isActive: true } },
     },
   });
 
   // Công ty bị tạm ngưng -> phiên đang mở cũng mất hiệu lực ở request kế tiếp
   if (!user || user.status !== "ACTIVE" || !user.company.isActive) return null;
-  return user;
+  // Phiên cũ đã bị huỷ
+  if (user.sessionsValidAfter && (session?.authAt ?? 0) < user.sessionsValidAfter.getTime()) return null;
+  // Không trả mốc huỷ phiên ra ngoài
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const { sessionsValidAfter, ...rest } = user;
+  return rest;
 });
 
 export type CurrentUser = NonNullable<Awaited<ReturnType<typeof getCurrentUser>>>;

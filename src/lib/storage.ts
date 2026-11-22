@@ -1,3 +1,4 @@
+import "server-only";
 import { randomUUID } from "node:crypto";
 import { mkdir, readFile as fsReadFile, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
@@ -64,13 +65,15 @@ const storage: FileStorage = new LocalDiskStorage(UPLOAD_ROOT);
 // ---------------------------------------------------------------------------------------------
 // Loại file cho phép
 
-export type FileKind = "image" | "pdf";
+export type FileKind = "image" | "pdf" | "logo";
 
 type DetectedType = { ext: "jpg" | "png" | "webp" | "pdf"; contentType: string };
 
 export const FILE_RULES: Record<FileKind, { maxBytes: number; allowed: DetectedType["ext"][]; label: string }> = {
   image: { maxBytes: 2 * 1024 * 1024, allowed: ["jpg", "png", "webp"], label: "ảnh JPG, PNG hoặc WEBP" },
   pdf: { maxBytes: 20 * 1024 * 1024, allowed: ["pdf"], label: "tài liệu PDF" },
+  // Logo hệ thống (Việc 28A): KHÔNG nhận SVG (có thể chứa mã chạy) — chỉ ảnh raster kiểm tra bằng magic bytes
+  logo: { maxBytes: 500 * 1024, allowed: ["png", "webp"], label: "ảnh PNG hoặc WEBP" },
 };
 
 const CONTENT_TYPES: Record<DetectedType["ext"], string> = {

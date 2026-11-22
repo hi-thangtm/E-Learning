@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { getCurrentUser } from "@/lib/current-user";
 import { recordVideoProgress } from "@/lib/learning";
+import { LIMITS, RATE_LIMIT_MESSAGE, rateLimit } from "@/lib/rate-limit";
 
 /**
  * Ghi tiến độ xem video: POST /api/learn/progress   body JSON { lessonId, position, watched }
@@ -26,6 +27,9 @@ export async function POST(request: Request) {
   const user = await getCurrentUser();
   if (!user) return json({ error: "Bạn cần đăng nhập." }, 401);
   if (user.mustChangePassword) return json({ error: "Bạn cần đổi mật khẩu trước khi học." }, 403);
+  // 30 lần / phút / người (trình học gửi mỗi 10 giây)
+  const limited = rateLimit(`progress:${user.id}`, LIMITS.learnProgress);
+  if (!limited.ok) return json({ error: RATE_LIMIT_MESSAGE }, 429);
 
   // Chỉ nhận yêu cầu từ chính trang của hệ thống
   const origin = request.headers.get("origin");

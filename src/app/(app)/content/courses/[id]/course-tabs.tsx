@@ -1,14 +1,15 @@
 import Link from "next/link";
-import { BookOpen, Eye, Info, Star, type LucideIcon } from "lucide-react";
+import { BookOpen, Eye, History, Info, Star, type LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-export const COURSE_TABS = ["info", "content", "preview", "reviews"] as const;
+export const COURSE_TABS = ["info", "content", "preview", "versions", "reviews"] as const;
 export type CourseTab = (typeof COURSE_TABS)[number];
 
 const TABS: { value: CourseTab; label: string; icon: LucideIcon }[] = [
   { value: "info", label: "Thông tin", icon: Info },
   { value: "content", label: "Nội dung", icon: BookOpen },
   { value: "preview", label: "Xem trước", icon: Eye },
+  { value: "versions", label: "Lịch sử phiên bản", icon: History },
   { value: "reviews", label: "Đánh giá", icon: Star },
 ];
 

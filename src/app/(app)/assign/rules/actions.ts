@@ -4,28 +4,30 @@ import { revalidatePath } from "next/cache";
 import type { Prisma } from "@prisma/client";
 import { z } from "zod";
 import { fieldErrors, formValues, type ActionState } from "@/lib/action-state";
-import { assignCourse, previewAssignment, type AssignCounts } from "@/lib/assignment";
+import { assignCourse, assignPath, previewAssignment, previewPathAssignment } from "@/lib/assignment";
 import { assignableCoursesWhere, ruleUsersWhere } from "@/lib/assignment-scope";
 import { logAudit } from "@/lib/audit";
 import { getGroupCompanyId } from "@/lib/course-scope";
 import { requireRole, type CurrentUser } from "@/lib/current-user";
 import { prisma } from "@/lib/db";
 import { dueAfterDays } from "@/lib/format";
+import { assignablePathsWhere } from "@/lib/path-scope";
 import { describeRuleTarget } from "@/lib/rule-describe";
-import { getNumberSetting } from "@/lib/settings";
-import type { RuleConditions, RulePreview } from "./types";
+import { getSetting } from "@/lib/settings";
+import type { RuleConditions, RuleKind, RulePreview } from "./types";
 
 /**
- * Giao tự động theo quy tắc (docs/database.md — Quy tắc 1, 3).
+ * Giao tự động theo quy tắc (docs/database.md — Quy tắc 1, 3). Quy tắc giao 1 khoá học HOẶC 1 lộ trình.
  * - Admin công ty: chỉ quy tắc của công ty mình, công ty áp dụng luôn = công ty mình.
- * - Khoá của công ty con chỉ áp dụng trong công ty đó. Khoá phải PUBLISHED mới giao.
+ * - Khoá / lộ trình của công ty con chỉ áp dụng trong công ty đó. Phải PUBLISHED mới giao.
  * - Lưu / bật lại -> giao ngay cho mọi người đang khớp (source RULE, hạn hôm nay + N ngày).
  * - Thu hẹp nhóm KHÔNG thu hồi lượt đã giao. Tắt: giữ lượt đã giao, hoặc huỷ các lượt CHƯA BẮT ĐẦU của quy tắc.
  */
 
 const ROLES = ["GROUP_ADMIN", "COMPANY_ADMIN"] as const;
 const NO_ACCESS = "Không tìm thấy quy tắc hoặc bạn không có quyền.";
-const FIELDS = ["name", "courseId", "dueInDays", "targetCompanyId", "departmentId", "positionId", "includeSubDepartments"];
+const FIELDS = ["name", "kind", "subjectId", "dueInDays", "targetCompanyId", "departmentId", "positionId", "includeSubDepartments"];
+const KIND_NOUN: Record<RuleKind, string> = { course: "Khoá học", path: "Lộ trình" };
 
 const optionalId = z
   .string()
@@ -34,7 +36,8 @@ const optionalId = z
   .transform((v) => (v === "" ? null : v));
 
 const conditionsSchema = z.object({
-  courseId: z.string().trim().min(1, "Vui lòng chọn khoá học.").max(50),
+  kind: z.enum(["course", "path"], "Loại quy tắc không hợp lệ."),
+  subjectId: z.string().trim().min(1, "Vui lòng chọn khoá học / lộ trình.").max(50),
   targetCompanyId: optionalId,
   departmentId: optionalId,
   positionId: optionalId,
@@ -54,8 +57,11 @@ const ruleSchema = z.object({
     .transform(Number),
 });
 
+/** Đối tượng giao của quy tắc: khoá học hoặc lộ trình. */
+type Subject = { kind: RuleKind; id: string; code: string; title: string; ownerCompanyId: string; status: string };
+
 type Resolved = {
-  course: { id: string; code: string; title: string; ownerCompanyId: string; status: string };
+  subject: Subject;
   targetCompanyId: string | null;
   departmentId: string | null;
   positionId: string | null;
@@ -63,33 +69,50 @@ type Resolved = {
   names: { companyName: string | null; departmentName: string | null; positionName: string | null };
 };
 
+const SUBJECT_SELECT = { id: true, code: true, title: true, ownerCompanyId: true, status: true } as const;
+
+/** Khoá / lộ trình theo id. `assignableOnly` = chỉ cái đang PUBLISHED trong phạm vi (khi tạo quy tắc mới). */
+async function loadSubject(actor: CurrentUser, kind: RuleKind, id: string, assignableOnly: boolean): Promise<Subject | null> {
+  const row =
+    kind === "course"
+      ? await prisma.course.findFirst({
+          where: { AND: [assignableOnly ? await assignableCoursesWhere(actor) : {}, { id }] },
+          select: SUBJECT_SELECT,
+        })
+      : await prisma.learningPath.findFirst({
+          where: { AND: [assignableOnly ? await assignablePathsWhere(actor) : {}, { id }] },
+          select: SUBJECT_SELECT,
+        });
+  return row ? { kind, ...row } : null;
+}
+
 /**
- * Kiểm tra điều kiện theo phạm vi người thao tác. `current` = quy tắc đang sửa (khoá cố định; phòng ban / chức danh
- * đã ẩn vẫn giữ được nếu không đổi).
+ * Kiểm tra điều kiện theo phạm vi người thao tác. `current` = quy tắc đang sửa (khoá / lộ trình cố định; phòng ban /
+ * chức danh đã ẩn vẫn giữ được nếu không đổi).
  */
 async function resolveConditions(
   actor: CurrentUser,
   input: z.infer<typeof conditionsSchema>,
-  current?: { courseId: string | null; departmentId: string | null; positionId: string | null },
+  current?: { subject: Subject; departmentId: string | null; positionId: string | null },
 ): Promise<{ errors: Record<string, string> } | Resolved> {
   const isGroupAdmin = actor.role === "GROUP_ADMIN";
-  const courseId = current?.courseId ?? input.courseId;
-  const course = current
-    ? await prisma.course.findUnique({ where: { id: courseId }, select: { id: true, code: true, title: true, ownerCompanyId: true, status: true } })
-    : await prisma.course.findFirst({
-        where: { AND: [await assignableCoursesWhere(actor), { id: courseId }] },
-        select: { id: true, code: true, title: true, ownerCompanyId: true, status: true },
-      });
-  if (!course) return { errors: { courseId: "Khoá học không tồn tại, chưa phát hành hoặc ngoài phạm vi của bạn." } };
+  const subject = current?.subject ?? (await loadSubject(actor, input.kind, input.subjectId, true));
+  if (!subject) {
+    return {
+      errors: {
+        subjectId: `${KIND_NOUN[input.kind]} không tồn tại, chưa phát hành hoặc ngoài phạm vi của bạn.`,
+      },
+    };
+  }
 
   const groupId = await getGroupCompanyId();
   let targetCompanyId = isGroupAdmin ? input.targetCompanyId : actor.companyId;
-  // Khoá của công ty con chỉ áp dụng trong công ty đó
-  if (course.ownerCompanyId !== groupId) {
-    if (targetCompanyId && targetCompanyId !== course.ownerCompanyId) {
-      return { errors: { targetCompanyId: "Khoá của công ty con chỉ giao được cho người trong công ty đó." } };
+  // Khoá / lộ trình của công ty con chỉ áp dụng trong công ty đó
+  if (subject.ownerCompanyId !== groupId) {
+    if (targetCompanyId && targetCompanyId !== subject.ownerCompanyId) {
+      return { errors: { targetCompanyId: `${KIND_NOUN[subject.kind]} của công ty con chỉ giao được cho người trong công ty đó.` } };
     }
-    targetCompanyId = course.ownerCompanyId;
+    targetCompanyId = subject.ownerCompanyId;
   }
 
   let companyName: string | null = null;
@@ -117,7 +140,7 @@ async function resolveConditions(
   }
 
   return {
-    course,
+    subject,
     targetCompanyId,
     departmentId: input.departmentId,
     positionId: input.positionId,
@@ -126,8 +149,10 @@ async function resolveConditions(
   };
 }
 
-async function matchingUserIds(r: Pick<Resolved, "course" | "targetCompanyId" | "departmentId" | "includeSubDepartments" | "positionId">) {
-  const where = await ruleUsersWhere(r, r.course.ownerCompanyId);
+type RuleShape = Pick<Resolved, "subject" | "targetCompanyId" | "departmentId" | "includeSubDepartments" | "positionId">;
+
+async function matchingUserIds(r: RuleShape) {
+  const where = await ruleUsersWhere(r, r.subject.ownerCompanyId);
   return prisma.user.findMany({ where, select: { id: true }, orderBy: { fullName: "asc" } });
 }
 
@@ -137,12 +162,11 @@ function ruleScopeWhere(actor: CurrentUser): Prisma.AssignmentRuleWhereInput {
 
 async function findRule(actor: CurrentUser, ruleId: string) {
   if (!ruleId || ruleId.length > 50) return null;
-  return prisma.assignmentRule.findFirst({
+  const rule = await prisma.assignmentRule.findFirst({
     where: { id: ruleId, ...ruleScopeWhere(actor) },
     select: {
       id: true,
       name: true,
-      courseId: true,
       ownerCompanyId: true,
       targetCompanyId: true,
       departmentId: true,
@@ -150,33 +174,48 @@ async function findRule(actor: CurrentUser, ruleId: string) {
       positionId: true,
       dueInDays: true,
       isActive: true,
-      course: { select: { id: true, code: true, title: true, ownerCompanyId: true, status: true } },
+      course: { select: SUBJECT_SELECT },
+      learningPath: { select: SUBJECT_SELECT },
     },
   });
+  if (!rule) return null;
+  const { course, learningPath, ...rest } = rule;
+  const subject: Subject | null = course ? { kind: "course", ...course } : learningPath ? { kind: "path", ...learningPath } : null;
+  return subject ? { ...rest, subject } : null;
 }
 
-/** Giao ngay cho mọi người đang khớp quy tắc (nếu khoá còn PUBLISHED). */
-async function runRule(
-  actor: CurrentUser,
-  rule: { id: string; dueInDays: number } & Pick<Resolved, "course" | "targetCompanyId" | "departmentId" | "includeSubDepartments" | "positionId">,
-): Promise<AssignCounts | null> {
-  if (rule.course.status !== "PUBLISHED") return null;
+/** Audit: mã khoá / lộ trình của quy tắc. */
+function subjectMeta(s: Subject) {
+  return s.kind === "course" ? { courseCode: s.code } : { pathCode: s.code };
+}
+
+type RunResult = { newLearners: number; shortened: number } | null;
+
+/** Giao ngay cho mọi người đang khớp quy tắc (nếu khoá / lộ trình còn PUBLISHED). */
+async function runRule(actor: CurrentUser, rule: { id: string; dueInDays: number } & RuleShape): Promise<RunResult> {
+  if (rule.subject.status !== "PUBLISHED") return null;
   const users = await matchingUserIds(rule);
   if (users.length === 0) return null;
-  return assignCourse({
-    courseId: rule.course.id,
+  const common = {
     userIds: users.map((u) => u.id),
     due: dueAfterDays(rule.dueInDays),
-    source: "RULE",
+    source: "RULE" as const,
     assignmentRuleId: rule.id,
     actorId: actor.id,
-  });
+  };
+  if (rule.subject.kind === "path") {
+    const r = await assignPath({ ...common, learningPathId: rule.subject.id });
+    return { newLearners: r.newLearners, shortened: r.shortened };
+  }
+  const c = await assignCourse({ ...common, courseId: rule.subject.id });
+  return { newLearners: c.created + c.reactivated, shortened: c.shortened };
 }
 
-function assignedMessage(counts: AssignCounts | null, publishedCourse: boolean): string {
-  if (!publishedCourse) return " Khoá học chưa / không còn phát hành nên quy tắc tạm chưa giao.";
-  if (!counts) return " Hiện chưa có ai khớp nhóm áp dụng.";
-  return ` Đã giao mới ${counts.created + counts.reactivated} người${counts.shortened ? `, rút ngắn hạn ${counts.shortened} người` : ""}.`;
+function assignedMessage(result: RunResult, subject: Subject): string {
+  const noun = subject.kind === "path" ? "Lộ trình" : "Khoá học";
+  if (subject.status !== "PUBLISHED") return ` ${noun} chưa / không còn phát hành nên quy tắc tạm chưa giao.`;
+  if (!result) return " Hiện chưa có ai khớp nhóm áp dụng.";
+  return ` Đã giao mới ${result.newLearners} người${result.shortened ? `, rút ngắn hạn ${result.shortened} lượt` : ""}.`;
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -193,10 +232,18 @@ export async function previewRuleAction(conditions: RuleConditions, dueInDays: n
   if ("errors" in resolved) return { ok: false, message: Object.values(resolved.errors)[0] };
 
   const users = await matchingUserIds(resolved);
-  const days = Number.isInteger(dueInDays) && dueInDays >= 1 && dueInDays <= 365 ? dueInDays : await getNumberSetting("DEFAULT_DUE_DAYS", 30);
-  const counts = await previewAssignment({ courseId: resolved.course.id, userIds: users.map((u) => u.id), due: dueAfterDays(days) });
+  const userIds = users.map((u) => u.id);
+  let newCount: number, existingCount: number, completedCount: number;
+  if (resolved.subject.kind === "path") {
+    const p = await previewPathAssignment({ learningPathId: resolved.subject.id, userIds });
+    [newCount, existingCount, completedCount] = [p.newLearners, p.alreadyHasPath, p.completedAll];
+  } else {
+    const days = Number.isInteger(dueInDays) && dueInDays >= 1 && dueInDays <= 365 ? dueInDays : await getSetting("DEFAULT_DUE_DAYS");
+    const c = await previewAssignment({ courseId: resolved.subject.id, userIds, due: dueAfterDays(days) });
+    [newCount, existingCount, completedCount] = [c.created + c.reactivated, c.shortened + c.unchanged, c.completed];
+  }
   const first = await prisma.user.findMany({
-    where: { id: { in: users.slice(0, 10).map((u) => u.id) } },
+    where: { id: { in: userIds.slice(0, 10) } },
     orderBy: { fullName: "asc" },
     select: {
       id: true,
@@ -210,12 +257,13 @@ export async function previewRuleAction(conditions: RuleConditions, dueInDays: n
 
   return {
     ok: true,
+    kind: resolved.subject.kind,
     matched: users.length,
-    newCount: counts.created + counts.reactivated,
-    existingCount: counts.shortened + counts.unchanged,
-    completedCount: counts.completed,
+    newCount,
+    existingCount,
+    completedCount,
     target: describeRuleTarget({ ...resolved.names, includeSubDepartments: resolved.includeSubDepartments }),
-    coursePublished: resolved.course.status === "PUBLISHED",
+    coursePublished: resolved.subject.status === "PUBLISHED",
     users: first.map((u) => ({
       id: u.id,
       fullName: u.fullName,
@@ -237,7 +285,8 @@ export async function saveRuleAction(_prev: ActionState, formData: FormData): Pr
   const base = ruleSchema.safeParse({ name: formData.get("name") ?? "", dueInDays: formData.get("dueInDays") ?? "" });
   if (!base.success) return fail(fieldErrors(base.error));
   const cond = conditionsSchema.safeParse({
-    courseId: String(formData.get("courseId") ?? current?.courseId ?? ""),
+    kind: String(formData.get("kind") ?? current?.subject.kind ?? "course"),
+    subjectId: String(formData.get("subjectId") ?? current?.subject.id ?? ""),
     targetCompanyId: String(formData.get("targetCompanyId") ?? ""),
     departmentId: String(formData.get("departmentId") ?? ""),
     positionId: String(formData.get("positionId") ?? ""),
@@ -247,6 +296,7 @@ export async function saveRuleAction(_prev: ActionState, formData: FormData): Pr
 
   const resolved = await resolveConditions(actor, cond.data, current ?? undefined);
   if ("errors" in resolved) return fail(resolved.errors);
+  const { subject } = resolved;
 
   const data = {
     name: base.data.name,
@@ -272,7 +322,7 @@ export async function saveRuleAction(_prev: ActionState, formData: FormData): Pr
         entityId: current.id,
         metadata: {
           ruleName: data.name,
-          courseCode: resolved.course.code,
+          ...subjectMeta(subject),
           before: { name: current.name, dueInDays: current.dueInDays },
           after: { name: data.name, dueInDays: data.dueInDays },
           target,
@@ -284,7 +334,12 @@ export async function saveRuleAction(_prev: ActionState, formData: FormData): Pr
   } else {
     id = await prisma.$transaction(async (tx) => {
       const rule = await tx.assignmentRule.create({
-        data: { ...data, ownerCompanyId: actor.companyId, courseId: resolved.course.id, isActive: true },
+        data: {
+          ...data,
+          ownerCompanyId: actor.companyId,
+          ...(subject.kind === "course" ? { courseId: subject.id } : { learningPathId: subject.id }),
+          isActive: true,
+        },
         select: { id: true },
       });
       await logAudit(tx, {
@@ -293,7 +348,13 @@ export async function saveRuleAction(_prev: ActionState, formData: FormData): Pr
         action: "ASSIGNMENT_RULE_CREATED",
         entityType: "AssignmentRule",
         entityId: rule.id,
-        metadata: { ruleName: data.name, courseId: resolved.course.id, courseCode: resolved.course.code, target, dueInDays: data.dueInDays },
+        metadata: {
+          ruleName: data.name,
+          ...(subject.kind === "course" ? { courseId: subject.id } : { learningPathId: subject.id }),
+          ...subjectMeta(subject),
+          target,
+          dueInDays: data.dueInDays,
+        },
       });
       return rule.id;
     });
@@ -301,14 +362,14 @@ export async function saveRuleAction(_prev: ActionState, formData: FormData): Pr
   }
 
   // Đang chạy -> giao ngay cho người đang khớp (thu hẹp nhóm không thu hồi lượt đã giao)
-  const counts = isActive ? await runRule(actor, { id, dueInDays: data.dueInDays, ...resolved }) : null;
+  const result = isActive ? await runRule(actor, { id, dueInDays: data.dueInDays, ...resolved }) : null;
 
   revalidatePath("/assign/rules");
   revalidatePath("/assign/manual");
   return {
     ok: true,
     ruleId: id,
-    message: `${current ? "Đã lưu quy tắc." : "Đã tạo quy tắc."}${isActive ? assignedMessage(counts, resolved.course.status === "PUBLISHED") : " Quy tắc đang tắt."}`,
+    message: `${current ? "Đã lưu quy tắc." : "Đã tạo quy tắc."}${isActive ? assignedMessage(result, subject) : " Quy tắc đang tắt."}`,
   };
 }
 
@@ -334,7 +395,12 @@ export async function disableRuleAction(ruleId: string, mode: "keep" | "cancelNo
       action: "ASSIGNMENT_RULE_DISABLED",
       entityType: "AssignmentRule",
       entityId: rule.id,
-      metadata: { ruleName: rule.name, courseCode: rule.course?.code ?? null, cancelMode: mode === "cancelNotStarted" ? "cancelNotStarted" : "keep", cancelledCount: res.count },
+      metadata: {
+        ruleName: rule.name,
+        ...subjectMeta(rule.subject),
+        cancelMode: mode === "cancelNotStarted" ? "cancelNotStarted" : "keep",
+        cancelledCount: res.count,
+      },
     });
     return res.count;
   });
@@ -350,7 +416,7 @@ export async function disableRuleAction(ruleId: string, mode: "keep" | "cancelNo
 export async function enableRuleAction(ruleId: string): Promise<ActionState> {
   const actor = await requireRole([...ROLES]);
   const rule = await findRule(actor, ruleId);
-  if (!rule || !rule.course) return { message: NO_ACCESS };
+  if (!rule) return { message: NO_ACCESS };
   if (rule.isActive) return { message: "Quy tắc đang chạy." };
 
   await prisma.$transaction([
@@ -361,13 +427,13 @@ export async function enableRuleAction(ruleId: string): Promise<ActionState> {
       action: "ASSIGNMENT_RULE_ENABLED",
       entityType: "AssignmentRule",
       entityId: rule.id,
-      metadata: { ruleName: rule.name, courseCode: rule.course.code },
+      metadata: { ruleName: rule.name, ...subjectMeta(rule.subject) },
     }),
   ]);
-  const counts = await runRule(actor, {
+  const result = await runRule(actor, {
     id: rule.id,
-    dueInDays: rule.dueInDays ?? (await getNumberSetting("DEFAULT_DUE_DAYS", 30)),
-    course: rule.course,
+    dueInDays: rule.dueInDays ?? (await getSetting("DEFAULT_DUE_DAYS")),
+    subject: rule.subject,
     targetCompanyId: rule.targetCompanyId,
     departmentId: rule.departmentId,
     includeSubDepartments: rule.includeSubDepartments,
@@ -376,5 +442,5 @@ export async function enableRuleAction(ruleId: string): Promise<ActionState> {
 
   revalidatePath("/assign/rules");
   revalidatePath("/assign/manual");
-  return { ok: true, message: `Đã bật quy tắc.${assignedMessage(counts, rule.course.status === "PUBLISHED")}` };
+  return { ok: true, message: `Đã bật quy tắc.${assignedMessage(result, rule.subject)}` };
 }

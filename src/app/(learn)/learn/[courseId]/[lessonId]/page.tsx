@@ -5,6 +5,8 @@ import { LessonShell } from "@/components/learning/lesson-shell";
 import { requireUser } from "@/lib/current-user";
 import { prisma } from "@/lib/db";
 import { getLessonAccess, getLessonDetail, getLessonProgress, startLearning } from "@/lib/learning";
+import { autoSubmitExpired, getQuizOverview } from "@/lib/quiz";
+import { getMyReview } from "@/lib/reviews";
 
 export const metadata: Metadata = { title: "Học bài" };
 
@@ -17,16 +19,32 @@ export default async function LearnLessonPage({ params }: { params: Promise<{ co
   const { courseId, lessonId } = await params;
 
   const access = await getLessonAccess(user.id, courseId, lessonId);
-  if (!access.ok) redirect(access.reason === "enrollment" ? "/my-courses" : `/my-courses/${courseId}`);
+  if (!access.ok) {
+    redirect(
+      access.reason === "enrollment"
+        ? "/my-courses"
+        : access.reason === "path"
+          ? `/learning-paths/${access.pathId}` // Khoá 🔒 theo lộ trình
+          : `/my-courses/${courseId}`,
+    );
+  }
 
-  const [course, lesson] = await Promise.all([
+  const [course, lesson, myReview] = await Promise.all([
     prisma.course.findUniqueOrThrow({ where: { id: courseId }, select: { id: true, title: true } }),
     getLessonDetail(lessonId),
+    getMyReview(user.id, courseId),
   ]);
   if (!lesson) redirect(`/my-courses/${courseId}`);
 
   await startLearning(user.id, access.enrollment.id, access.lesson);
   const progress = lesson.type === "VIDEO" ? await getLessonProgress(user.id, lessonId) : null;
+
+  // Bài kiểm tra: chấm các lượt dở đã hết giờ (đóng tab giữa chừng) rồi lấy tổng quan lượt làm
+  let quiz = null;
+  if (lesson.type === "QUIZ") {
+    await autoSubmitExpired(user.id, lessonId);
+    quiz = await getQuizOverview(user.id, lessonId);
+  }
 
   const lessonHrefs = Object.fromEntries(
     access.outline.sections.flatMap((s) => s.lessons).map((l) => [l.id, `/learn/${courseId}/${l.id}`]),
@@ -43,6 +61,7 @@ export default async function LearnLessonPage({ params }: { params: Promise<{ co
       lessonHrefs={lessonHrefs}
       backHref={`/my-courses/${courseId}`}
       backLabel="Giới thiệu khoá"
+      myReview={myReview && { rating: myReview.rating, comment: myReview.comment }}
     >
       <LessonBody
         lesson={lesson}
@@ -50,6 +69,7 @@ export default async function LearnLessonPage({ params }: { params: Promise<{ co
           lastPositionSeconds: progress?.lastPositionSeconds ?? 0,
           maxWatchedSeconds: progress?.maxWatchedSeconds ?? 0,
         }}
+        quiz={quiz}
       />
     </LessonShell>
   );

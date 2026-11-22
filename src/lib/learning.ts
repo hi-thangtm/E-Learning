@@ -1,8 +1,12 @@
+import "server-only";
 import type { EnrollmentStatus, LessonType, Prisma, VideoProvider } from "@prisma/client";
 import { bunnyEmbedUrl, isBunnyConfigured } from "@/lib/bunny";
+import { issueCertificate } from "@/lib/certificates";
 import { prisma } from "@/lib/db";
 import { vnIsoDate } from "@/lib/format";
 import { applySequence, DOCUMENT_MIN_SECONDS } from "@/lib/learning-sequence";
+import { notify } from "@/lib/notifications";
+import { getPathLock, getPathLocks, loadPathCourses, lockKey, type PathLock } from "@/lib/path-lock";
 import { isBlankHtml, sanitizeLessonHtml } from "@/lib/sanitize";
 
 /**
@@ -38,6 +42,8 @@ export type CourseOutline = {
   /** Bài đầu tiên chưa xong và đang mở (null = đã xong hết hoặc khoá chưa có bài) */
   nextLessonId: string | null;
   firstLessonId: string | null;
+  /** Khoá bị 🔒 theo lộ trình (Việc 23B): mọi bài khoá, phải học xong khoá trước */
+  pathLock: PathLock | null;
 };
 
 /** Chương / bài đang hiện (bỏ isArchived; chương ẩn = bỏ cả bài), theo thứ tự. */
@@ -59,7 +65,7 @@ async function visibleStructure(courseIds: string[]) {
 }
 
 export async function getCourseOutline(userId: string, courseId: string): Promise<CourseOutline> {
-  const sections = await visibleStructure([courseId]);
+  const [sections, pathLock] = await Promise.all([visibleStructure([courseId]), getPathLock(userId, courseId)]);
   const lessonIds = sections.flatMap((s) => s.lessons.map((l) => l.id));
   const progress = lessonIds.length
     ? await prisma.lessonProgress.findMany({
@@ -100,15 +106,16 @@ export async function getCourseOutline(userId: string, courseId: string): Promis
           durationSeconds: l.durationSeconds,
           completed: l.completed,
           inProgress: l.inProgress,
-          locked: l.locked,
+          locked: l.locked || !!pathLock,
         })),
     })),
     totalLessons: flat.length,
     completedLessons,
     progressPercent: flat.length ? Math.round((completedLessons / flat.length) * 100) : 0,
     totalVideoSeconds: flat.reduce((sum, l) => sum + (l.durationSeconds ?? 0), 0),
-    nextLessonId: flat.find((l) => !l.completed && !l.locked)?.id ?? null,
+    nextLessonId: pathLock ? null : (flat.find((l) => !l.completed && !l.locked)?.id ?? null),
     firstLessonId: flat[0]?.id ?? null,
+    pathLock,
   };
 }
 
@@ -176,6 +183,7 @@ function tabWhere(tab: MyTab, now: Date): Prisma.EnrollmentWhereInput {
 const ENROLLMENT_SELECT = {
   id: true,
   status: true,
+  learningPathId: true,
   source: true,
   progressPercent: true,
   dueDate: true,
@@ -229,16 +237,19 @@ export async function getMyStats(userId: string) {
   return { inProgress, completed, overdue, certificates };
 }
 
-/** “Cần làm”: khoá chưa xong, hạn gần nhất trước (không hạn xếp cuối). */
+/** “Cần làm”: khoá chưa xong, hạn gần nhất trước (không hạn xếp cuối). Bỏ khoá đang 🔒 theo lộ trình. */
 export async function getTodoEnrollments(userId: string, take = 5): Promise<MyEnrollment[]> {
   const now = new Date();
   const rows = await prisma.enrollment.findMany({
     where: { userId, status: { in: OPEN } },
     orderBy: [{ dueDate: { sort: "asc", nulls: "last" } }, { createdAt: "asc" }],
-    take,
     select: ENROLLMENT_SELECT,
   });
-  return rows.map((r) => ({ ...r, overdue: !!r.dueDate && r.dueDate < now }));
+  const locks = await getPathLocks(rows.map((r) => ({ userId, courseId: r.course.id, learningPathId: r.learningPathId })));
+  return rows
+    .filter((r) => !locks.has(lockKey(userId, r.course.id)))
+    .slice(0, take)
+    .map((r) => ({ ...r, overdue: !!r.dueDate && r.dueDate < now }));
 }
 
 /** “Tiếp tục học”: bài đang học dở mới nhất (bài + chương không ẩn, lượt học còn hiệu lực). */
@@ -289,6 +300,9 @@ export async function getMyEnrollment(userId: string, courseId: string) {
     where: { userId, courseId, status: { not: "CANCELLED" } },
     select: {
       ...ENROLLMENT_SELECT,
+      completedVersion: true,
+      acknowledgedVersion: true,
+      acknowledgedAt: true,
       course: {
         select: {
           ...ENROLLMENT_SELECT.course.select,
@@ -323,6 +337,7 @@ export function dueHint(due: Date | null, overdue: boolean): { text: string; ton
 
 export type LessonAccess =
   | { ok: false; reason: "enrollment" | "lesson" }
+  | { ok: false; reason: "path"; pathId: string }
   | {
       ok: true;
       enrollment: { id: string; status: EnrollmentStatus };
@@ -334,7 +349,7 @@ export type LessonAccess =
 
 /**
  * Được học bài này không: có lượt học (khác CANCELLED) + bài thuộc khoá, chưa ẩn + không bị khoá tuần tự.
- * reason = "enrollment" → không có lượt học; "lesson" → bài không hợp lệ / chưa mở.
+ * reason = "enrollment" → không có lượt học; "lesson" → bài không hợp lệ / chưa mở; "path" → khoá 🔒 theo lộ trình.
  */
 export async function getLessonAccess(userId: string, courseId: string, lessonId: string): Promise<LessonAccess> {
   if (!courseId || courseId.length > 50) return { ok: false, reason: "enrollment" };
@@ -346,6 +361,7 @@ export async function getLessonAccess(userId: string, courseId: string, lessonId
   if (!lessonId || lessonId.length > 50) return { ok: false, reason: "lesson" };
 
   const outline = await getCourseOutline(userId, courseId);
+  if (outline.pathLock) return { ok: false, reason: "path", pathId: outline.pathLock.pathId };
   const flat = outline.sections.flatMap((s) => s.lessons);
   const index = flat.findIndex((l) => l.id === lessonId);
   if (index < 0 || flat[index].locked) return { ok: false, reason: "lesson" };
@@ -469,6 +485,7 @@ export async function getPreviewOutline(courseId: string): Promise<CourseOutline
     totalVideoSeconds: flat.reduce((sum, l) => sum + (l.durationSeconds ?? 0), 0),
     nextLessonId: flat[0]?.id ?? null,
     firstLessonId: flat[0]?.id ?? null,
+    pathLock: null,
   };
 }
 
@@ -506,15 +523,64 @@ export type LessonCompletion = {
   /** Khoá VỪA hoàn thành ở lần này (hiện màn hình chúc mừng) */
   courseCompleted: boolean;
   completedAt: string | null;
+  /** Chứng nhận vừa cấp khi hoàn thành khoá (null = khoá không cấp chứng nhận) */
+  certificateId?: string | null;
+  /** Lộ trình: khoá tiếp theo vừa được mở (nút “Học khoá tiếp theo”) */
+  nextCourse?: { id: string; title: string } | null;
 };
 
 /**
- * Việc 22: cấp chứng nhận; Việc 23: mở khoá tiếp theo trong lộ trình.
- * Chạy TRONG transaction hoàn thành khoá.
+ * Việc 22: cấp chứng nhận (khoá có hasCertificate); Việc 23: mở khoá tiếp theo trong lộ trình.
+ * Chạy TRONG transaction hoàn thành khoá. Trả id chứng nhận (nếu có).
  */
-async function onCourseCompleted(tx: Prisma.TransactionClient, enrollmentId: string): Promise<void> {
-  void tx;
-  void enrollmentId;
+async function onCourseCompleted(
+  tx: Prisma.TransactionClient,
+  enrollmentId: string,
+): Promise<{ certificateId: string | null; nextCourse: { id: string; title: string } | null }> {
+  const certificate = await issueCertificate(tx, enrollmentId);
+  const nextCourse = await onPathCourseCompleted(tx, enrollmentId);
+  return { certificateId: certificate?.id ?? null, nextCourse };
+}
+
+/**
+ * Việc 23B — khoá thuộc lộ trình vừa xong: khoá kế tiếp (người đó có lượt học, chưa xong) vừa hết 🔒 -> PATH_NEXT_UNLOCKED;
+ * mọi khoá của lộ trình (người đó có lượt học) đã xong -> PATH_COMPLETED. Trả khoá vừa mở (nếu có).
+ */
+async function onPathCourseCompleted(tx: Prisma.TransactionClient, enrollmentId: string): Promise<{ id: string; title: string } | null> {
+  const e = await tx.enrollment.findUniqueOrThrow({ where: { id: enrollmentId }, select: { userId: true, courseId: true, learningPathId: true } });
+  if (!e.learningPathId) return null;
+  const path = (await loadPathCourses([e.learningPathId], tx)).get(e.learningPathId);
+  if (!path) return null;
+
+  const mine = await tx.enrollment.findMany({
+    where: { userId: e.userId, courseId: { in: path.courses.map((c) => c.id) }, status: { not: "CANCELLED" } },
+    select: { courseId: true, status: true },
+  });
+  const statusOf = new Map(mine.map((m) => [m.courseId, m.status]));
+  const steps = path.courses.filter((c) => statusOf.has(c.id));
+  const firstOpen = steps.find((c) => statusOf.get(c.id) !== "COMPLETED");
+
+  if (!firstOpen) {
+    await notify(tx, {
+      userIds: [e.userId],
+      type: "PATH_COMPLETED",
+      title: `Chúc mừng! Bạn đã hoàn thành lộ trình ${path.title}`.slice(0, 250),
+      link: `/learning-paths/${path.id}`,
+      dedupeKey: `path_done:${path.id}`,
+    });
+    return null;
+  }
+  // Khoá chưa xong đầu tiên nằm SAU khoá vừa xong -> vừa được mở
+  const doneIndex = steps.findIndex((c) => c.id === e.courseId);
+  if (steps.indexOf(firstOpen) <= doneIndex) return null;
+  await notify(tx, {
+    userIds: [e.userId],
+    type: "PATH_NEXT_UNLOCKED",
+    title: `Đã mở khoá học tiếp theo: ${firstOpen.title} (lộ trình ${path.title})`.slice(0, 250),
+    link: `/my-courses/${firstOpen.id}`,
+    dedupeKey: `path_next:${path.id}:${firstOpen.id}`,
+  });
+  return firstOpen;
 }
 
 /**
@@ -573,10 +639,52 @@ export async function completeLesson(userId: string, lessonId: string): Promise<
         }),
       },
     });
-    if (finished) await onCourseCompleted(tx, enrollment.id);
+    const hook = finished ? await onCourseCompleted(tx, enrollment.id) : null;
 
-    return { lessonId, progressPercent, courseCompleted: finished, completedAt: finished ? now.toISOString() : null };
+    return {
+      lessonId,
+      progressPercent,
+      courseCompleted: finished,
+      completedAt: finished ? now.toISOString() : null,
+      certificateId: hook?.certificateId ?? null,
+      nextCourse: hook?.nextCourse ?? null,
+    };
   });
+}
+
+// ---------------------------------------------------------------------------------------------
+// Học lại (Việc 20: chứng nhận hết hạn; Việc 21: bản MAJOR)
+
+export type RelearnReason = "CERTIFICATE_EXPIRED" | "VERSION_MAJOR";
+
+/**
+ * Đặt lại 1 lượt học để HỌC LẠI từ đầu (chạy trong transaction của người gọi):
+ * - enrollment → NOT_STARTED, progressPercent 0, startedAt / completedAt = null, hạn mới.
+ *   GIỮ completedVersion, acknowledgedVersion (lịch sử phiên bản đã học).
+ * - lesson_progress mọi bài của khoá → chưa xong, xoá vị trí xem video, bonusAttempts = 0.
+ * - KHÔNG xoá quiz_attempts, certificates (lịch sử có cột phiên bản; số lượt làm bài tính theo phiên bản).
+ */
+export async function resetEnrollmentForRelearn(
+  tx: Prisma.TransactionClient,
+  enrollmentId: string,
+  options: { dueDate: Date; reason: RelearnReason },
+): Promise<{ enrollmentId: string; userId: string; courseId: string; lessonsReset: number; reason: RelearnReason }> {
+  const enrollment = await tx.enrollment.update({
+    where: { id: enrollmentId },
+    data: {
+      status: "NOT_STARTED",
+      progressPercent: 0,
+      startedAt: null,
+      completedAt: null,
+      dueDate: options.dueDate,
+    },
+    select: { id: true, userId: true, courseId: true },
+  });
+  const reset = await tx.lessonProgress.updateMany({
+    where: { userId: enrollment.userId, lesson: { section: { courseId: enrollment.courseId } } },
+    data: { isCompleted: false, completedAt: null, lastPositionSeconds: 0, maxWatchedSeconds: 0, bonusAttempts: 0 },
+  });
+  return { enrollmentId, userId: enrollment.userId, courseId: enrollment.courseId, lessonsReset: reset.count, reason: options.reason };
 }
 
 export type LessonActionResult = { ok: true; completion: LessonCompletion } | { ok: false; error: string };

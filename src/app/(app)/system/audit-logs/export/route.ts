@@ -3,6 +3,7 @@ import { AUDIT_LOG_SELECT, buildAuditWhere, enrichAuditLogs, type AuditLogRow } 
 import { requireRole } from "@/lib/current-user";
 import { prisma } from "@/lib/db";
 import { addSimpleSheet, createWorkbook, workbookToBuffer, xlsxResponse } from "@/lib/excel";
+import { getSetting } from "@/lib/settings";
 import { formatDateTimeSeconds, formatNumber } from "@/lib/format";
 import type { SearchParams } from "@/lib/table-params";
 
@@ -29,7 +30,7 @@ export async function GET(request: Request) {
   ]);
   const rows = await enrichAuditLogs(actor, logs);
 
-  const wb = createWorkbook();
+  const wb = createWorkbook(await getSetting("SYSTEM_NAME"));
   const ws = addSimpleSheet<AuditLogRow>(
     wb,
     "Nhật ký",

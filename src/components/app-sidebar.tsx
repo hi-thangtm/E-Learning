@@ -25,6 +25,8 @@ import {
   UserCog,
   Users,
   type LucideIcon,
+  CalendarClock,
+  ChartNoAxesCombined,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { findMenuItem, menuForRole, type IconName } from "@/lib/roles";
@@ -51,13 +53,15 @@ const ICONS: Record<IconName, LucideIcon> = {
   template: BadgeCheck,
   audit: ScrollText,
   settings: Settings,
+  jobs: CalendarClock,
+  overview: ChartNoAxesCombined,
 };
 
 /**
  * Sidebar theo Vuexy vertical layout (docs/design-system.md — mục 4.1):
  * rộng 260px, nền card, bóng nhẹ; mục menu 8px 12px bo 6px; mục đang chọn nền gradient primary.
  */
-export function AppSidebar({ role }: { role: Role }) {
+export function AppSidebar({ role, branding }: { role: Role; branding: { name: string; logoUrl: string | null } }) {
   const pathname = usePathname();
   const activeHref = findMenuItem(pathname)?.href;
   const groups = menuForRole(role);
@@ -68,7 +72,7 @@ export function AppSidebar({ role }: { role: Role }) {
     <aside className="sticky top-0 z-20 flex h-screen w-[260px] shrink-0 flex-col bg-sidebar text-sidebar-foreground shadow-sm">
       <div className="relative flex h-16 shrink-0 items-center pr-4 pl-[22px]">
         <Link href="/dashboard" aria-label="Về trang tổng quan">
-          <AppLogo />
+          <AppLogo name={branding.name} logoUrl={branding.logoUrl} />
         </Link>
         <div
           aria-hidden

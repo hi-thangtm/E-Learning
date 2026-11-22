@@ -224,6 +224,7 @@ async function main() {
 
   // 9. Khoá học + tiến độ mẫu (Việc 14) — để thấy “Tiếp tục học”, ✓ / 🔒, quá hạn ở cổng học viên
   await seedDemoLearning({ companyId: company.id, adminCode });
+  await seedSampleNotifications("NV001");
 }
 
 /** Hạn = 23:59:59 giờ VN của ngày (hôm nay + days). */
@@ -453,3 +454,49 @@ main()
     await prisma.$disconnect();
     process.exit(1);
   });
+
+/**
+ * Thông báo mẫu đủ các loại cho 1 học viên (Việc 19). dedupeKey "SEED:<LOẠI>" + skipDuplicates → chạy lại không trùng.
+ * Thời gian lùi dần để thấy "vừa xong / phút trước / hôm qua / dd/MM/yyyy"; vài thông báo đã đọc.
+ */
+async function seedSampleNotifications(employeeCode: string) {
+  const user = await prisma.user.findUnique({ where: { employeeCode }, select: { id: true } });
+  if (!user) {
+    console.log(`• Không có tài khoản ${employeeCode} — bỏ qua thông báo mẫu`);
+    return;
+  }
+  const course = await prisma.course.findFirst({
+    where: { enrollments: { some: { userId: user.id } } },
+    select: { id: true, title: true },
+  });
+  const courseLink = course ? `/my-courses/${course.id}` : "/my-courses";
+  const courseTitle = course?.title ?? "Quy trình bán hàng";
+  const now = Date.now();
+  const minutes = (m: number) => new Date(now - m * 60_000);
+
+  const samples: { type: string; title: string; link: string | null; at: Date; read: boolean }[] = [
+    { type: "COURSE_ASSIGNED", title: `Bạn được giao khoá học “${courseTitle}”`, link: "/my-courses", at: minutes(0.2), read: false },
+    { type: "DUE_SOON", title: `Khoá học “${courseTitle}” sẽ đến hạn sau 3 ngày`, link: courseLink, at: minutes(5), read: false },
+    { type: "QUIZ_ATTEMPTS_GRANTED", title: "Bạn được cấp thêm 1 lượt làm bài kiểm tra", link: courseLink, at: minutes(90), read: false },
+    { type: "OVERDUE", title: `Khoá học “${courseTitle}” đã quá hạn hoàn thành`, link: courseLink, at: minutes(60 * 26), read: false },
+    { type: "VERSION_MAJOR", title: `Quy trình “${courseTitle}” thay đổi lớn — bạn cần học lại`, link: courseLink, at: minutes(60 * 24 * 3), read: false },
+    { type: "VERSION_MINOR", title: `Quy trình “${courseTitle}” có cập nhật nhỏ — hãy đọc và xác nhận`, link: courseLink, at: minutes(60 * 24 * 5), read: true },
+    { type: "CERTIFICATE_ISSUED", title: "Chúc mừng! Bạn đã nhận chứng nhận hoàn thành khoá học", link: "/certificates", at: minutes(60 * 24 * 10), read: true },
+    { type: "CERTIFICATE_EXPIRING", title: "Chứng nhận của bạn sẽ hết hạn sau 30 ngày", link: "/certificates", at: minutes(60 * 24 * 12), read: false },
+    { type: "REMINDER", title: "Trưởng phòng nhắc bạn hoàn thành các khoá học được giao", link: "/my-courses", at: minutes(60 * 24 * 20), read: true },
+  ];
+
+  const result = await prisma.notification.createMany({
+    data: samples.map((n) => ({
+      userId: user.id,
+      type: n.type,
+      title: n.title,
+      link: n.link,
+      createdAt: n.at,
+      readAt: n.read ? n.at : null,
+      dedupeKey: `SEED:${n.type}`,
+    })),
+    skipDuplicates: true,
+  });
+  console.log(result.count > 0 ? `✔ Thông báo mẫu: ${result.count} thông báo cho ${employeeCode}` : `• Thông báo mẫu của ${employeeCode} đã có — giữ nguyên`);
+}

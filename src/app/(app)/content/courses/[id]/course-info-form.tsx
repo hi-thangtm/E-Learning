@@ -4,7 +4,7 @@ import { useActionState, useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import { ImageIcon, ImagePlus, Trash2, Undo2 } from "lucide-react";
 import { toast } from "sonner";
-import { FormField } from "@/components/form-field";
+import { FormField, FormGrid } from "@/components/form-field";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -13,6 +13,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { initialActionState } from "@/lib/action-state";
 import { fileUrl } from "@/lib/file-url";
 import { updateCourseInfoAction } from "./actions";
+import { setInfoDirty } from "./info-dirty-store";
 
 const NONE = "__none__";
 const MAX_IMAGE_BYTES = 2 * 1024 * 1024;
@@ -43,9 +44,13 @@ export function CourseInfoForm({
   const [state, formAction, pending] = useActionState(updateCourseInfoAction, initialActionState);
 
   const v = state.values;
-  const [categoryId, setCategoryId] = useState(course.categoryId || NONE);
-  const [allowSelfEnroll, setAllowSelfEnroll] = useState(course.allowSelfEnroll);
-  const [hasCertificate, setHasCertificate] = useState(course.hasCertificate);
+  const [categoryId, setCategoryIdState] = useState(course.categoryId || NONE);
+  const [allowSelfEnroll, setAllowSelfEnrollState] = useState(course.allowSelfEnroll);
+  const [hasCertificate, setHasCertificateState] = useState(course.hasCertificate);
+  // Ô chọn / công tắc không phát sự kiện change của form -> tự đánh dấu "chưa lưu"
+  const setCategoryId = (v: string) => (setCategoryIdState(v), setInfoDirty(true));
+  const setAllowSelfEnroll = (v: boolean) => (setAllowSelfEnrollState(v), setInfoDirty(true));
+  const setHasCertificate = (v: boolean) => (setHasCertificateState(v), setInfoDirty(true));
 
   // --- Ảnh bìa: xem trước file vừa chọn / đánh dấu xoá ảnh hiện tại ---
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -53,8 +58,12 @@ export function CourseInfoForm({
   const [removeThumbnail, setRemoveThumbnail] = useState(false);
   const [imageError, setImageError] = useState<string | null>(null);
 
+  // Báo cho hộp Phát hành biết tab này có thay đổi chưa lưu; rời tab (huỷ form) = không còn gì chưa lưu
+  useEffect(() => () => setInfoDirty(false), []);
+
   useEffect(() => {
     if (state.ok) {
+      setInfoDirty(false);
       if (state.message) toast.success(state.message);
     } else if (state.message) {
       toast.error(state.message);
@@ -98,17 +107,17 @@ export function CourseInfoForm({
   const err = state.errors ?? {};
 
   return (
-    <form action={formAction} noValidate>
+    <form action={formAction} noValidate onChange={() => !readOnly && setInfoDirty(true)}>
       <input type="hidden" name="id" value={course.id} />
       <input type="hidden" name="categoryId" value={categoryId === NONE ? "" : categoryId} />
       <input type="hidden" name="allowSelfEnroll" value={allowSelfEnroll ? "1" : "0"} />
       <input type="hidden" name="hasCertificate" value={hasCertificate ? "1" : "0"} />
       <input type="hidden" name="removeThumbnail" value={removeThumbnail ? "1" : "0"} />
 
-      <fieldset disabled={readOnly || pending} className="grid grid-cols-3 gap-6">
+      <fieldset disabled={readOnly || pending} className="grid grid-cols-3 items-start gap-6">
         {/* --- Cột trái: thông tin chính --- */}
         <div className="col-span-2 grid content-start gap-4">
-          <div className="grid grid-cols-3 gap-4">
+          <FormGrid cols={3}>
             <FormField label="Mã khoá học" htmlFor="code" required error={err.code}>
               <Input
                 id="code"
@@ -130,7 +139,7 @@ export function CourseInfoForm({
                 aria-invalid={!!err.title}
               />
             </FormField>
-          </div>
+          </FormGrid>
 
           <FormField label="Mô tả" htmlFor="description" error={err.description} hint="Giới thiệu nội dung, đối tượng, mục tiêu khoá học (tối đa 5.000 ký tự).">
             <Textarea
@@ -232,7 +241,7 @@ export function CourseInfoForm({
                     Bỏ ảnh vừa chọn
                   </Button>
                 ) : course.thumbnailKey && !removeThumbnail ? (
-                  <Button type="button" variant="ghost" size="sm" className="text-destructive" onClick={() => setRemoveThumbnail(true)}>
+                  <Button type="button" variant="ghost" size="sm" className="text-destructive" onClick={() => (setRemoveThumbnail(true), setInfoDirty(true))}>
                     <Trash2 />
                     Xoá ảnh
                   </Button>

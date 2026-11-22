@@ -8,6 +8,7 @@ import { StatusBadge } from "@/components/status-badge";
 import { buttonVariants } from "@/components/ui/button";
 import { enrollmentScopeWhere } from "@/lib/assignment-scope";
 import { courseVisibleWhere } from "@/lib/course-scope";
+import { pathVisibleWhere } from "@/lib/path-scope";
 import { requireRole } from "@/lib/current-user";
 import { prisma } from "@/lib/db";
 import { ENROLLMENT_STATUS_LABELS, isOverdue, SOURCE_LABELS } from "@/lib/enrollment-labels";
@@ -32,7 +33,7 @@ export default async function EnrollmentsPage({ searchParams }: { searchParams: 
   const status = getEnumParam(sp, "status", STATUSES);
   const overdueOnly = getParam(sp, "due") === "overdue";
 
-  const [companies, courses] = await Promise.all([
+  const [companies, courses, paths] = await Promise.all([
     prisma.company.findMany({
       where: isGroupAdmin ? {} : { id: actor.companyId },
       orderBy: [{ parentId: { sort: "asc", nulls: "first" } }, { code: "asc" }],
@@ -44,10 +45,17 @@ export default async function EnrollmentsPage({ searchParams }: { searchParams: 
       orderBy: { code: "asc" },
       select: { id: true, code: true, title: true },
     }),
+    // Lọc lộ trình: các lộ trình có lượt giao xem được
+    prisma.learningPath.findMany({
+      where: { AND: [await pathVisibleWhere(actor), { enrollments: { some: enrollmentScopeWhere(actor) } }] },
+      orderBy: { code: "asc" },
+      select: { id: true, code: true, title: true },
+    }),
   ]);
 
   const companyId = isGroupAdmin ? companies.find((c) => c.id === getParam(sp, "company"))?.id : actor.companyId;
   const courseId = courses.find((c) => c.id === getParam(sp, "course"))?.id;
+  const pathId = paths.find((p) => p.id === getParam(sp, "path"))?.id;
 
   // Phòng ban (gồm phòng con) — chỉ khi đã xác định công ty
   const departments = companyId
@@ -67,6 +75,7 @@ export default async function EnrollmentsPage({ searchParams }: { searchParams: 
       ...(companyId ? [{ user: { companyId } }] : []),
       ...(departmentIds ? [{ user: { departmentId: { in: departmentIds } } }] : []),
       ...(courseId ? [{ courseId }] : []),
+      ...(pathId ? [{ learningPathId: pathId }] : []),
       ...(source ? [{ source }] : []),
       ...(status ? [{ status }] : []),
       ...(overdueOnly ? [{ dueDate: { lt: now }, status: { in: ["NOT_STARTED", "IN_PROGRESS"] as EnrollmentStatus[] } }] : []),
@@ -109,6 +118,7 @@ export default async function EnrollmentsPage({ searchParams }: { searchParams: 
           },
         },
         course: { select: { id: true, code: true, title: true } },
+        learningPath: { select: { id: true, code: true, title: true } },
         assignedBy: { select: { fullName: true } },
         assignmentRule: { select: { name: true, isActive: true } },
       },
@@ -147,6 +157,23 @@ export default async function EnrollmentsPage({ searchParams }: { searchParams: 
           <span className="block text-[13px] text-muted-foreground">{e.course.code}</span>
         </Link>
       ),
+    },
+    {
+      key: "path",
+      header: "Lộ trình",
+      className: "w-32",
+      cell: (e) =>
+        e.learningPath ? (
+          <Link
+            href={`/content/paths/${e.learningPath.id}`}
+            className="block max-w-32 truncate text-foreground hover:text-primary"
+            title={e.learningPath.title}
+          >
+            {e.learningPath.code}
+          </Link>
+        ) : (
+          <span className="text-foreground/45">—</span>
+        ),
     },
     {
       key: "source",
@@ -216,6 +243,7 @@ export default async function EnrollmentsPage({ searchParams }: { searchParams: 
               dueDate: e.dueDate ? vnIsoDate(e.dueDate) : "",
               canExtend: open,
               canCancel: open && !lockedByRule,
+              canGrantAttempts: e.status !== "CANCELLED",
               lockedByRule,
             }}
           />
@@ -231,6 +259,16 @@ export default async function EnrollmentsPage({ searchParams }: { searchParams: 
       allLabel: "Tất cả khoá học",
       options: courses.map((c) => ({ value: c.id, label: `${c.code} — ${c.title}` })),
     },
+    ...(paths.length
+      ? [
+          {
+            param: "path",
+            label: "Lộ trình",
+            allLabel: "Tất cả lộ trình",
+            options: paths.map((p) => ({ value: p.id, label: `${p.code} — ${p.title}` })),
+          },
+        ]
+      : []),
   ];
   if (isGroupAdmin) {
     filters.push({
@@ -275,7 +313,7 @@ export default async function EnrollmentsPage({ searchParams }: { searchParams: 
   const assignButton = (
     <Link href={`${PATHNAME}/new`} className={buttonVariants()}>
       <Plus />
-      Giao khoá học
+      Giao khoá học / lộ trình
     </Link>
   );
 
@@ -303,7 +341,7 @@ export default async function EnrollmentsPage({ searchParams }: { searchParams: 
         toolbar={assignButton}
         empty={{
           title: "Chưa có lượt giao nào",
-          description: "Giao khoá học cho nhân viên thủ công, hoặc tạo quy tắc giao tự động.",
+          description: "Giao khoá học / lộ trình cho nhân viên thủ công, hoặc tạo quy tắc giao tự động.",
           action: assignButton,
         }}
       />

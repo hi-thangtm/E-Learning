@@ -28,6 +28,7 @@ import { AddLessonDialog, SectionNameDialog } from "./content-dialogs";
 import { sectionDndId, SectionCard, type ItemActions } from "./content-items";
 import type { ContentLayout, ContentLesson, ContentSection } from "./content-types";
 import { LessonDialog } from "./lesson-dialog";
+import type { TopicStats } from "@/lib/question-labels";
 
 type Confirm =
   | { kind: "removeSection"; section: ContentSection }
@@ -51,6 +52,7 @@ export function ContentEditor({
   readOnly,
   published,
   bunnyEnabled,
+  questionBank,
 }: {
   courseId: string;
   sections: ContentSection[];
@@ -58,6 +60,8 @@ export function ContentEditor({
   published: boolean;
   /** Đủ biến môi trường Bunny Stream -> cho chọn nguồn Bunny */
   bunnyEnabled: boolean;
+  /** Số câu đang dùng theo chủ đề — cho ô chọn chủ đề của bài kiểm tra */
+  questionBank: TopicStats;
 }) {
   const [sections, setSections] = useState(serverSections);
   // Dữ liệu server đổi (sau mỗi thao tác) -> đồng bộ lại
@@ -292,6 +296,8 @@ export function ContentEditor({
           lesson={openLesson}
           readOnly={readOnly}
           bunnyEnabled={bunnyEnabled}
+          courseId={courseId}
+          questionBank={questionBank}
           open
           onOpenChange={(open) => !open && setOpenLessonId(null)}
         />

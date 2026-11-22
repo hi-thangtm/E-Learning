@@ -1,5 +1,6 @@
 import { getCurrentUser } from "@/lib/current-user";
 import { canReadFile } from "@/lib/file-access";
+import { LIMITS, rateLimit, tooManyRequests } from "@/lib/rate-limit";
 import { isValidKey, readFile } from "@/lib/storage";
 
 /**
@@ -12,6 +13,9 @@ import { isValidKey, readFile } from "@/lib/storage";
 export async function GET(_request: Request, ctx: { params: Promise<{ key: string[] }> }) {
   const user = await getCurrentUser();
   if (!user) return new Response("Bạn cần đăng nhập để xem file.", { status: 401, headers: TEXT });
+  // 120 lần / phút / người
+  const limited = rateLimit(`files:${user.id}`, LIMITS.fileDownload);
+  if (!limited.ok) return tooManyRequests(limited.retryAfterSeconds);
 
   const { key: parts } = await ctx.params;
   const key = parts.join("/");

@@ -1,7 +1,9 @@
 "use server";
 
 import bcrypt from "bcryptjs";
+import { AuthError } from "next-auth";
 import { redirect } from "next/navigation";
+import { signIn } from "@/auth";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { requireUser } from "@/lib/current-user";
@@ -55,7 +57,8 @@ export async function changePasswordAction(
   await prisma.$transaction([
     prisma.user.update({
       where: { id: user.id },
-      data: { passwordHash, mustChangePassword: false },
+      // Huỷ mọi phiên đang mở (kể cả phiên này) — ngay sau đó cấp phiên mới cho chính người đổi (Việc 29A)
+      data: { passwordHash, mustChangePassword: false, sessionsValidAfter: new Date() },
     }),
     logAudit(prisma, {
         actorId: user.id,
@@ -66,5 +69,12 @@ export async function changePasswordAction(
       }),
   ]);
 
-  redirect("/dashboard");
+  // Cấp phiên mới bằng mật khẩu vừa đặt -> giữ người dùng đăng nhập ở trình duyệt này; các trình duyệt khác bị đăng xuất
+  try {
+    await signIn("credentials", { employeeCode: user.employeeCode, password: parsed.data.newPassword, redirectTo: "/dashboard" });
+  } catch (error) {
+    // Thành công: signIn ném lệnh chuyển trang của Next.js -> ném tiếp. Lỗi đăng nhập (hiếm) -> về trang đăng nhập.
+    if (!(error instanceof AuthError)) throw error;
+  }
+  redirect("/login");
 }

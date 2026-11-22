@@ -4,23 +4,36 @@ import { ChevronLeft } from "lucide-react";
 import { assignableCoursesWhere, learnerCompaniesForCourse } from "@/lib/assignment-scope";
 import { requireRole } from "@/lib/current-user";
 import { prisma } from "@/lib/db";
-import { getNumberSetting } from "@/lib/settings";
+import { assignablePathsWhere } from "@/lib/path-scope";
+import { getSetting } from "@/lib/settings";
 import { getParam, type SearchParams } from "@/lib/table-params";
 import { AssignWizard } from "./assign-wizard";
 import type { WizardCourse } from "./types";
 
-export const metadata: Metadata = { title: "Giao khoá học" };
+export const metadata: Metadata = { title: "Giao khoá học / lộ trình" };
 
 export default async function AssignNewPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
   const actor = await requireRole(["GROUP_ADMIN", "COMPANY_ADMIN"]);
   const isGroupAdmin = actor.role === "GROUP_ADMIN";
   const sp = await searchParams;
 
-  const [courses, companies, departments, positions, defaultDays] = await Promise.all([
+  const [courses, paths, companies, departments, positions, defaultDays] = await Promise.all([
     prisma.course.findMany({
       where: await assignableCoursesWhere(actor),
       orderBy: [{ title: "asc" }],
       select: { id: true, code: true, title: true, ownerCompanyId: true, ownerCompany: { select: { code: true } } },
+    }),
+    prisma.learningPath.findMany({
+      where: await assignablePathsWhere(actor),
+      orderBy: [{ title: "asc" }],
+      select: {
+        id: true,
+        code: true,
+        title: true,
+        ownerCompanyId: true,
+        ownerCompany: { select: { code: true } },
+        _count: { select: { courses: true } },
+      },
     }),
     prisma.company.findMany({
       where: { isActive: true, ...(isGroupAdmin ? {} : { id: actor.companyId }) },
@@ -33,11 +46,13 @@ export default async function AssignNewPage({ searchParams }: { searchParams: Pr
       select: { id: true, companyId: true, parentId: true, name: true },
     }),
     prisma.position.findMany({ where: { isActive: true }, orderBy: { name: "asc" }, select: { id: true, name: true } }),
-    getNumberSetting("DEFAULT_DUE_DAYS", 30),
+    getSetting("DEFAULT_DUE_DAYS"),
   ]);
 
   const wizardCourses: WizardCourse[] = await Promise.all(
     courses.map(async (c) => ({
+      kind: "course" as const,
+      courseCount: 1,
       id: c.id,
       code: c.code,
       title: c.title,
@@ -45,7 +60,24 @@ export default async function AssignNewPage({ searchParams }: { searchParams: Pr
       learnerCompanies: await learnerCompaniesForCourse(actor, c),
     })),
   );
-  const preselected = wizardCourses.find((c) => c.id === getParam(sp, "courseId"))?.id ?? null;
+  const wizardPaths: WizardCourse[] = await Promise.all(
+    paths.map(async (p) => ({
+      kind: "path" as const,
+      courseCount: p._count.courses,
+      id: p.id,
+      code: p.code,
+      title: p.title,
+      ownerCode: p.ownerCompany.code,
+      learnerCompanies: await learnerCompaniesForCourse(actor, p),
+    })),
+  );
+  const preselectedPath = wizardPaths.find((p) => p.id === getParam(sp, "pathId"))?.id ?? null;
+  const preselected = preselectedPath
+    ? { kind: "path" as const, id: preselectedPath }
+    : (() => {
+        const id = wizardCourses.find((c) => c.id === getParam(sp, "courseId"))?.id;
+        return id ? { kind: "course" as const, id } : null;
+      })();
 
   return (
     <>
@@ -54,14 +86,15 @@ export default async function AssignNewPage({ searchParams }: { searchParams: Pr
           <ChevronLeft className="size-4" />
           Danh sách giao khoá
         </Link>
-        <h1 className="text-2xl font-medium text-foreground">Giao khoá học</h1>
+        <h1 className="text-2xl font-medium text-foreground">Giao khoá học / lộ trình</h1>
         <p className="text-[15px] text-muted-foreground">
-          Chọn khoá đã phát hành, chọn người học và đặt hạn. Người đã có lượt giao chỉ được rút ngắn hạn, người đã học xong được bỏ qua.
+          Chọn khoá học hoặc lộ trình đã phát hành, chọn người học và đặt hạn. Người đã có lượt giao chỉ được rút ngắn hạn, người đã học xong được bỏ qua.
         </p>
       </div>
       <AssignWizard
         courses={wizardCourses}
-        initialCourseId={preselected}
+        paths={wizardPaths}
+        initial={preselected}
         companies={companies.map((c) => ({ id: c.id, label: `${c.code} — ${c.name}` }))}
         departments={departments}
         positions={positions.map((p) => ({ id: p.id, label: p.name }))}

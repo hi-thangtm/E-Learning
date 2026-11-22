@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { KeyRound, LogOut } from "lucide-react";
+import { Bell, KeyRound, LogOut } from "lucide-react";
 import { Avatar, AvatarBadge, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import {
@@ -57,6 +57,14 @@ export function UserMenu({ fullName, employeeCode, avatarUrl, roleLabel, company
         </div>
 
         <DropdownMenuSeparator className="mx-0 my-1" />
+
+        <DropdownMenuItem
+          render={<Link href="/notifications" />}
+          className="mx-2 gap-3 rounded-md px-4 py-2 text-[15px] text-foreground"
+        >
+          <Bell className="size-[22px]" strokeWidth={1.75} />
+          Thông báo
+        </DropdownMenuItem>
 
         <DropdownMenuItem
           render={<Link href="/change-password" />}

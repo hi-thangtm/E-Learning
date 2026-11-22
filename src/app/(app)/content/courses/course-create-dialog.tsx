@@ -2,7 +2,7 @@
 
 import { useActionState, useEffect, useState, type ReactElement } from "react";
 import { toast } from "sonner";
-import { FormField } from "@/components/form-field";
+import { FormField, FormGrid } from "@/components/form-field";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -74,7 +74,8 @@ function CreateForm({ categories }: { categories: { id: string; name: string }[]
     <form action={formAction} className="contents" noValidate>
       <input type="hidden" name="categoryId" value={categoryId === NONE ? "" : categoryId} />
 
-      <DialogBody className="grid gap-4">
+      <DialogBody>
+        <FormGrid>
         <FormField label="Mã khoá học" htmlFor="code" required error={err.code} hint="Chữ in hoa không dấu, không trùng. VD: QT-BH-01">
           <Input
             id="code"
@@ -115,6 +116,7 @@ function CreateForm({ categories }: { categories: { id: string; name: string }[]
             </SelectContent>
           </Select>
         </FormField>
+        </FormGrid>
       </DialogBody>
 
       <DialogFooter>

@@ -55,6 +55,7 @@ export function DataTable<T>({
   rowHref,
   extraFilters,
   extraFilterParams,
+  clearHref,
 }: {
   pathname: string;
   searchParams: SearchParams;
@@ -75,6 +76,8 @@ export function DataTable<T>({
   extraFilters?: ReactNode;
   /** Tham số URL của extraFilters — để biết đang có lọc (hiện “Xoá bộ lọc” khi rỗng) */
   extraFilterParams?: string[];
+  /** Link của nút “Xoá bộ lọc” (mặc định = pathname). VD giữ lại ?course= khi trang phụ thuộc 1 tham số cố định */
+  clearHref?: string;
 }) {
   const filterParams = ["q", ...filters.map((f) => f.param), ...(extraFilterParams ?? [])];
   const filtered = filterParams.some((key) => !!searchParams[key]) || page > 1;
@@ -123,7 +126,7 @@ export function DataTable<T>({
             {rows.length === 0 ? (
               <tr>
                 <td colSpan={columns.length}>
-                  <DataTableEmpty {...empty} filtered={filtered} clearHref={pathname} />
+                  <DataTableEmpty {...empty} filtered={filtered} clearHref={clearHref ?? pathname} />
                 </td>
               </tr>
             ) : (

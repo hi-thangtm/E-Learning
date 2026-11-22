@@ -205,6 +205,7 @@ model User {
   lastLoginAt        DateTime?
   failedLoginCount   Int        @default(0)
   lockedUntil        DateTime? // Khoá tạm sau nhiều lần sai mật khẩu
+  sessionsValidAfter DateTime? // Phiên đăng nhập cấp TRƯỚC thời điểm này bị huỷ (đổi / đặt lại mật khẩu, khoá, đổi vai trò, chuyển công ty)
   createdAt          DateTime   @default(now())
   updatedAt          DateTime   @updatedAt
 
@@ -517,6 +518,7 @@ model LessonProgress {
   isCompleted         Boolean   @default(false)
   lastPositionSeconds Int       @default(0) // Video: xem tiếp từ đây
   maxWatchedSeconds   Int       @default(0) // Video: đã xem thật tới đâu (chống tua)
+  bonusAttempts       Int       @default(0) // Bài kiểm tra: lượt làm thêm do admin cấp (tối đa = maxAttempts + bonusAttempts)
   completedAt         DateTime?
   updatedAt           DateTime  @updatedAt
 
@@ -543,6 +545,8 @@ model Certificate {
   issuedAt      DateTime  @default(now())
   expiresAt     DateTime?
   revokedAt     DateTime? // Thu hồi (VD: phát hiện gian lận)
+  /// Mẫu tại thời điểm cấp: { companyName, logoKey, signerName, signerTitle, signatureKey } — sửa mẫu sau không đổi chứng nhận đã cấp
+  templateSnapshot Json?
 
   user   User    @relation(fields: [userId], references: [id], onDelete: Cascade)
   course Course? @relation(fields: [courseId], references: [id], onDelete: SetNull)
@@ -580,10 +584,12 @@ model Notification {
   link         String?
   readAt       DateTime?
   sentToLarkAt DateTime? // Giai đoạn 2: đã gửi tin nhắn Lark
+  dedupeKey    String? // Chống gửi trùng: cùng userId + dedupeKey chỉ có 1 dòng (NULL = không chống trùng)
   createdAt    DateTime  @default(now())
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
+  @@unique([userId, dedupeKey])
   @@index([userId, readAt])
   @@map("notifications")
 }

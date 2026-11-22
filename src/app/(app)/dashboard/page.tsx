@@ -3,6 +3,8 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 import { Award, BookOpen, CheckCircle2, ChevronRight, Clock, FileText, Inbox, ListChecks, PlayCircle, TriangleAlert } from "lucide-react";
 import { CourseThumbnail } from "@/components/course-thumbnail";
+import { VersionUpdateBanner } from "@/components/learning/version-update-banner";
+import { getPendingAcknowledgements } from "@/lib/acknowledgements";
 import { ProgressBar } from "@/components/progress";
 import { StatusBadge } from "@/components/status-badge";
 import { defaultCoverUrl } from "@/lib/course-cover";
@@ -19,10 +21,11 @@ const LESSON_ICON = { VIDEO: PlayCircle, DOCUMENT: FileText, QUIZ: ListChecks } 
 /** Tổng quan học viên (mục 2.2) — chỉ dữ liệu của chính người đăng nhập. */
 export default async function DashboardPage() {
   const user = await requireUser();
-  const [stats, todo, continueLearning] = await Promise.all([
+  const [stats, todo, continueLearning, pendingUpdates] = await Promise.all([
     getMyStats(user.id),
     getTodoEnrollments(user.id, 5),
     getContinueLearning(user.id, 3),
+    getPendingAcknowledgements(user.id),
   ]);
   const hasAnything = stats.inProgress + stats.completed > 0 || todo.length > 0;
 
@@ -34,6 +37,9 @@ export default async function DashboardPage() {
           {user.employeeCode} · {ROLE_LABELS[user.role]} · {user.company.name}
         </p>
       </div>
+
+      {/* Quy trình có cập nhật (bản MINOR chưa xác nhận) */}
+      <VersionUpdateBanner items={pendingUpdates} />
 
       <div className="grid grid-cols-4 gap-6">
         <StatCard href="/my-courses?tab=inProgress" label="Đang học" value={stats.inProgress} hint="Khoá học đang tham gia" icon={<BookOpen />} tone="primary" />

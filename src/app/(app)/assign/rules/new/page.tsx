@@ -12,9 +12,10 @@ export default async function NewRulePage({ searchParams }: { searchParams: Prom
   const actor = await requireRole(["GROUP_ADMIN", "COMPANY_ADMIN"]);
   const sp = await searchParams;
   const options = await loadRuleFormOptions(actor);
-  // ?courseId= từ bước 2 của trình giao khoá — chỉ nhận khoá giao được
-  const requested = getParam(sp, "courseId");
-  const initialCourseId = options.courses.find((c) => c.id === requested && c.published)?.id ?? null;
+  // ?courseId= / ?pathId= từ bước 2 của trình giao — chỉ nhận khoá / lộ trình giao được
+  const courseId = options.courses.find((c) => c.id === getParam(sp, "courseId") && c.published)?.id;
+  const pathId = options.paths.find((p) => p.id === getParam(sp, "pathId") && p.published)?.id;
+  const initial = pathId ? { kind: "path" as const, id: pathId } : courseId ? { kind: "course" as const, id: courseId } : null;
 
   return (
     <>
@@ -25,10 +26,10 @@ export default async function NewRulePage({ searchParams }: { searchParams: Prom
         </Link>
         <h1 className="text-2xl font-medium text-foreground">Tạo quy tắc giao tự động</h1>
         <p className="text-[15px] text-muted-foreground">
-          Giao khoá cho cả một nhóm (công ty / phòng ban / chức danh), kể cả người vào nhóm sau này.
+          Giao khoá học hoặc lộ trình cho cả một nhóm (công ty / phòng ban / chức danh), kể cả người vào nhóm sau này.
         </p>
       </div>
-      <RuleForm options={options} initialCourseId={initialCourseId} />
+      <RuleForm options={options} initial={initial} />
     </>
   );
 }

@@ -1,3 +1,4 @@
+import "server-only";
 import { randomInt } from "node:crypto";
 
 // Bỏ các ký tự dễ nhầm khi đọc / gõ lại: 0 O o, 1 l I i

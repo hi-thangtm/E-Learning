@@ -285,11 +285,16 @@ thì chỉ `DialogBody` cuộn, nút Huỷ / Lưu luôn nhìn thấy (kể cả 
     {/* form “trong suốt” (display: contents): body + footer là con trực tiếp của cột */}
     <form action={formAction} className="contents" noValidate>
       <input type="hidden" name="id" value={id} />    {/* input ẩn đặt ngoài DialogBody */}
-      <DialogBody className="grid grid-cols-2 gap-4">  {/* PHẦN DUY NHẤT được cuộn */}
-        <FormField label="Mã nhân viên" htmlFor="employeeCode" required error={err.employeeCode}>
-          <Input id="employeeCode" name="employeeCode" />
-        </FormField>
-        {/* ... các ô khác; ô dài dùng col-span-2 */}
+      <DialogBody>                                   {/* PHẦN DUY NHẤT được cuộn */}
+        <FormGrid cols={2}>                          {/* lưới form: luôn items-start */}
+          <FormField label="Mã nhân viên" htmlFor="employeeCode" required hint="VD: NV001" error={err.employeeCode}>
+            <Input id="employeeCode" name="employeeCode" />
+          </FormField>
+          <FormField label="Họ tên" htmlFor="fullName" required error={err.fullName}>
+            <Input id="fullName" name="fullName" />
+          </FormField>
+          <FormField label="Ghi chú" htmlFor="note" span="full">…</FormField>  {/* ô chiếm cả hàng */}
+        </FormGrid>
       </DialogBody>
       <DialogFooter>                                 {/* cố định, KHÔNG thêm col-span / pt */}
         <DialogClose render={<Button type="button" variant="outline" disabled={pending} />}>Huỷ</DialogClose>
@@ -300,7 +305,16 @@ thì chỉ `DialogBody` cuộn, nút Huỷ / Lưu luôn nhìn thấy (kể cả 
 </Dialog>
 ```
 
-- Bố cục lưới của form (VD `grid grid-cols-2 gap-4`) đặt ở `DialogBody`, không đặt ở `<form>`.
+- **Quy ước lưới form** (`src/components/form-field.tsx`): luôn dùng `FormGrid` (`cols` 1 / 2 / 3, `items-start`, cách nhau 16px dọc / 24px ngang)
+  + `FormField`. **Không tự viết** `grid grid-cols-*` cho form. Ô chiếm cả hàng: `span="full"`.
+  Lý do: lưới CSS mặc định kéo giãn các ô cùng hàng (`stretch`) → ô có chú thích / lỗi làm nhãn và ô nhập bên cạnh lệch xuống.
+- `FormField` cấu trúc cố định: **nhãn** (cao đúng 1 dòng 20px, dấu `*` đỏ cùng dòng, nhãn dài bị cắt `…` + `title`) → **ô nhập** →
+  **chú thích / lỗi** (chỉ nằm dưới ô, không ảnh hưởng ô cùng hàng). Container `content-start` nên không giãn kể cả khi đặt ngoài `FormGrid`.
+- Nút chọn dạng segmented (“Một đáp án / Nhiều đáp án”, “Tự sinh / Tự nhập”): dùng `SegmentedControl` (`src/components/segmented-control.tsx`),
+  cao **38px** như input / select, phím ← → đổi lựa chọn. Thẻ chọn lớn dạng card (loại bài, nguồn video…) không dùng component này.
+- Danh sách dòng có ô nhập (VD phương án A–F): phần đầu dòng (radio / checkbox + nhãn) có **độ rộng cố định** để các ô nhập thẳng mép trái;
+  dòng `flex items-center` để nút xoá căn giữa với ô nhập.
+- `FormGrid` đặt bên trong `DialogBody`, không đặt ở `<form>`.
 - `DialogBody` có lề âm + padding ngang để viền focus của ô nhập không bị cắt và thanh cuộn sát mép dialog.
 - Dialog không có form (VD màn hiện mật khẩu): `DialogHeader` – `DialogBody` – `DialogFooter` như trên.
 - Độ rộng: dialog ngắn `sm:max-w-lg`; form 2 cột `sm:max-w-2xl`; **dialog bài học (cả 3 loại) `sm:max-w-3xl`**.
@@ -322,6 +336,11 @@ Theo `Chip variant='tonal' size='small'` trong `UserListTable.tsx`. Kiểu tonal
   Hoạt động
 </span>
 ```
+
+**Quy ước: badge / pill KHÔNG BAO GIỜ xuống dòng** — luôn `inline-flex items-center whitespace-nowrap shrink-0`.
+Dùng component có sẵn trong `src/components/status-badge.tsx`: `StatusBadge` (trạng thái, vai trò, cách giao, nguồn khoá…)
+và `CountPill` (ô đếm số tròn: “6 mới”, số cạnh tab / chip; > 99 hiện “99+”). Không tự viết `<span className="rounded-full …">`.
+Hàng chứa badge cạnh nút / chữ dài: đặt badge trong cụm `inline-flex items-center gap-2`, phần chữ dài mới được co (`min-w-0`).
 
 Bảng màu trạng thái dùng thống nhất toàn hệ thống:
 
@@ -494,6 +513,18 @@ skeleton, sonner**. Thành phần khác thêm khi cần:
   - shadcn `combobox` (kèm `input-group`, `textarea`): ô chọn có tìm kiếm, cao 38px. Mẫu chọn trưởng phòng ở `department-form-dialog.tsx`.
     Lưu ý: `shadcn add` đang ghi `import { cn } from "cn"` — sau khi thêm component phải đổi sang `@/lib/utils`.
   - Dialog dùng chung cho cả bảng (điều khiển bằng state ở component cha) khi dữ liệu chọn lớn (danh sách nhân viên).
+- Sửa căn hàng form: `FormGrid` + `FormField` (nhãn cao cố định, `content-start`), `SegmentedControl` 38px; áp cho mọi dialog / form
+  (chức danh, công ty, tạo admin, phòng ban, người dùng, danh mục, khoá học, chương / thêm bài, bài học 3 loại, câu hỏi, gia hạn,
+  thông tin khoá, quy tắc giao tự động, import nhân viên / câu hỏi, giao thủ công). Quy ước ở mục 5.3.
+- Việc 16 — Ngân hàng câu hỏi (`src/app/(app)/content/questions/`):
+  - Trang phụ thuộc 1 tham số cố định (`?course=`): ô chọn khoá (Combobox) ở đầu trang; chưa chọn → trạng thái rỗng.
+    `DataTable` có thêm `clearHref` để "Xoá bộ lọc" giữ lại tham số đó.
+  - **Thanh tổng hợp dạng chip** (bấm để lọc, chip đang chọn `bg-primary`): số câu theo chủ đề.
+  - Dialog lớn có danh sách động (phương án A–F, thêm / xoá dòng, radio hoặc checkbox theo loại) — `question-form-dialog.tsx`.
+    Nội dung dạng chữ thường hiển thị bằng `whitespace-pre-line` (không rich text).
+  - Ô **chọn có sẵn + gõ mới**: `Input` + `<datalist>` (chủ đề câu hỏi).
+  - Import Excel 3 bước có thêm trạng thái **Cảnh báo** (vàng, vẫn import được) — `content/questions/import/`.
+  - `textarea.tsx` chỉnh như ô nhập: chữ 15px, hover viền đậm, focus viền `primary` + `shadow-primary-sm`.
 
 **Chưa làm, để các việc sau:**
 - `src/components/ui/card.tsx` đang dùng `ring-1` + `rounded-xl` của shadcn → cần đổi sang `shadow-md` + `rounded-md` cho giống card Vuexy.

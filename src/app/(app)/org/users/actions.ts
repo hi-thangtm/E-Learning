@@ -412,6 +412,8 @@ export async function updateUserAction(_prev: ActionState, formData: FormData): 
           departmentId: org.department?.id ?? null,
           positionId: org.position?.id ?? null,
           role: input.role,
+          // Đổi vai trò / chuyển công ty -> huỷ mọi phiên đang mở (Việc 29A)
+          ...((roleChanged || companyChanged) && { sessionsValidAfter: new Date() }),
         },
       });
 
@@ -502,7 +504,8 @@ export async function lockUserAction(userId: string): Promise<ActionState> {
 
   // Giữ nguyên vị trí trưởng phòng — admin tự chỉ định người khác ở trang Phòng ban
   await prisma.$transaction([
-    prisma.user.update({ where: { id: target.id }, data: { status: "INACTIVE" } }),
+    // Khoá tài khoản -> huỷ mọi phiên đang mở (Việc 29A)
+    prisma.user.update({ where: { id: target.id }, data: { status: "INACTIVE", sessionsValidAfter: new Date() } }),
     logAudit(prisma, {
         actorId: actor.id,
         companyId: target.companyId,
@@ -594,7 +597,8 @@ export async function resetPasswordAction(userId: string): Promise<ResetPassword
   await prisma.$transaction([
     prisma.user.update({
       where: { id: target.id },
-      data: { passwordHash, mustChangePassword: true, failedLoginCount: 0, lockedUntil: null },
+      // Đặt lại mật khẩu -> huỷ mọi phiên đang mở (Việc 29A)
+      data: { passwordHash, mustChangePassword: true, failedLoginCount: 0, lockedUntil: null, sessionsValidAfter: new Date() },
     }),
     // Không ghi mật khẩu vào nhật ký
     logAudit(prisma, {

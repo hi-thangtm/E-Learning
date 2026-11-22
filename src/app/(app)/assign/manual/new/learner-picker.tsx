@@ -59,14 +59,14 @@ export function LearnerPicker({
   useEffect(() => {
     startLoading(async () => {
       try {
-        const r = await searchLearnersAction(course.id, filter, page);
+        const r = await searchLearnersAction({ kind: course.kind, id: course.id }, filter, page);
         if (r.ok) setResult({ rows: r.rows, total: r.total, pageSize: r.pageSize });
         else toast.error(r.message);
       } catch {
         toast.error("Không tải được danh sách người học.");
       }
     });
-  }, [course.id, filter, page]);
+  }, [course.kind, course.id, filter, page]);
 
   const departmentItems = useMemo(() => {
     const rows = departments.filter((d) => d.companyId === filter.companyId);
@@ -200,7 +200,15 @@ export function LearnerPicker({
                     <td className="px-4 py-2.5 text-muted-foreground">{r.departmentName ?? "—"}</td>
                     <td className="px-4 py-2.5 text-muted-foreground">{r.positionName ?? "—"}</td>
                     <td className="px-4 py-2.5">
-                      {r.enrollmentStatus ? (
+                      {course.kind === "path" ? (
+                        r.pathState === "DONE" ? (
+                          <StatusBadge tone="success">Đã xong lộ trình</StatusBadge>
+                        ) : r.pathState === "HAS" ? (
+                          <StatusBadge tone="info">Đã có lộ trình</StatusBadge>
+                        ) : (
+                          <span className="text-[13px] text-foreground/45">Chưa giao</span>
+                        )
+                      ) : r.enrollmentStatus ? (
                         <StatusBadge tone={ENROLLMENT_STATUS_LABELS[r.enrollmentStatus].tone}>
                           {ENROLLMENT_STATUS_LABELS[r.enrollmentStatus].label}
                         </StatusBadge>

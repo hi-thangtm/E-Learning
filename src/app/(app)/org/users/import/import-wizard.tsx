@@ -13,7 +13,7 @@ import {
   Upload,
 } from "lucide-react";
 import { toast } from "sonner";
-import { FormField } from "@/components/form-field";
+import { FormField, FormGrid } from "@/components/form-field";
 import {
   AlertDialog,
   AlertDialogCancel,
@@ -201,7 +201,7 @@ export function ImportWizard({
       {/* ------------------------------------------------------------ Bước 1: chọn file */}
       <section className="rounded-md bg-card p-6 shadow-md">
         <h2 className="mb-4 text-lg font-medium text-foreground">1. Chọn công ty và file</h2>
-        <div className="grid grid-cols-2 gap-6">
+        <FormGrid cols={2}>
           <FormField label="Công ty" htmlFor="import-company" required hint="Mỗi file chỉ import cho 1 công ty.">
             {isGroupAdmin ? (
               <Select
@@ -248,7 +248,7 @@ export function ImportWizard({
             required
             error={fileError ?? undefined}
             hint="Tối đa 5MB, 2.000 dòng."
-            className="col-span-2"
+            span="full"
           >
             <div className="flex items-center gap-4">
               <Input
@@ -267,7 +267,7 @@ export function ImportWizard({
               </Button>
             </div>
           </FormField>
-        </div>
+        </FormGrid>
       </section>
 
       {/* ------------------------------------------------------------ Bước 2: xem trước */}

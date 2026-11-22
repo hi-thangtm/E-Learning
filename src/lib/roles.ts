@@ -39,7 +39,9 @@ export type IconName =
   | "companies"
   | "template"
   | "audit"
-  | "settings";
+  | "settings"
+  | "jobs"
+  | "overview";
 
 export type MenuItem = { label: string; href: string; icon: IconName; roles: Role[] };
 export type MenuGroup = { label: string; items: MenuItem[] };
@@ -93,9 +95,11 @@ export const MENU: MenuGroup[] = [
   {
     label: "Hệ thống",
     items: [
+      { label: "Dashboard tập đoàn", href: "/system/overview", icon: "overview", roles: GROUP_ONLY },
       { label: "Công ty con", href: "/system/companies", icon: "companies", roles: GROUP_ONLY },
       { label: "Mẫu chứng nhận", href: "/system/certificate-templates", icon: "template", roles: ADMINS },
       { label: "Nhật ký", href: "/system/audit-logs", icon: "audit", roles: ADMINS },
+      { label: "Tác vụ hằng ngày", href: "/system/jobs", icon: "jobs", roles: GROUP_ONLY },
       { label: "Cài đặt", href: "/system/settings", icon: "settings", roles: GROUP_ONLY },
     ],
   },

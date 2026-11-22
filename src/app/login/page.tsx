@@ -3,6 +3,8 @@ import Image from "next/image";
 import { redirect } from "next/navigation";
 import { AppLogo } from "@/components/app-logo";
 import { getCurrentUser } from "@/lib/current-user";
+import { getBranding } from "@/lib/settings";
+import { logoUrl } from "@/lib/settings-meta";
 import { LoginForm } from "./login-form";
 
 export const metadata: Metadata = { title: "Đăng nhập" };
@@ -12,6 +14,7 @@ export default async function LoginPage() {
   // Đã đăng nhập rồi thì không cần vào trang này
   const user = await getCurrentUser();
   if (user) redirect(user.mustChangePassword ? "/change-password" : "/dashboard");
+  const branding = await getBranding();
 
   return (
     <main className="flex min-h-dvh">
@@ -37,12 +40,12 @@ export default async function LoginPage() {
       {/* Bên phải: form */}
       <div className="relative flex w-full items-center justify-center bg-card p-6 md:w-[480px] md:p-12">
         <div className="absolute top-[33px] left-[38px]">
-          <AppLogo />
+          <AppLogo name={branding.name} logoUrl={logoUrl(branding.logoKey)} />
         </div>
 
         <div className="flex w-full flex-col gap-6">
           <div className="flex flex-col gap-1">
-            <h1 className="text-2xl font-medium text-foreground">Chào mừng đến với E-Learning! 👋🏻</h1>
+            <h1 className="text-2xl font-medium text-foreground">Chào mừng đến với {branding.name}! 👋🏻</h1>
             <p className="text-[15px] text-muted-foreground">
               Đăng nhập bằng mã nhân viên để bắt đầu học tập.
             </p>

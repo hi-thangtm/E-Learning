@@ -3,7 +3,7 @@
 import { useActionState, useEffect, useState } from "react";
 import { Eye, EyeOff } from "lucide-react";
 import { toast } from "sonner";
-import { FormField } from "@/components/form-field";
+import { FormField, FormGrid } from "@/components/form-field";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -73,7 +73,8 @@ function AdminForm({
     <form action={formAction} className="contents" noValidate>
       <input type="hidden" name="companyId" value={companyId} />
 
-      <DialogBody className="grid grid-cols-2 gap-4">
+      <DialogBody>
+          <FormGrid cols={2}>
         <FormField
           label="Mã nhân viên"
           htmlFor="employeeCode"
@@ -146,7 +147,8 @@ function AdminForm({
             </button>
           </div>
         </FormField>
-      </DialogBody>
+        </FormGrid>
+        </DialogBody>
 
       <DialogFooter>
         <DialogClose render={<Button type="button" variant="outline" disabled={pending} />}>Huỷ</DialogClose>

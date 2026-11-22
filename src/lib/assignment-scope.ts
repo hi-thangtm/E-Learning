@@ -1,3 +1,4 @@
+import "server-only";
 import type { Prisma } from "@prisma/client";
 import { courseVisibleWhere, getGroupCompanyId } from "@/lib/course-scope";
 import type { CurrentUser } from "@/lib/current-user";
