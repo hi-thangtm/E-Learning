@@ -79,8 +79,8 @@ export const METRICS: Record<MetricKey, MetricDefinition> = {
     label: "Tỷ lệ nắm quy trình mới",
     definition: "Trên các khoá đã có phiên bản 2 trở lên: số lượt đã nắm bản mới nhất ÷ số lượt từng hoàn thành.",
   },
-  activeLearners: { label: "Người học 30 ngày qua", definition: "Số nhân viên có tiến độ bài học cập nhật trong 30 ngày gần nhất." },
-  activeRate: { label: "% người học 30 ngày", definition: "Người học 30 ngày qua ÷ Số nhân viên." },
+  activeLearners: { label: "Học viên hoạt động 30 ngày", definition: "Số nhân viên có tiến độ bài học cập nhật trong 30 ngày gần nhất." },
+  activeRate: { label: "% học viên hoạt động 30 ngày", definition: "Học viên hoạt động 30 ngày ÷ Số nhân viên." },
   relearnStatus: { label: "Học lại", definition: "Trạng thái lượt học hiện tại của khoá (sau khi chứng nhận hết hạn, hệ thống tự giao học lại)." },
 };
 

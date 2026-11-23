@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { formatDateTime } from "@/lib/format";
 import type { LessonDetail } from "@/lib/learning";
 import type { QuizOverview } from "@/lib/quiz";
+import { cn } from "@/lib/utils";
 
 type QuizDetail = Extract<LessonDetail, { type: "QUIZ" }>;
 
@@ -47,7 +48,7 @@ export function QuizIntro({
 
   return (
     <div className="space-y-6">
-      <section className="rounded-md bg-card p-8 shadow-sm">
+      <section className="rounded-md bg-card p-4 shadow-sm sm:p-8">
         <div className="flex items-center gap-3">
           <span className="flex size-12 items-center justify-center rounded-md bg-primary/16 text-primary">
             <ListChecks className="size-6" />
@@ -58,7 +59,7 @@ export function QuizIntro({
           </div>
         </div>
 
-        <dl className="mt-6 grid grid-cols-5 gap-4">
+        <dl className="mt-6 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
           {items.map(({ icon: Icon, label, value }) => (
             <div key={label} className="rounded-md border border-border p-4">
               <dt className="flex items-center gap-2 text-[13px] text-muted-foreground">
@@ -110,15 +111,20 @@ export function QuizIntro({
 
       {overview && overview.history.length > 0 && (
         <section className="overflow-hidden rounded-md bg-card shadow-sm">
-          <h3 className="px-6 pt-5 pb-3 text-lg font-medium text-foreground">Lịch sử làm bài</h3>
-          <table className="w-full">
+          <h3 className="px-4 pt-5 pb-3 text-lg font-medium text-foreground sm:px-6">Lịch sử làm bài</h3>
+          {/* Điện thoại: ẩn cột "Bắt đầu", bảng cuộn ngang trong khung nếu vẫn chật */}
+          <div className="overflow-x-auto">
+          <table className="w-full whitespace-nowrap">
             <thead>
               <tr className="border-y border-border">
                 {["Lần", "Bắt đầu", "Nộp lúc", "Điểm", "Kết quả", ""].map((h, i) => (
                   <th
                     key={i}
                     scope="col"
-                    className="h-12 px-4 text-left text-[13px] font-medium tracking-[0.2px] text-foreground uppercase first:pl-6 last:pr-6"
+                    className={cn(
+                      "h-12 px-3 text-left text-[13px] font-medium tracking-[0.2px] text-foreground uppercase first:pl-4 last:pr-4 sm:px-4 sm:first:pl-6 sm:last:pr-6",
+                      i === 1 && "hidden sm:table-cell",
+                    )}
                   >
                     {h}
                   </th>
@@ -128,11 +134,11 @@ export function QuizIntro({
             <tbody>
               {overview.history.map((a) => (
                 <tr key={a.id} className="border-b border-border text-[15px] last:border-0">
-                  <td className="h-[50px] pr-4 pl-6 text-foreground">{a.attemptNo}</td>
-                  <td className="px-4 text-muted-foreground">{formatDateTime(a.startedAt)}</td>
-                  <td className="px-4 text-muted-foreground">{a.submittedAt ? formatDateTime(a.submittedAt) : "—"}</td>
-                  <td className="px-4 font-medium text-foreground tabular-nums">{a.score ?? "—"}</td>
-                  <td className="px-4">
+                  <td className="h-[50px] pr-3 pl-4 text-foreground sm:pr-4 sm:pl-6">{a.attemptNo}</td>
+                  <td className="hidden px-4 text-muted-foreground sm:table-cell">{formatDateTime(a.startedAt)}</td>
+                  <td className="px-3 text-muted-foreground sm:px-4">{a.submittedAt ? formatDateTime(a.submittedAt) : "—"}</td>
+                  <td className="px-3 font-medium text-foreground tabular-nums sm:px-4">{a.score ?? "—"}</td>
+                  <td className="px-3 sm:px-4">
                     {a.submittedAt === null ? (
                       <StatusBadge tone="primary">Đang làm</StatusBadge>
                     ) : a.passed ? (
@@ -141,7 +147,7 @@ export function QuizIntro({
                       <StatusBadge tone="destructive">Không đạt</StatusBadge>
                     )}
                   </td>
-                  <td className="pr-6 pl-4 text-right">
+                  <td className="pr-4 pl-3 text-right sm:pr-6 sm:pl-4">
                     {a.submittedAt && (
                       <Button variant="ghost" size="sm" onClick={() => onViewResult(a.id)} disabled={pending}>
                         Xem lại
@@ -152,6 +158,7 @@ export function QuizIntro({
               ))}
             </tbody>
           </table>
+          </div>
         </section>
       )}
     </div>

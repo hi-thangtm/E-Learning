@@ -78,7 +78,7 @@ export default async function CategoriesPage({ searchParams }: { searchParams: P
       className: "w-24 text-right tabular-nums",
       cell: (c) => c.sortOrder,
     },
-    { key: "name", header: "Tên danh mục", cell: (c) => <span className="font-medium text-foreground">{c.name}</span> },
+    { key: "name", header: "Tên danh mục", truncate: true, truncateText: (c) => c.name, cell: (c) => <span className="font-medium text-foreground">{c.name}</span> },
     {
       key: "courses",
       header: "Số khoá học",

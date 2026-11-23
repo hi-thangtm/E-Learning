@@ -75,6 +75,8 @@ export default async function CompaniesPage({ searchParams }: { searchParams: Pr
     {
       key: "name",
       header: "Tên công ty",
+      truncate: true,
+      truncateText: (c) => c.name,
       cell: (c) => <span className="text-foreground">{c.name}</span>,
     },
     {

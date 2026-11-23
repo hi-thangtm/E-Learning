@@ -24,10 +24,9 @@ import {
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { initialActionState } from "@/lib/action-state";
-import { formatNumber } from "@/lib/format";
+import { formatDuration, formatNumber } from "@/lib/format";
 import { normalizeSearch } from "@/lib/tree";
 import { cn } from "@/lib/utils";
-import { formatDuration } from "@/lib/youtube";
 import {
   addCourseAction,
   appendCourseAction,
@@ -38,6 +37,7 @@ import {
   restorePathAction,
   updatePathInfoAction,
 } from "../actions";
+import { Tooltip } from "@/components/ui/tooltip";
 
 export type PathCourseRow = {
   id: string;
@@ -362,17 +362,16 @@ function CourseItem({
         </p>
       </div>
       {editable && (
-        <Button
+        <Tooltip label="Bỏ khỏi lộ trình"><Button
           type="button"
           variant="ghost"
           size="icon"
           disabled={disabled}
           onClick={onRemove}
           aria-label={`Bỏ khoá ${course.code} khỏi lộ trình`}
-          title="Bỏ khỏi lộ trình"
         >
           <X />
-        </Button>
+        </Button></Tooltip>
       )}
     </li>
   );

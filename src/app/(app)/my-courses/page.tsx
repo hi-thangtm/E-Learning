@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { Inbox, SearchX } from "lucide-react";
+import { Inbox } from "lucide-react";
 import { DataTableFilter } from "@/components/data-table/data-table-filter";
 import { DataTableSearch } from "@/components/data-table/data-table-search";
 import { PageHeader } from "@/components/page-header";
@@ -12,6 +12,9 @@ import { getPathLocks, lockKey } from "@/lib/path-lock";
 import { buildHref, getEnumParam, getParam, type SearchParams } from "@/lib/table-params";
 import { cn } from "@/lib/utils";
 import { CourseCard } from "./course-card";
+import { EmptyFiltered, EmptyState } from "@/components/empty-state";
+import { buttonVariants } from "@/components/ui/button";
+import { DataTablePagination } from "@/components/data-table/data-table-pagination";
 
 export const metadata: Metadata = { title: "Khoá học của tôi" };
 
@@ -31,6 +34,8 @@ const EMPTY: Record<MyTab, string> = {
   overdue: "Tuyệt vời, không có khoá nào quá hạn.",
 };
 
+const PAGE_SIZE = 12;
+
 /** Khoá học của tôi (mục 2.3) — chỉ lượt học của chính người đăng nhập. */
 export default async function MyCoursesPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
   const user = await requireUser();
@@ -46,11 +51,15 @@ export default async function MyCoursesPage({ searchParams }: { searchParams: Pr
   });
   const categoryId = categories.find((c) => c.id === getParam(sp, "category"))?.id;
 
-  const [enrollments, counts, pendingUpdates] = await Promise.all([
+  const [allEnrollments, counts, pendingUpdates] = await Promise.all([
     getMyEnrollments(user.id, { tab, q, categoryId }),
     getMyEnrollmentCounts(user.id, { q, categoryId }),
     getPendingAcknowledgements(user.id),
   ]);
+  // Phân trang 12 thẻ / trang (danh sách đã xếp: quá hạn → đang học theo hạn → đã xong)
+  const totalPages = Math.max(1, Math.ceil(allEnrollments.length / PAGE_SIZE));
+  const page = Math.min(totalPages, Math.max(1, Math.floor(Number(getParam(sp, "page")) || 1)));
+  const enrollments = allEnrollments.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
   // Khoá đã học xong nhưng chưa xác nhận bản MINOR mới -> badge "Có cập nhật"
   const updatedCourses = new Set(pendingUpdates.map((p) => p.courseId));
   const [nextLessons, pathLocks] = await Promise.all([
@@ -68,13 +77,13 @@ export default async function MyCoursesPage({ searchParams }: { searchParams: Pr
       <PageHeader title="Khoá học của tôi" description="Các khoá học bạn được giao hoặc tự đăng ký, kèm tiến độ và hạn hoàn thành." />
 
       <section className="rounded-md bg-card shadow-md">
-        <nav aria-label="Lọc theo trạng thái" className="flex gap-1 overflow-x-auto border-b border-border px-6">
+        <nav aria-label="Lọc theo trạng thái" className="flex gap-1 overflow-x-auto border-b border-border px-4 sm:px-6">
           {MY_TABS.map((t) => {
             const active = t === tab;
             return (
               <Link
                 key={t}
-                href={buildHref(PATHNAME, sp, { tab: t === "all" ? null : t })}
+                href={buildHref(PATHNAME, sp, { tab: t === "all" ? null : t, page: null })}
                 scroll={false}
                 aria-current={active ? "page" : undefined}
                 className={cn(
@@ -100,8 +109,8 @@ export default async function MyCoursesPage({ searchParams }: { searchParams: Pr
           })}
         </nav>
 
-        <div className="flex items-center justify-end gap-4 px-6 py-4">
-          <div className="w-64">
+        <div className="flex flex-col-reverse items-stretch justify-end gap-3 px-4 py-4 sm:flex-row sm:items-center sm:gap-4 sm:px-6">
+          <div className="w-full sm:w-64">
             <DataTableFilter
               param="category"
               label="Danh mục"
@@ -112,27 +121,25 @@ export default async function MyCoursesPage({ searchParams }: { searchParams: Pr
           <DataTableSearch placeholder="Tìm tên khoá học..." />
         </div>
 
-        <div className="px-6 pb-6">
+        <div className="px-4 pb-4 sm:px-6 sm:pb-6">
           {enrollments.length === 0 ? (
-            <div className="flex flex-col items-center gap-3 py-14 text-center">
-              <div className="flex size-16 items-center justify-center rounded-full bg-primary/16 text-primary">
-                {filtered ? <SearchX className="size-8" /> : <Inbox className="size-8" />}
-              </div>
-              <p className="text-lg font-medium text-foreground">{filtered ? "Không tìm thấy khoá học phù hợp" : EMPTY[tab]}</p>
-              {filtered ? (
-                <Link href={buildHref(PATHNAME, sp, { q: null, category: null })} className="text-[15px] text-primary hover:underline">
-                  Xoá tìm kiếm và bộ lọc
-                </Link>
-              ) : (
-                tab === "all" && (
-                  <Link href="/library" className="text-[15px] text-primary hover:underline">
-                    Xem các khoá cho phép tự đăng ký
-                  </Link>
-                )
-              )}
-            </div>
+            filtered ? (
+              <EmptyFiltered clearHref={buildHref(PATHNAME, sp, { q: null, category: null, page: null })} />
+            ) : (
+              <EmptyState
+                icon={Inbox}
+                title={EMPTY[tab]}
+                action={
+                  tab === "all" && (
+                    <Link href="/library" className={buttonVariants()}>
+                      Xem các khoá cho phép tự đăng ký
+                    </Link>
+                  )
+                }
+              />
+            )
           ) : (
-            <div className="grid grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-6 lg:grid-cols-3">
               {enrollments.map((e) => (
                 <CourseCard
                   key={e.id}
@@ -145,6 +152,9 @@ export default async function MyCoursesPage({ searchParams }: { searchParams: Pr
             </div>
           )}
         </div>
+        {allEnrollments.length > PAGE_SIZE && (
+          <DataTablePagination pathname={PATHNAME} searchParams={sp} page={page} pageSize={PAGE_SIZE} total={allEnrollments.length} />
+        )}
       </section>
     </>
   );

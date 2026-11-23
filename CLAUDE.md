@@ -3,7 +3,7 @@
 @AGENTS.md
 
 Phần mềm đào tạo nội bộ cho cả tập đoàn (1 công ty tổng + nhiều công ty con, dưới 1.000 người dùng).
-Phase 1 = **module Đào tạo nhân viên**. Toàn bộ giao diện tiếng Việt, layout desktop.
+Phase 1 = **module Đào tạo nhân viên**. Toàn bộ giao diện tiếng Việt. **Trang học viên hỗ trợ điện thoại; trang quản trị bố cục máy tính.**
 
 ## Tài liệu bắt buộc đọc trước khi làm
 
@@ -21,7 +21,7 @@ Phase 1 = **module Đào tạo nhân viên**. Toàn bộ giao diện tiếng Vi�
 - PostgreSQL 17 (Docker) + Prisma 6 (`@prisma/client`) — KHÔNG nâng lên Prisma 7
 - Auth.js v5 (`next-auth@beta`), Credentials, bcryptjs, phiên JWT
 - zod để kiểm tra dữ liệu
-- Video: Bunny Stream (làm sau)
+- Video: Bunny Stream (`src/lib/bunny.ts`, vận hành: `docs/bunny-setup.md`; kiểm thử bằng Bunny giả lập `e2e/mock-bunny`) + YouTube
 
 ## Cấu trúc code
 
@@ -40,7 +40,7 @@ src/
     ├── login/, change-password/
     └── (app)/                 # Mọi trang sau đăng nhập (có sidebar + header)
         ├── dashboard/
-        ├── [...slug]/         # Trang "đang xây dựng" cho mục menu chưa làm
+        ├── not-found.tsx      # Không tìm thấy (giữ sidebar) — khi page gọi notFound()
         └── <mục>/page.tsx     # Trang thật — tạo theo đường dẫn trong src/lib/roles.ts
 ```
 
@@ -75,6 +75,11 @@ Mỗi chức năng mới: `page.tsx` (server component, lấy dữ liệu) + `ac
 - Bảng danh sách: tìm kiếm + lọc + phân trang phía server (searchParams), trạng thái rỗng, đang tải.
 - Form trong dialog hoặc trang riêng; nút đang xử lý phải khoá lại (`useActionState` / pending).
 - Mọi chữ hiển thị bằng tiếng Việt có dấu. Ngày giờ định dạng `dd/MM/yyyy`, múi giờ Asia/Ho_Chi_Minh.
+- Thuật ngữ, chữ trên nút, định dạng số / ngày: theo `docs/design-system.md` mục 9 (dùng hàm trong `src/lib/format.ts`).
+- Trang học viên hỗ trợ điện thoại (≥ 375px, lưới `grid-cols-1 sm:… lg:…`, vùng bấm ≥ 40px); trang quản trị bố cục máy tính
+  (màn hình nhỏ cuộn ngang trong khung — `src/components/content-frame.tsx`, thêm đường dẫn học viên mới vào `LEARNER_PATHS`).
+- Trạng thái rỗng dùng `EmptyState` / `EmptyFiltered` (`src/components/empty-state.tsx`); khung tải dùng `src/components/skeletons.tsx`;
+  nút chỉ có icon: `aria-label` + `<Tooltip label>` (`src/components/ui/tooltip.tsx`).
 
 ## Kiểm tra trước khi báo xong
 
@@ -82,6 +87,7 @@ Mỗi chức năng mới: `page.tsx` (server component, lấy dữ liệu) + `ac
 npx tsc --noEmit     # không lỗi kiểu
 npm run lint         # không lỗi lint
 npm run build        # build production chạy được
+npm run test:e2e     # kiểm thử toàn luồng Playwright (database elearning_test) — phải xanh hết; xem docs/test-scenarios.md
 ```
 
 Báo lại: đã làm gì, file nào thay đổi, cách tự kiểm tra trên trình duyệt (tài khoản nào, bấm gì).

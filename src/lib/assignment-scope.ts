@@ -8,16 +8,26 @@ import { buildChildrenMap, getDescendantIds } from "@/lib/tree";
 /**
  * Phạm vi giao khoá (docs/database.md — Quy tắc 1, 3). Chỉ chạy ở server.
  * - Khoá giao được: PUBLISHED và nằm trong phạm vi xem khoá của người giao.
- * - Người học được giao: khoá của công ty con -> chỉ người công ty đó; khoá của công ty tổng -> mọi công ty
+ * - Học viên được giao: khoá của công ty con -> chỉ người công ty đó; khoá của công ty tổng -> mọi công ty
  *   (Admin công ty vẫn chỉ giao cho người công ty mình).
  * - Lượt giao xem được: Admin công ty chỉ lượt của người công ty mình.
  */
+
+/**
+ * Quy tắc giao tự động xem / sửa / bật / tắt được (Quy tắc 1, Việc 29B #3):
+ * - GROUP_ADMIN: mọi quy tắc.
+ * - Người khác: chỉ quy tắc DO công ty mình tạo VÀ CHỈ ÁP cho công ty mình. Quy tắc toàn tập đoàn (targetCompanyId NULL)
+ *   hoặc nhắm công ty khác chỉ Admin tập đoàn thao tác — kể cả khi người xem là Admin công ty thuộc công ty tổng.
+ */
+export function assignmentRuleScopeWhere(actor: Pick<CurrentUser, "role" | "companyId">): Prisma.AssignmentRuleWhereInput {
+  return actor.role === "GROUP_ADMIN" ? {} : { ownerCompanyId: actor.companyId, targetCompanyId: actor.companyId };
+}
 
 export async function assignableCoursesWhere(actor: CurrentUser): Promise<Prisma.CourseWhereInput> {
   return { AND: [await courseVisibleWhere(actor), { status: "PUBLISHED" }] };
 }
 
-/** Công ty có người học được giao khoá này ("all" = mọi công ty). */
+/** Công ty có học viên được giao khoá này ("all" = mọi công ty). */
 export async function learnerCompaniesForCourse(
   actor: CurrentUser,
   course: { ownerCompanyId: string },

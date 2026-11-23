@@ -15,7 +15,7 @@ export default function Loading() {
           <Skeleton className="h-9 w-64" />
           <Skeleton className="h-9 w-64" />
         </div>
-        <div className="grid grid-cols-3 gap-6 px-6 pb-6">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-6 lg:grid-cols-3 px-4 pb-4 sm:px-6 sm:pb-6">
           {Array.from({ length: 6 }, (_, i) => (
             <div key={i} className="space-y-3 rounded-md border border-border p-2">
               <Skeleton className="aspect-video w-full" />

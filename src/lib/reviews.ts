@@ -5,6 +5,7 @@ import { findCourseInScope } from "@/lib/course-scope";
 import type { CurrentUser } from "@/lib/current-user";
 import { prisma } from "@/lib/db";
 import { getParam, type SearchParams } from "@/lib/table-params";
+import { formatDecimal, formatNumber } from "@/lib/format";
 
 /**
  * Đánh giá khoá học (Việc 25 — feature-spec 2.4, 4.3). Chỉ chạy ở server.
@@ -23,7 +24,7 @@ export const reviewSchema = z.object({
   comment: z
     .string()
     .trim()
-    .max(REVIEW_COMMENT_MAX, `Nhận xét tối đa ${REVIEW_COMMENT_MAX.toLocaleString("vi-VN")} ký tự.`)
+    .max(REVIEW_COMMENT_MAX, `Nhận xét tối đa ${formatNumber(REVIEW_COMMENT_MAX)} ký tự.`)
     .transform((v) => v || null),
 });
 
@@ -68,7 +69,7 @@ const round1 = (v: number) => Math.round(v * 10) / 10;
 
 /** “4,6” theo vi-VN. */
 export function formatRating(average: number): string {
-  return average.toLocaleString("vi-VN", { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+  return formatDecimal(average, 1, true);
 }
 
 export type RatingSummary = { average: number; total: number; counts: Record<1 | 2 | 3 | 4 | 5, number> };
@@ -130,7 +131,8 @@ const REVIEW_SELECT = {
 export type CourseReviewRow = Prisma.CourseReviewGetPayload<{ select: typeof REVIEW_SELECT }>;
 
 /**
- * Nhận xét của 1 khoá — chỉ người soạn / quản trị thấy được khoá (phạm vi như /content/courses).
+ * Nhận xét của 1 khoá — chỉ người soạn / quản trị thấy được khoá (phạm vi như /content/courses);
+ * ngoài Admin tập đoàn chỉ thấy nhận xét của nhân viên công ty mình (Quy tắc 1 — Việc 29A).
  * null = khoá không tồn tại / ngoài phạm vi. `page = "all"` -> mọi dòng (xuất Excel).
  */
 export async function listCourseReviews(
@@ -140,7 +142,11 @@ export async function listCourseReviews(
 ): Promise<{ rows: CourseReviewRow[]; total: number } | null> {
   const course = await findCourseInScope(actor, courseId, { id: true });
   if (!course) return null;
-  const where = reviewWhere(course.id, f);
+  // Danh sách có họ tên / mã NV / phòng ban → theo phạm vi nhân viên (Quy tắc 1): ngoài Admin tập đoàn chỉ thấy người công ty mình
+  const where: Prisma.CourseReviewWhereInput = {
+    ...reviewWhere(course.id, f),
+    ...(actor.role !== "GROUP_ADMIN" && { user: { companyId: actor.companyId } }),
+  };
   const [total, rows] = await prisma.$transaction([
     prisma.courseReview.count({ where }),
     prisma.courseReview.findMany({

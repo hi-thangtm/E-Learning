@@ -30,6 +30,7 @@ import {
 } from "@/lib/question-labels";
 import { cn } from "@/lib/utils";
 import { createQuestionAction, updateQuestionAction } from "./actions";
+import { Tooltip } from "@/components/ui/tooltip";
 
 export type QuestionFormValue = {
   id: string;
@@ -299,17 +300,16 @@ function QuestionForm({
                 aria-invalid={!!err.options && row.text.trim() === ""}
                 className="flex-1"
               />
-              <Button
+              <Tooltip label="Xoá phương án"><Button
                 type="button"
                 variant="ghost"
                 size="icon-sm"
                 disabled={rows.length <= QUESTION_LIMITS.minOptions}
                 onClick={() => setRows((prev) => prev.filter((r) => r.key !== row.key))}
                 aria-label={`Xoá phương án ${OPTION_LETTERS[i]}`}
-                title="Xoá phương án"
               >
                 <Trash2 className="size-[18px]" />
-              </Button>
+              </Button></Tooltip>
             </div>
           );
         })}
@@ -353,17 +353,16 @@ function QuestionForm({
             <div className="relative">
               {/* eslint-disable-next-line @next/next/no-img-element -- ảnh qua /api/files có kiểm tra quyền */}
               <img src={shownImage} alt="Ảnh minh hoạ câu hỏi" className="max-h-40 max-w-64 rounded-md border border-border object-contain" />
-              <Button
+              <Tooltip label="Bỏ ảnh"><Button
                 type="button"
                 variant="secondary"
                 size="icon-xs"
                 onClick={clearImage}
                 className="absolute top-1 right-1"
                 aria-label="Bỏ ảnh"
-                title="Bỏ ảnh"
               >
                 <X />
-              </Button>
+              </Button></Tooltip>
             </div>
           ) : null}
           <label className="inline-flex h-[38px] cursor-pointer items-center gap-2 rounded-lg bg-secondary px-4 text-[15px] font-medium text-secondary-foreground hover:bg-secondary/80">
@@ -405,7 +404,7 @@ function QuestionForm({
       <DialogFooter>
         <DialogClose render={<Button type="button" variant="outline" disabled={pending} />}>Huỷ</DialogClose>
         <Button type="submit" disabled={pending}>
-          {pending ? "Đang lưu..." : "Lưu"}
+          {pending ? "Đang lưu..." : question ? "Lưu thay đổi" : "Thêm câu hỏi"}
         </Button>
       </DialogFooter>
     </form>

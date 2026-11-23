@@ -4,6 +4,8 @@ import { LessonContent } from "@/components/learning/lesson-content";
 import { StatusBadge, type StatusTone } from "@/components/status-badge";
 import { prisma } from "@/lib/db";
 import { formatDate, formatDateTime, formatNumber } from "@/lib/format";
+import { sanitizeLessonHtml } from "@/lib/sanitize";
+import { EmptyState } from "@/components/empty-state";
 
 /**
  * Tab "Lịch sử phiên bản": mọi course_versions (phát hành, đề xuất, bị từ chối).
@@ -28,10 +30,11 @@ function idsOf(metadata: unknown): { versionId: string | null; ids: string[] } {
   };
 }
 
-export async function VersionHistory({ courseId }: { courseId: string }) {
+export async function VersionHistory({ courseId, canEdit }: { courseId: string; canEdit: boolean }) {
   const [versions, publishLogs] = await Promise.all([
     prisma.courseVersion.findMany({
-      where: { courseId },
+      // Người chỉ xem: chỉ bản đã phát hành (không thấy đề xuất / lý do từ chối — Việc 29B #11)
+      where: { courseId, ...(!canEdit && { status: "PUBLISHED" as const }) },
       orderBy: [{ createdAt: "desc" }],
       select: {
         id: true,
@@ -81,13 +84,7 @@ export async function VersionHistory({ courseId }: { courseId: string }) {
 
   if (versions.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center gap-3 py-16 text-center">
-        <div className="flex size-16 items-center justify-center rounded-full bg-primary/16 text-primary">
-          <History className="size-8" />
-        </div>
-        <p className="text-lg font-medium text-foreground">Khoá học chưa phát hành phiên bản nào</p>
-        <p className="max-w-sm text-[15px] text-muted-foreground">Bấm “Phát hành” ở thanh trên để phát hành phiên bản 1.</p>
-      </div>
+      <EmptyState icon={History} title="Khoá học chưa phát hành phiên bản nào" description="Bấm “Phát hành” ở thanh trên để phát hành phiên bản 1." />
     );
   }
 
@@ -123,7 +120,7 @@ export async function VersionHistory({ courseId }: { courseId: string }) {
                     <details>
                       <summary className="cursor-pointer text-[13px] font-medium text-primary">Xem tóm tắt</summary>
                       <div className="mt-2 rounded-md bg-muted/50 p-3">
-                        <LessonContent html={v.changeSummary} />
+                        <LessonContent html={sanitizeLessonHtml(v.changeSummary)} />
                       </div>
                     </details>
                   ) : (

@@ -14,8 +14,15 @@ const buttonVariants = cva(
           "bg-secondary text-secondary-foreground hover:bg-[color-mix(in_oklch,var(--secondary),var(--foreground)_5%)] aria-expanded:bg-secondary aria-expanded:text-secondary-foreground",
         ghost:
           "hover:bg-muted hover:text-foreground aria-expanded:bg-muted aria-expanded:text-foreground dark:hover:bg-muted/50",
+        /** Hành động nguy hiểm cuối cùng (nút xác nhận trong dialog): đỏ đặc */
         destructive:
-          "bg-destructive/10 text-destructive hover:bg-destructive/20 focus-visible:border-destructive/40 focus-visible:ring-destructive/20 dark:bg-destructive/20 dark:hover:bg-destructive/30 dark:focus-visible:ring-destructive/40",
+          "bg-destructive text-white hover:bg-destructive/90 focus-visible:border-destructive/40 focus-visible:ring-destructive/30",
+        /** Tonal theo màu (Vuexy “tonal”): nền màu 16%, chữ màu — nút phụ, nút mở dialog */
+        "soft-primary": "bg-primary/16 text-primary hover:bg-primary/24 aria-expanded:bg-primary/24",
+        "soft-success": "bg-success/16 text-success hover:bg-success/24 aria-expanded:bg-success/24",
+        "soft-warning": "bg-warning/16 text-warning hover:bg-warning/24 aria-expanded:bg-warning/24",
+        "soft-destructive":
+          "bg-destructive/16 text-destructive hover:bg-destructive/24 aria-expanded:bg-destructive/24 focus-visible:border-destructive/40 focus-visible:ring-destructive/20",
         link: "text-primary underline-offset-4 hover:underline",
       },
       size: {

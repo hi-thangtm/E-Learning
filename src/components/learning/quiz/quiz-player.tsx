@@ -175,9 +175,26 @@ export function QuizPlayer({
   }
 
   return (
-    <div className="grid grid-cols-[minmax(0,1fr)_280px] items-start gap-6">
+    <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-[minmax(0,1fr)_280px] lg:gap-6">
       {/* --- Câu hỏi --- */}
-      <section className="rounded-md bg-card p-8 shadow-sm" aria-labelledby="quiz-question">
+      <section className="min-w-0 rounded-md bg-card p-4 shadow-sm sm:p-8" aria-labelledby="quiz-question">
+        {/* Điện thoại: đồng hồ gọn dính trên cùng (lưới câu nằm dưới câu hỏi) */}
+        {left !== null && (
+          <p
+            className={cn(
+              "sticky top-0 z-10 -mx-4 -mt-4 mb-3 flex items-center justify-between gap-3 rounded-t-md bg-card px-4 py-2.5 text-[13px] shadow-xs lg:hidden",
+              urgent ? "text-destructive" : "text-muted-foreground",
+            )}
+          >
+            <span className="flex items-center gap-1.5">
+              <Clock className="size-4" />
+              Còn lại <span className={cn("font-medium tabular-nums", urgent ? "text-destructive" : "text-foreground")}>{formatClock(left)}</span>
+            </span>
+            <span>
+              Đã trả lời {answeredCount}/{questions.length}
+            </span>
+          </p>
+        )}
         <div className="mb-4 flex items-center justify-between gap-4">
           <p className="text-[13px] text-muted-foreground">
             {title} · Câu {index + 1}/{questions.length}
@@ -209,7 +226,7 @@ export function QuizPlayer({
               <label
                 key={o.id}
                 className={cn(
-                  "flex cursor-pointer items-start gap-3 rounded-md border px-4 py-3 text-[15px] transition-colors",
+                  "flex min-h-11 cursor-pointer items-start gap-3 rounded-md border px-4 py-3 text-[15px] transition-colors",
                   checked ? "border-primary bg-primary/8 text-foreground" : "border-border hover:border-muted-foreground",
                 )}
               >
@@ -218,15 +235,15 @@ export function QuizPlayer({
                   name={`q-${q.id}`}
                   checked={checked}
                   onChange={(e) => choose(q.id, o.id, multiple, e.target.checked)}
-                  className="mt-1 size-4 shrink-0 accent-primary"
+                  className="mt-0.5 size-5 shrink-0 accent-primary sm:mt-1 sm:size-4"
                 />
-                <span className="whitespace-pre-line">{o.text}</span>
+                <span className="min-w-0 break-words whitespace-pre-line">{o.text}</span>
               </label>
             );
           })}
         </fieldset>
 
-        <div className="mt-8 flex items-center justify-between gap-4 border-t border-border pt-6">
+        <div className="mt-6 flex flex-wrap items-center justify-between gap-3 border-t border-border pt-4 sm:mt-8 sm:gap-4 sm:pt-6 max-sm:[&_button]:h-11">
           <Button variant="outline" onClick={() => setIndex((i) => i - 1)} disabled={index === 0}>
             <ChevronLeft />
             Câu trước
@@ -242,7 +259,7 @@ export function QuizPlayer({
               })
             }
             aria-pressed={isFlagged}
-            className={cn(isFlagged && "text-warning")}
+            className={cn("order-last w-full sm:order-none sm:w-auto", isFlagged && "text-warning")}
           >
             <Bookmark className={cn(isFlagged && "fill-current")} />
             {isFlagged ? "Bỏ đánh dấu" : "Đánh dấu xem lại"}
@@ -255,17 +272,18 @@ export function QuizPlayer({
           ) : (
             <Button onClick={requestSubmit} disabled={submitting}>
               {submitting ? <Loader2 className="animate-spin" /> : <Send />}
-              Nộp bài
+              {submitting ? "Đang nộp..." : "Nộp bài"}
             </Button>
           )}
         </div>
       </section>
 
       {/* --- Cột phải: đồng hồ + lưới câu --- */}
-      <aside className="sticky top-4 grid gap-4">
+      <aside className="grid gap-4 lg:sticky lg:top-4">
         <div
           className={cn(
             "rounded-md bg-card p-5 text-center shadow-sm",
+            left !== null && "hidden lg:block",
             urgent && "bg-destructive/16 text-destructive",
           )}
           role="timer"
@@ -286,7 +304,7 @@ export function QuizPlayer({
           <p className="mb-3 text-[13px] text-muted-foreground">
             Đã trả lời {answeredCount}/{questions.length}
           </p>
-          <nav aria-label="Danh sách câu hỏi" className="grid grid-cols-5 gap-2">
+          <nav aria-label="Danh sách câu hỏi" className="grid grid-cols-6 gap-2 sm:grid-cols-10 lg:grid-cols-5">
             {questions.map((x, i) => {
               const done = (answers[x.id] ?? []).length > 0;
               const mark = flagged.has(x.id);
@@ -298,7 +316,7 @@ export function QuizPlayer({
                   aria-current={i === index ? "step" : undefined}
                   aria-label={`Câu ${i + 1}${done ? ", đã trả lời" : ", chưa trả lời"}${mark ? ", đánh dấu xem lại" : ""}`}
                   className={cn(
-                    "relative flex h-9 items-center justify-center rounded-md text-[13px] font-medium tabular-nums transition-colors outline-none focus-visible:ring-3 focus-visible:ring-ring/50",
+                    "relative flex h-10 items-center justify-center rounded-md text-[13px] lg:h-9 font-medium tabular-nums transition-colors outline-none focus-visible:ring-3 focus-visible:ring-ring/50",
                     done ? "bg-primary/16 text-primary" : "bg-muted text-muted-foreground",
                     i === index && "ring-2 ring-primary",
                     mark && "outline-2 outline-offset-1 outline-warning",

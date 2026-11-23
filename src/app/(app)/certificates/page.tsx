@@ -9,6 +9,8 @@ import { requireUser } from "@/lib/current-user";
 import { prisma } from "@/lib/db";
 import { formatDate } from "@/lib/format";
 import { cn } from "@/lib/utils";
+import { buttonVariants } from "@/components/ui/button";
+import { EmptyState } from "@/components/empty-state";
 
 export const metadata: Metadata = { title: "Chứng nhận" };
 
@@ -36,20 +38,19 @@ export default async function MyCertificatesPage() {
       <PageHeader title="Chứng nhận" description="Chứng nhận hoàn thành khoá học của bạn. Mỗi chứng nhận có mã số và link tra cứu công khai." />
 
       {certificates.length === 0 ? (
-        <section className="flex flex-col items-center gap-3 rounded-md bg-card px-6 py-16 text-center shadow-md">
-          <div className="flex size-16 items-center justify-center rounded-full bg-warning/16 text-warning">
-            <Award className="size-8" />
-          </div>
-          <p className="text-lg font-medium text-foreground">Bạn chưa có chứng nhận nào</p>
-          <p className="max-w-md text-[15px] text-muted-foreground">
-            Hoàn thành các khoá học có cấp chứng nhận để nhận chứng nhận tại đây.
-          </p>
-          <Link href="/my-courses" className="text-[15px] font-medium text-primary hover:underline">
-            Mở Khoá học của tôi
-          </Link>
-        </section>
+        <EmptyState
+          icon={Award}
+          title="Bạn chưa có chứng nhận nào"
+          description="Hoàn thành các khoá học có cấp chứng nhận để nhận chứng nhận tại đây."
+          className="rounded-md bg-card shadow-md"
+          action={
+            <Link href="/my-courses" className={buttonVariants({ variant: "secondary" })}>
+              Mở Khoá học của tôi
+            </Link>
+          }
+        />
       ) : (
-        <div className="grid grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-6 lg:grid-cols-3">
           {certificates.map((c) => {
             const status = CERTIFICATE_STATUS[certificateStatus(c, now)];
             const inactive = !!c.revokedAt || (c.expiresAt !== null && c.expiresAt <= now);
@@ -65,7 +66,7 @@ export default async function MyCertificatesPage() {
                   <StatusBadge tone={status.tone}>{status.label}</StatusBadge>
                 </div>
                 <div className="min-w-0">
-                  <h2 className="line-clamp-2 text-lg leading-snug font-medium text-foreground" title={c.courseTitle}>
+                  <h2 className="line-clamp-2 text-lg leading-normal break-words font-medium text-foreground" title={c.courseTitle}>
                     {c.courseTitle}
                   </h2>
                   <p className="text-[13px] text-muted-foreground">Phiên bản v{c.courseVersion}</p>

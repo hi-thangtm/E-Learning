@@ -6,7 +6,7 @@ import { requireRole } from "@/lib/current-user";
 import { prisma } from "@/lib/db";
 import { vnIsoDate } from "@/lib/format";
 import { notify } from "@/lib/notifications";
-import { courseLearners, parseReportFilters, resolveReportContext } from "@/lib/reports";
+import { courseLearners, findReportCourse, parseReportFilters, resolveReportContext } from "@/lib/reports";
 import type { ActionState } from "@/lib/action-state";
 
 /**
@@ -17,13 +17,15 @@ import type { ActionState } from "@/lib/action-state";
 export async function remindAcknowledgeAction(courseId: string, filterParams: Record<string, string>): Promise<ActionState> {
   const actor = await requireRole(["MANAGER", "COMPANY_ADMIN", "GROUP_ADMIN"]);
   if (!courseId || courseId.length > 50) return { message: "Khoá học không hợp lệ." };
-  const course = await prisma.course.findUnique({ where: { id: courseId }, select: { id: true, code: true, title: true, currentVersion: true } });
-  if (!course || course.currentVersion < 2) return { message: "Khoá học không có bản cập nhật để xác nhận." };
 
   // Người trong phạm vi đội + bộ lọc báo cáo (lọc lại ở server, không tin dữ liệu trình duyệt)
   const params = Object.fromEntries(Object.entries(filterParams ?? {}).filter(([k, v]) => typeof k === "string" && typeof v === "string").slice(0, 20));
   const ctx = await resolveReportContext(actor, parseReportFilters(params));
   if (ctx.scope.empty) return { message: "Bạn không có nhân viên nào trong phạm vi." };
+
+  // Khoá ngoài phạm vi → coi như không tồn tại (Việc 29B #10)
+  const course = await findReportCourse(ctx, courseId);
+  if (!course || course.currentVersion < 2) return { message: "Khoá học không có bản cập nhật để xác nhận." };
   const learners = await courseLearners(ctx, course.id, "unacknowledged");
   const userIds = (learners?.rows ?? []).filter((r) => r.ackState === "unconfirmed").map((r) => r.userId);
   const enrollments = userIds.length

@@ -10,7 +10,8 @@ import { ACTIVE_QUESTION_WHERE, parseOptions } from "@/lib/question-bank";
  *
  * - Đề rút ngẫu nhiên từ ngân hàng câu hỏi của khoá, xáo thứ tự câu + phương án, lưu NGUYÊN snapshot (kể cả đáp án,
  *   giải thích) vào quiz_attempts.answers để chấm và xem lại dù câu hỏi bị sửa sau này.
- * - Trình duyệt chỉ nhận đề KHÔNG có isCorrect / explanation (toPaper). Đáp án chỉ trả về sau khi nộp và lesson.showAnswers = true.
+ * - Trình duyệt chỉ nhận đề KHÔNG có isCorrect / explanation (toPaper). Đáp án chỉ trả về sau khi nộp, lesson.showAnswers = true
+ *   VÀ lượt đó đạt hoặc đã hết lượt (answersRevealable — Việc 29B).
  * - Số lượt tối đa = maxAttempts + bonusAttempts (maxAttempts NULL = không giới hạn), đếm trong courseVersion hiện tại.
  * - Không ghi audit_logs cho việc làm bài.
  */
@@ -98,8 +99,10 @@ export type QuizResult = {
   correct: number;
   total: number;
   passingScore: number;
-  /** Chỉ có khi bài cho xem đáp án (hoặc chế độ xem trước) */
+  /** Chỉ có khi bài cho xem đáp án VÀ lượt đó đạt / đã hết lượt (hoặc chế độ xem trước) */
   details: ResultDetail[] | null;
+  /** Bài cho xem đáp án nhưng chưa đủ điều kiện (chưa đạt và còn lượt) → trình duyệt hiện lời giải thích */
+  answersLocked: boolean;
 };
 
 export type QuizActionResult<T> = { ok: true; data: T } | { ok: false; error: string };
@@ -252,6 +255,43 @@ async function learnerQuizAccess(userId: string, lessonId: string) {
   return lesson ? { lesson, access } : null;
 }
 
+const NO_LONGER_ALLOWED = "Bạn không còn quyền làm bài kiểm tra này (lượt học đã bị huỷ hoặc bài đã ẩn).";
+
+/** Kiểm tra chủ lượt + quyền học bài (lưu / nộp). null = được phép. */
+async function denyIfNoAccess(userId: string, attemptId: string): Promise<{ ok: false; error: string } | null> {
+  const attempt = await prisma.quizAttempt.findUnique({ where: { id: attemptId }, select: { userId: true, lessonId: true } });
+  if (!attempt || attempt.userId !== userId) return { ok: false, error: "Không tìm thấy lượt làm bài." };
+  if (!(await learnerQuizAccess(userId, attempt.lessonId))) return { ok: false, error: NO_LONGER_ALLOWED };
+  return null;
+}
+
+/**
+ * Được xem đáp án của 1 lượt đã nộp (khi bài bật showAnswers) — Việc 29B #2, chống "nộp bài trống để lấy đáp án":
+ * chỉ khi lượt đó ĐẠT, hoặc đã HẾT LƯỢT (maxAttempts + bonusAttempts; NULL = không giới hạn → chỉ khi đạt).
+ * Chỉ tính lượt của phiên bản hiện tại (lượt bản cũ có thể dùng chung ngân hàng câu hỏi với bản mới sau MAJOR).
+ */
+async function answersRevealable(
+  userId: string,
+  a: {
+    lessonId: string;
+    attemptNo: number;
+    courseVersion: number;
+    passed: boolean | null;
+    lesson: { maxAttempts: number | null; section: { course: { currentVersion: number } } };
+  },
+): Promise<boolean> {
+  if (a.courseVersion !== a.lesson.section.course.currentVersion) return false;
+  if (a.passed === true) return true;
+  if (a.lesson.maxAttempts === null) return false;
+  const [progress, submitted] = await Promise.all([
+    prisma.lessonProgress.findUnique({ where: { userId_lessonId: { userId, lessonId: a.lessonId } }, select: { bonusAttempts: true } }),
+    // Chỉ đếm lượt ĐÃ NỘP: còn lượt đang làm dở thì chưa "hết lượt"
+    prisma.quizAttempt.count({ where: { userId, lessonId: a.lessonId, courseVersion: a.courseVersion, submittedAt: { not: null } } }),
+  ]);
+  const max = a.lesson.maxAttempts + (progress?.bonusAttempts ?? 0);
+  return a.attemptNo >= max || submitted >= max;
+}
+
 async function attemptLimit(userId: string, lesson: QuizLesson) {
   const version = lesson.section.course.currentVersion;
   const [used, progress] = await Promise.all([
@@ -389,6 +429,10 @@ export async function saveAnswer(
   questionId: string,
   selected: string[],
 ): Promise<QuizActionResult<{ savedAt: string }>> {
+  // Lượt học bị huỷ / bài bị ẩn trong lúc đang làm → không cho lưu tiếp (Việc 29B #7)
+  const denied = await denyIfNoAccess(userId, attemptId);
+  if (denied) return denied;
+
   return prisma.$transaction(async (tx) => {
     // Khoá dòng: các lần lưu liên tiếp của cùng lượt chạy lần lượt, không ghi đè nhau
     await tx.$queryRaw`SELECT id FROM quiz_attempts WHERE id = ${attemptId} FOR UPDATE`;
@@ -436,17 +480,24 @@ export type SubmitOutcome = { result: QuizResult; completion: LessonCompletion |
  * Dùng chung: nộp bài, mở trang bài kiểm tra, tác vụ hằng ngày (src/lib/jobs/daily.ts). null = không chấm (đã nộp / không có).
  */
 export async function gradeAttempt(attemptId: string): Promise<{ completion: LessonCompletion | null } | null> {
-  const attempt = await prisma.quizAttempt.findUnique({
-    where: { id: attemptId },
-    select: { userId: true, lessonId: true, answers: true, submittedAt: true, lesson: { select: { passingScore: true } } },
+  // Khoá dòng quiz_attempts (cùng khoá với saveAnswer): lưu câu trả lời và chấm điểm chạy lần lượt,
+  // điểm luôn tính trên đúng bài làm đã lưu (Việc 29B #7)
+  const graded = await prisma.$transaction(async (tx) => {
+    await tx.$queryRaw`SELECT id FROM quiz_attempts WHERE id = ${attemptId} FOR UPDATE`;
+    const attempt = await tx.quizAttempt.findUnique({
+      where: { id: attemptId },
+      select: { userId: true, lessonId: true, answers: true, submittedAt: true, lesson: { select: { passingScore: true } } },
+    });
+    if (!attempt || attempt.submittedAt) return null;
+    const result = gradeSnapshot(parseSnapshot(attempt.answers), attempt.lesson.passingScore ?? 100);
+    await tx.quizAttempt.update({
+      where: { id: attemptId },
+      data: { score: result.score, passed: result.passed, submittedAt: new Date() },
+    });
+    return { attempt, passed: result.passed };
   });
-  if (!attempt || attempt.submittedAt) return null;
-  const graded = gradeSnapshot(parseSnapshot(attempt.answers), attempt.lesson.passingScore ?? 100);
-  const updated = await prisma.quizAttempt.updateMany({
-    where: { id: attemptId, submittedAt: null },
-    data: { score: graded.score, passed: graded.passed, submittedAt: new Date() },
-  });
-  if (updated.count === 0) return null;
+  if (!graded) return null;
+  const { attempt } = graded;
 
   let completion: LessonCompletion | null = null;
   if (graded.passed) {
@@ -466,6 +517,8 @@ export async function gradeAttempt(attemptId: string): Promise<{ completion: Les
 export async function submitAttempt(userId: string, attemptId: string): Promise<QuizActionResult<SubmitOutcome>> {
   const attempt = await prisma.quizAttempt.findUnique({ where: { id: attemptId }, select: { userId: true, lessonId: true } });
   if (!attempt || attempt.userId !== userId) return { ok: false, error: "Không tìm thấy lượt làm bài." };
+  // Lượt học bị huỷ / bài bị ẩn → không cho nộp (lượt dở được tác vụ hằng ngày chấm sau, không tính hoàn thành) — Việc 29B #7
+  if (!(await learnerQuizAccess(userId, attempt.lessonId))) return { ok: false, error: NO_LONGER_ALLOWED };
 
   const graded = await gradeAttempt(attemptId);
   const result = await getAttemptResult(userId, attemptId);
@@ -476,7 +529,7 @@ export async function submitAttempt(userId: string, attemptId: string): Promise<
   };
 }
 
-/** Chấm mọi lượt dở đã quá hạn của người học ở bài này (gọi mỗi khi mở trang bài kiểm tra). */
+/** Chấm mọi lượt dở đã quá hạn của học viên ở bài này (gọi mỗi khi mở trang bài kiểm tra). */
 export async function autoSubmitExpired(userId: string, lessonId: string): Promise<void> {
   const open = await prisma.quizAttempt.findMany({
     where: { userId, lessonId, submittedAt: null },
@@ -492,12 +545,21 @@ export async function getAttemptResult(userId: string, attemptId: string): Promi
     where: { id: attemptId },
     select: {
       userId: true,
+      lessonId: true,
       attemptNo: true,
+      courseVersion: true,
       answers: true,
       submittedAt: true,
       score: true,
       passed: true,
-      lesson: { select: { passingScore: true, showAnswers: true } },
+      lesson: {
+        select: {
+          passingScore: true,
+          showAnswers: true,
+          maxAttempts: true,
+          section: { select: { course: { select: { currentVersion: true } } } },
+        },
+      },
     },
   });
   if (!attempt || attempt.userId !== userId) return { ok: false, error: "Không tìm thấy lượt làm bài." };
@@ -505,6 +567,7 @@ export async function getAttemptResult(userId: string, attemptId: string): Promi
 
   const passingScore = attempt.lesson.passingScore ?? 100;
   const graded = gradeSnapshot(parseSnapshot(attempt.answers), passingScore);
+  const reveal = attempt.lesson.showAnswers && (await answersRevealable(userId, attempt));
   return {
     ok: true,
     data: {
@@ -515,8 +578,9 @@ export async function getAttemptResult(userId: string, attemptId: string): Promi
       correct: graded.correct,
       total: graded.total,
       passingScore,
-      // Đáp án + giải thích chỉ trả về khi bài cho xem đáp án
-      details: attempt.lesson.showAnswers ? toDetails(graded.perQuestion) : null,
+      // Đáp án + giải thích: bài cho xem đáp án VÀ lượt này đạt / đã hết lượt (Việc 29B #2)
+      details: reveal ? toDetails(graded.perQuestion) : null,
+      answersLocked: attempt.lesson.showAnswers && !reveal,
     },
   };
 }
@@ -583,6 +647,7 @@ export async function previewGrade(
       total: graded.total,
       passingScore,
       details: toDetails(graded.perQuestion),
+      answersLocked: false,
     },
   };
 }

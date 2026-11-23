@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { formatNumber } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { IMPORT_COLUMN_LABELS, type ImportColumnKey, type ImportPreviewRow, type ImportRowStatus } from "./types";
+import { Tooltip } from "@/components/ui/tooltip";
 
 const PAGE_SIZE = 50;
 const COLUMNS = Object.keys(IMPORT_COLUMN_LABELS) as ImportColumnKey[];
@@ -128,15 +129,15 @@ export function ImportPreviewTable({ rows }: { rows: ImportPreviewRow[] }) {
             trong {formatNumber(visible.length)} dòng
           </p>
           <div className="flex items-center gap-2">
-            <Button variant="outline" size="icon-sm" disabled={current <= 1} onClick={() => setPage(current - 1)} aria-label="Trang trước">
+            <Tooltip label="Trang trước"><Button variant="outline" size="icon-sm" disabled={current <= 1} onClick={() => setPage(current - 1)} aria-label="Trang trước">
               <ChevronLeft />
-            </Button>
+            </Button></Tooltip>
             <span className="text-[13px] text-muted-foreground">
               Trang {current}/{pageCount}
             </span>
-            <Button variant="outline" size="icon-sm" disabled={current >= pageCount} onClick={() => setPage(current + 1)} aria-label="Trang sau">
+            <Tooltip label="Trang sau"><Button variant="outline" size="icon-sm" disabled={current >= pageCount} onClick={() => setPage(current + 1)} aria-label="Trang sau">
               <ChevronRight />
-            </Button>
+            </Button></Tooltip>
           </div>
         </div>
       )}

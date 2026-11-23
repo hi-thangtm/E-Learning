@@ -29,6 +29,7 @@ import { sectionDndId, SectionCard, type ItemActions } from "./content-items";
 import type { ContentLayout, ContentLesson, ContentSection } from "./content-types";
 import { LessonDialog } from "./lesson-dialog";
 import type { TopicStats } from "@/lib/question-labels";
+import { EmptyState } from "@/components/empty-state";
 
 type Confirm =
   | { kind: "removeSection"; section: ContentSection }
@@ -217,21 +218,20 @@ export function ContentEditor({
       </div>
 
       {sections.length === 0 ? (
-        <div className="flex flex-col items-center justify-center gap-3 rounded-md border border-dashed border-border py-16 text-center">
-          <div className="flex size-16 items-center justify-center rounded-full bg-primary/16 text-primary">
-            <BookOpen className="size-8" />
-          </div>
-          <p className="text-lg font-medium text-foreground">Khoá học chưa có nội dung</p>
-          <p className="max-w-sm text-[15px] text-muted-foreground">
-            {readOnly ? "Khoá học này chưa có chương nào." : "Thêm chương đầu tiên, sau đó thêm bài video, tài liệu hoặc kiểm tra vào chương."}
-          </p>
-          {!readOnly && (
-            <Button onClick={() => setSectionDialog({ key: Date.now(), section: null })}>
-              <Plus />
-              Thêm chương
-            </Button>
-          )}
-        </div>
+        <EmptyState
+          icon={BookOpen}
+          title="Khoá học chưa có nội dung"
+          description={readOnly ? "Khoá học này chưa có chương nào." : "Thêm chương đầu tiên, sau đó thêm bài video, tài liệu hoặc bài kiểm tra vào chương."}
+          className="rounded-md border border-dashed border-border"
+          action={
+            !readOnly && (
+              <Button onClick={() => setSectionDialog({ key: Date.now(), section: null })}>
+                <Plus />
+                Thêm chương
+              </Button>
+            )
+          }
+        />
       ) : (
         <DndContext
           sensors={sensors}

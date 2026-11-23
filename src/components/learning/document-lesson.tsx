@@ -20,7 +20,7 @@ export function DocumentLesson({ lesson }: { lesson: DocumentDetail }) {
 
   return (
     <div className="space-y-6">
-      <article className="rounded-md bg-card p-8 shadow-sm">
+      <article className="rounded-md bg-card p-4 shadow-sm sm:p-8">
         {empty ? (
           <p className="text-[15px] text-muted-foreground">Bài học chưa có nội dung.</p>
         ) : (

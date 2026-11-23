@@ -25,6 +25,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { cancelEnrollmentAction, extendEnrollmentAction } from "./actions";
 import { GrantAttemptsDialog } from "./grant-attempts-dialog";
+import { Tooltip } from "@/components/ui/tooltip";
 
 const ITEM = "mx-1 gap-3 rounded-md px-3 py-2 text-[15px]";
 const RULE_LOCK = "Đang giao tự động theo quy tắc — tắt quy tắc ở mục Giao tự động";
@@ -56,9 +57,9 @@ export function EnrollmentRowActions({
       <DropdownMenu>
         <DropdownMenuTrigger
           render={
-            <Button variant="ghost" size="icon-sm" aria-label={`Thao tác cho lượt giao của ${enrollment.learner}`}>
+            <Tooltip label={`Thao tác cho lượt giao của ${enrollment.learner}`}><Button variant="ghost" size="icon-sm" aria-label={`Thao tác cho lượt giao của ${enrollment.learner}`}>
               <EllipsisVertical className="size-[18px]" />
-            </Button>
+            </Button></Tooltip>
           }
         />
         <DropdownMenuContent align="end" className="w-56 rounded-md py-2 shadow-lg ring-0">

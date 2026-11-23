@@ -9,7 +9,7 @@ import { prisma } from "@/lib/db";
  * - Khoá được giao = enrollment RULE / ASSIGNED khác CANCELLED. Tỷ lệ hoàn thành = hoàn thành ÷ được giao.
  * - Người quá hạn = có ≥ 1 khoá được giao quá hạn (dueDate < bây giờ, chưa COMPLETED).
  * - Tỷ lệ nắm quy trình mới nhất = trên các khoá có phiên bản ≥ 2: đã nắm (acknowledgedVersion = currentVersion) ÷ đã từng hoàn thành.
- * - Người học trong 30 ngày = có tiến độ bài học cập nhật trong 30 ngày qua.
+ * - Học viên trong 30 ngày = có tiến độ bài học cập nhật trong 30 ngày qua.
  * Truy vấn gộp theo công ty (GROUP BY), không lặp từng người.
  */
 

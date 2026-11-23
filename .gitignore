@@ -37,6 +37,11 @@ yarn-error.log*
 .env*
 # File mẫu (không chứa bí mật thật) vẫn phải được commit
 !.env.example
+!.env.perf.example
+!.env.test.example
+
+# Kết quả đo hiệu năng (Việc 30): phiên đăng nhập, số đo, ảnh chụp kết quả
+/perf-results
 
 # vercel
 .vercel
@@ -44,3 +49,10 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Kiểm thử e2e (Việc 31): phiên đăng nhập, kết quả, file tải lên trong lúc kiểm thử
+/e2e/.auth
+/test-results
+/playwright-report
+/blob-report
+/.e2e-uploads

@@ -22,7 +22,7 @@ export function LoginForm() {
       )}
 
       <div className="flex flex-col gap-1">
-        <Label htmlFor="employeeCode" className="text-[13px] font-normal text-foreground">
+        <Label htmlFor="employeeCode">
           Mã nhân viên
         </Label>
         <Input
@@ -37,7 +37,7 @@ export function LoginForm() {
       </div>
 
       <div className="flex flex-col gap-1">
-        <Label htmlFor="password" className="text-[13px] font-normal text-foreground">
+        <Label htmlFor="password">
           Mật khẩu
         </Label>
         <div className="relative">

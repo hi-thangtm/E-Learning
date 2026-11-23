@@ -18,7 +18,7 @@ function pageList(current: number, totalPages: number): (number | "…")[] {
 }
 
 const itemClass =
-  "flex size-[38px] items-center justify-center rounded-md text-[15px] transition-colors";
+  "flex h-[38px] min-w-[38px] items-center justify-center rounded-md px-2 text-[15px] tabular-nums transition-colors";
 
 /** Phân trang theo URL: "Hiển thị X–Y trong Z kết quả" + nút trang. */
 export function DataTablePagination({
@@ -39,13 +39,16 @@ export function DataTablePagination({
   const to = Math.min(page * pageSize, total);
   const href = (p: number) => buildHref(pathname, searchParams, { page: p === 1 ? null : p });
 
+  // Không có dòng nào → không hiện "Hiển thị 0–0 trong 0 kết quả" (trạng thái rỗng đã nói đủ)
+  if (total === 0) return null;
+
   return (
-    <div className="flex items-center justify-between gap-4 border-t border-border px-6 py-4">
+    <div className="flex flex-col items-center justify-between gap-3 border-t border-border px-4 py-4 sm:flex-row sm:gap-4 sm:px-6">
       <p className="text-[13px] text-muted-foreground">
         Hiển thị {formatNumber(from)}–{formatNumber(to)} trong {formatNumber(total)} kết quả
       </p>
       {totalPages > 1 && (
-        <nav aria-label="Phân trang" className="flex items-center gap-1.5">
+        <nav aria-label="Phân trang" className="flex flex-wrap items-center justify-center gap-1.5">
           {page > 1 ? (
             <Link href={href(page - 1)} className={cn(itemClass, "bg-muted hover:bg-primary/16")} aria-label="Trang trước">
               <ChevronLeft className="size-4" />
@@ -72,7 +75,7 @@ export function DataTablePagination({
                     : "bg-muted text-foreground hover:bg-primary/16 hover:text-primary",
                 )}
               >
-                {p}
+                {formatNumber(p)}
               </Link>
             ),
           )}

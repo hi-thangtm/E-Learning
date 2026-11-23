@@ -15,6 +15,7 @@ import { cn } from "@/lib/utils";
 import { toggleDepartmentAction } from "./actions";
 import { DepartmentFormDialog } from "./department-form-dialog";
 import type { DepartmentRow, EmployeeOption } from "./types";
+import { Tooltip } from "@/components/ui/tooltip";
 
 const PATHNAME = "/org/departments";
 
@@ -232,24 +233,22 @@ export function DepartmentTree({
                     </td>
                     <td className="h-[50px] py-2 pr-6 pl-4 align-middle">
                       <div className="flex items-center justify-end gap-1">
-                        <Button
+                        <Tooltip label="Sửa"><Button
                           variant="ghost"
                           size="icon-sm"
                           onClick={() => openForm(row)}
                           aria-label={`Sửa ${row.code}`}
-                          title="Sửa"
                         >
                           <Pencil className="size-[18px]" />
-                        </Button>
-                        <Button
+                        </Button></Tooltip>
+                        <Tooltip label={row.isActive ? "Ẩn" : "Hiện lại"}><Button
                           variant="ghost"
                           size="icon-sm"
                           onClick={() => requestToggle(row)}
                           aria-label={row.isActive ? `Ẩn ${row.code}` : `Hiện ${row.code}`}
-                          title={row.isActive ? "Ẩn" : "Hiện lại"}
                         >
                           {row.isActive ? <EyeOff className="size-[18px]" /> : <Eye className="size-[18px]" />}
-                        </Button>
+                        </Button></Tooltip>
                       </div>
                     </td>
                   </tr>

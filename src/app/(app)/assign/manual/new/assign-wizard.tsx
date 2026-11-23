@@ -248,7 +248,7 @@ function CourseStep({
       </div>
       {kind === "path" && (
         <p className="text-[13px] text-muted-foreground">
-          Giao lộ trình = giao mọi khoá của lộ trình theo thứ tự, cùng một hạn. Khoá người học đã có giữ nguyên trạng thái (đã học xong vẫn tính là xong).
+          Giao lộ trình = giao mọi khoá của lộ trình theo thứ tự, cùng một hạn. Khoá học viên đã có giữ nguyên trạng thái (đã học xong vẫn tính là xong).
         </p>
       )}
       {courses.length === 0 && (

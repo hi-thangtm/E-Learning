@@ -8,6 +8,8 @@ import { requireUser } from "@/lib/current-user";
 import { formatDate } from "@/lib/format";
 import { getMyPaths } from "@/lib/my-paths";
 import { cn } from "@/lib/utils";
+import { EmptyState } from "@/components/empty-state";
+import { buttonVariants } from "@/components/ui/button";
 
 export const metadata: Metadata = { title: "Lộ trình của tôi" };
 
@@ -20,18 +22,19 @@ export default async function MyPathsPage() {
     <>
       <PageHeader title="Lộ trình" description="Chuỗi khoá học theo thứ tự — hoàn thành khoá trước để mở khoá sau." />
       {paths.length === 0 ? (
-        <section className="flex flex-col items-center gap-3 rounded-md bg-card px-6 py-16 text-center shadow-md">
-          <div className="flex size-16 items-center justify-center rounded-full bg-primary/16 text-primary">
-            <Route className="size-8" />
-          </div>
-          <p className="text-lg font-medium text-foreground">Bạn chưa được giao lộ trình nào</p>
-          <p className="max-w-md text-[15px] text-muted-foreground">Khi quản trị đào tạo giao lộ trình, các khoá trong lộ trình sẽ hiện ở đây theo thứ tự.</p>
-          <Link href="/my-courses" className="text-[15px] font-medium text-primary hover:underline">
-            Xem khoá học của tôi
-          </Link>
-        </section>
+        <EmptyState
+          icon={Route}
+          title="Bạn chưa được giao lộ trình nào"
+          description="Khi quản trị đào tạo giao lộ trình, các khoá trong lộ trình sẽ hiện ở đây theo thứ tự."
+          className="rounded-md bg-card shadow-md"
+          action={
+            <Link href="/my-courses" className={buttonVariants({ variant: "secondary" })}>
+              Xem khoá học của tôi
+            </Link>
+          }
+        />
       ) : (
-        <div className="grid grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-6 lg:grid-cols-3">
           {paths.map((p) => (
             <Link
               key={p.id}
@@ -54,7 +57,7 @@ export default async function MyPathsPage() {
                 )}
               </div>
               <div className="space-y-1">
-                <p className="line-clamp-2 text-lg leading-snug font-medium text-foreground">{p.title}</p>
+                <p className="line-clamp-2 text-lg leading-normal break-words font-medium text-foreground">{p.title}</p>
                 {p.description && <p className="line-clamp-2 text-[13px] text-muted-foreground">{p.description}</p>}
               </div>
               <div className="mt-auto space-y-1.5">

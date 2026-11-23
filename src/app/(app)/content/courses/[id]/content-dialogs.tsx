@@ -81,7 +81,7 @@ export function SectionNameDialog({
           <DialogFooter>
             <DialogClose render={<Button type="button" variant="outline" disabled={pending} />}>Huỷ</DialogClose>
             <Button type="submit" disabled={pending}>
-              {pending ? "Đang lưu..." : section ? "Lưu" : "Thêm chương"}
+              {pending ? "Đang lưu..." : section ? "Lưu thay đổi" : "Thêm chương"}
             </Button>
           </DialogFooter>
         </form>
@@ -93,7 +93,7 @@ export function SectionNameDialog({
 const TYPES: { value: LessonType; label: string; hint: string; icon: typeof PlayCircle }[] = [
   { value: "VIDEO", label: "Video", hint: "Bài giảng video, tính xong khi xem đủ %", icon: PlayCircle },
   { value: "DOCUMENT", label: "Tài liệu", hint: "Nội dung soạn sẵn và / hoặc file PDF", icon: FileText },
-  { value: "QUIZ", label: "Kiểm tra", hint: "Rút câu ngẫu nhiên từ ngân hàng câu hỏi", icon: ListChecks },
+  { value: "QUIZ", label: "Bài kiểm tra", hint: "Rút câu ngẫu nhiên từ ngân hàng câu hỏi", icon: ListChecks },
 ];
 
 /** Thêm bài: chọn loại → nhập tên → tạo → báo id để mở ngay dialog chi tiết. */

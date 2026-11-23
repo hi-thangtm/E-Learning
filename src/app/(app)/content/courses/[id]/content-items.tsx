@@ -27,8 +27,9 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
-import { formatDuration } from "@/lib/youtube";
 import type { ContentLesson, ContentSection } from "./content-types";
+import { formatDuration } from "@/lib/format";
+import { Tooltip } from "@/components/ui/tooltip";
 
 export const sectionDndId = (id: string) => `s:${id}`;
 export const lessonDndId = (id: string) => `l:${id}`;
@@ -37,7 +38,7 @@ export const dropDndId = (id: string) => `d:${id}`;
 const ITEM = "mx-1 gap-3 rounded-md px-3 py-2 text-[15px]";
 
 const TYPE_ICON = { VIDEO: PlayCircle, DOCUMENT: FileText, QUIZ: ListChecks } as const;
-const TYPE_LABEL = { VIDEO: "Video", DOCUMENT: "Tài liệu", QUIZ: "Kiểm tra" } as const;
+const TYPE_LABEL = { VIDEO: "Video", DOCUMENT: "Tài liệu", QUIZ: "Bài kiểm tra" } as const;
 
 export type ItemActions = {
   readOnly: boolean;
@@ -153,9 +154,9 @@ export function SectionCard({
               <DropdownMenu>
                 <DropdownMenuTrigger
                   render={
-                    <Button variant="ghost" size="icon-sm" aria-label={`Thao tác cho chương “${section.title}”`}>
+                    <Tooltip label={`Thao tác cho chương “${section.title}”`}><Button variant="ghost" size="icon-sm" aria-label={`Thao tác cho chương “${section.title}”`}>
                       <EllipsisVertical className="size-[18px]" />
-                    </Button>
+                    </Button></Tooltip>
                   }
                 />
                 <DropdownMenuContent align="end" className="w-52 rounded-md py-2 shadow-lg ring-0">
@@ -273,16 +274,15 @@ function LessonRow({ lesson, actions }: { lesson: ContentLesson; actions: ItemAc
             Hiện lại
           </Button>
         ) : (
-          <Button
+          <Tooltip label={actions.published ? "Ẩn khỏi học viên" : "Xoá bài"}><Button
             variant="ghost"
             size="icon-sm"
             className="text-foreground/45 opacity-0 group-focus-within:opacity-100 group-hover:opacity-100 hover:text-destructive"
             aria-label={actions.published ? `Ẩn bài “${lesson.title}”` : `Xoá bài “${lesson.title}”`}
-            title={actions.published ? "Ẩn khỏi học viên" : "Xoá bài"}
             onClick={() => actions.onRemoveLesson(lesson)}
           >
             {actions.published ? <EyeOff className="size-[18px]" /> : <Trash2 className="size-[18px]" />}
-          </Button>
+          </Button></Tooltip>
         ))}
     </li>
   );

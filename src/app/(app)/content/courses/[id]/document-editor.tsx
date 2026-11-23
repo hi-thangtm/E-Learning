@@ -21,6 +21,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
+import { Tooltip } from "@/components/ui/tooltip";
 
 const isHttpUrl = (url: string) => /^https?:\/\/[^\s]+$/i.test(url);
 
@@ -201,9 +202,9 @@ function Toolbar({ editor }: { editor: Editor }) {
             <Check />
             Áp dụng
           </Button>
-          <Button type="button" size="icon-sm" variant="ghost" aria-label="Huỷ" onClick={() => setLinkOpen(false)}>
+          <Tooltip label="Huỷ"><Button type="button" size="icon-sm" variant="ghost" aria-label="Huỷ" onClick={() => setLinkOpen(false)}>
             <X />
-          </Button>
+          </Button></Tooltip>
         </div>
       )}
     </div>

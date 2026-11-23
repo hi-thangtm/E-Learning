@@ -16,7 +16,7 @@ export type PendingAcknowledgement = {
   enrollmentId: string;
   courseId: string;
   courseTitle: string;
-  /** Phiên bản người học đang nắm */
+  /** Phiên bản học viên đang nắm */
   acknowledgedVersion: number;
   currentVersion: number;
   /** Các bản MINOR cần đọc, mới nhất trước */
@@ -37,7 +37,7 @@ export function ackDueDate(publishedAt: Date | null, dueInDays: number | null): 
   return vnDayEnd(addDaysIso(vnIsoDate(publishedAt), dueInDays));
 }
 
-/** Các khoá người học đã học xong nhưng chưa xác nhận bản MINOR mới (lọc theo 1 khoá nếu truyền courseId). */
+/** Các khoá học viên đã học xong nhưng chưa xác nhận bản MINOR mới (lọc theo 1 khoá nếu truyền courseId). */
 export async function getPendingAcknowledgements(userId: string, courseId?: string): Promise<PendingAcknowledgement[]> {
   const enrollments = await prisma.enrollment.findMany({
     where: { userId, status: "COMPLETED", ...(courseId && { courseId }), course: { currentVersion: { gte: 2 } } },

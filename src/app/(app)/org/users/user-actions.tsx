@@ -17,6 +17,7 @@ import { clearLoginLockAction, lockUserAction, unlockUserAction } from "./action
 import { ResetPasswordDialog } from "./reset-password-dialog";
 import type { UserFormValue, UserRowState } from "./types";
 import { UserFormDialog } from "./user-form-dialog";
+import { Tooltip } from "@/components/ui/tooltip";
 
 const ITEM = "mx-1 gap-3 rounded-md px-3 py-2 text-[15px]";
 
@@ -56,20 +57,19 @@ export function UserActions({
     setResetOpen(true);
   };
 
-  // Chỉ được xem (Admin công ty xem một Admin tập đoàn)
+  // Chỉ được xem (Admin công ty xem một Admin tập đoàn hoặc một Admin công ty khác — Việc 29B #15)
   if (!state.canEdit) {
     return variant === "menu" ? (
       <div className="flex justify-end">
-        <Button
+        <Tooltip label="Xem chi tiết"><Button
           variant="ghost"
           size="icon-sm"
           aria-label={`Xem chi tiết ${user.employeeCode}`}
-          title="Xem chi tiết"
           render={<Link href={detailHref} />}
           nativeButton={false}
         >
           <Eye className="size-[18px]" />
-        </Button>
+        </Button></Tooltip>
       </div>
     ) : null;
   }
@@ -112,14 +112,13 @@ export function UserActions({
           <DropdownMenu>
             <DropdownMenuTrigger
               render={
-                <Button
+                <Tooltip label="Thao tác"><Button
                   variant="ghost"
                   size="icon-sm"
                   aria-label={`Thao tác cho ${user.employeeCode}`}
-                  title="Thao tác"
                 >
                   <EllipsisVertical className="size-[18px]" />
-                </Button>
+                </Button></Tooltip>
               }
             />
             <DropdownMenuContent align="end" className="w-56 rounded-md py-2 shadow-lg ring-0">
@@ -163,7 +162,7 @@ export function UserActions({
                 <KeyRound />
                 Đặt lại mật khẩu
               </Button>
-              <Button variant={isActive ? "destructive" : "secondary"} onClick={() => setLockOpen(true)}>
+              <Button variant={isActive ? "soft-destructive" : "secondary"} onClick={() => setLockOpen(true)}>
                 {isActive ? <Lock /> : <LockOpen />}
                 {isActive ? "Khoá" : "Mở khoá"}
               </Button>

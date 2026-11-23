@@ -114,7 +114,7 @@ function PositionForm({ position, onSuccess }: { position?: PositionFormValue; o
       <DialogFooter>
         <DialogClose render={<Button type="button" variant="outline" disabled={pending} />}>Huỷ</DialogClose>
         <Button type="submit" disabled={pending}>
-          {pending ? "Đang lưu..." : "Lưu"}
+          {pending ? "Đang lưu..." : position ? "Lưu thay đổi" : "Thêm chức danh"}
         </Button>
       </DialogFooter>
     </form>

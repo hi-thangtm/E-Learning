@@ -128,7 +128,7 @@ function CompanyForm({ company, onSuccess }: { company?: CompanyFormValue; onSuc
       <DialogFooter>
         <DialogClose render={<Button type="button" variant="outline" disabled={pending} />}>Huỷ</DialogClose>
         <Button type="submit" disabled={pending}>
-          {pending ? "Đang lưu..." : "Lưu"}
+          {pending ? "Đang lưu..." : company ? "Lưu thay đổi" : "Thêm công ty con"}
         </Button>
       </DialogFooter>
     </form>

@@ -5,6 +5,7 @@ import { ConfirmDialog } from "@/components/confirm-dialog";
 import { Button } from "@/components/ui/button";
 import { deleteQuestionAction, toggleQuestionAction } from "./actions";
 import { QuestionFormDialog, type QuestionFormValue } from "./question-form-dialog";
+import { Tooltip } from "@/components/ui/tooltip";
 
 const PUBLISHED_HINT = "Khoá đã phát hành — chỉ tắt được câu hỏi";
 
@@ -32,21 +33,20 @@ export function QuestionRowActions({
         question={question}
         topics={topics}
         trigger={
-          <Button variant="ghost" size="icon-sm" aria-label="Sửa câu hỏi" title="Sửa">
+          <Tooltip label="Sửa"><Button variant="ghost" size="icon-sm" aria-label="Sửa câu hỏi">
             <Pencil className="size-[18px]" />
-          </Button>
+          </Button></Tooltip>
         }
       />
       <ConfirmDialog
         trigger={
-          <Button
+          <Tooltip label={isActive ? (canDelete ? "Tắt" : `Tắt — ${PUBLISHED_HINT}`) : "Bật lại"}><Button
             variant="ghost"
             size="icon-sm"
             aria-label={isActive ? "Tắt câu hỏi" : "Bật lại câu hỏi"}
-            title={isActive ? (canDelete ? "Tắt" : `Tắt — ${PUBLISHED_HINT}`) : "Bật lại"}
           >
             {isActive ? <PowerOff className="size-[18px]" /> : <Power className="size-[18px]" />}
-          </Button>
+          </Button></Tooltip>
         }
         title={isActive ? "Tắt câu hỏi này?" : "Bật lại câu hỏi này?"}
         description={
@@ -63,9 +63,9 @@ export function QuestionRowActions({
       {canDelete ? (
         <ConfirmDialog
           trigger={
-            <Button variant="ghost" size="icon-sm" aria-label="Xoá câu hỏi" title="Xoá">
+            <Tooltip label="Xoá"><Button variant="ghost" size="icon-sm" aria-label="Xoá câu hỏi">
               <Trash2 className="size-[18px]" />
-            </Button>
+            </Button></Tooltip>
           }
           title="Xoá hẳn câu hỏi này?"
           description={

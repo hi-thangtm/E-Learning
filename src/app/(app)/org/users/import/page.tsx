@@ -6,6 +6,7 @@ import { prisma } from "@/lib/db";
 import { getParam, type SearchParams } from "@/lib/table-params";
 import { IMPORT_MAX_ROWS as MAX_ROWS } from "./types";
 import { ImportWizard } from "./import-wizard";
+import { formatNumber } from "@/lib/format";
 
 export const metadata: Metadata = { title: "Import nhân viên" };
 
@@ -43,7 +44,7 @@ export default async function ImportUsersPage({ searchParams }: { searchParams: 
         <h1 className="text-2xl font-medium text-foreground">Import nhân viên từ Excel</h1>
         <p className="text-[15px] text-muted-foreground">
           Tải file mẫu, điền thông tin, tải lên để kiểm tra. Hệ thống chỉ lưu khi file không còn dòng lỗi. Tối đa{" "}
-          {MAX_ROWS.toLocaleString("vi-VN")} dòng, 5MB, định dạng .xlsx.
+          {formatNumber(MAX_ROWS)} dòng, 5MB, định dạng .xlsx.
         </p>
       </div>
       <ImportWizard

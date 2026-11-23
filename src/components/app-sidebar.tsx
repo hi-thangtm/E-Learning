@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { Role } from "@prisma/client";
@@ -27,10 +27,13 @@ import {
   type LucideIcon,
   CalendarClock,
   ChartNoAxesCombined,
+  Menu,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { findMenuItem, menuForRole, type IconName } from "@/lib/roles";
 import { AppLogo } from "@/components/app-logo";
+import { Button } from "@/components/ui/button";
+import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 
 const ICONS: Record<IconName, LucideIcon> = {
   dashboard: LayoutDashboard,
@@ -57,11 +60,55 @@ const ICONS: Record<IconName, LucideIcon> = {
   overview: ChartNoAxesCombined,
 };
 
+type Branding = { name: string; logoUrl: string | null };
+
 /**
  * Sidebar theo Vuexy vertical layout (docs/design-system.md — mục 4.1):
  * rộng 260px, nền card, bóng nhẹ; mục menu 8px 12px bo 6px; mục đang chọn nền gradient primary.
+ * Màn hình < lg (1024px): ẩn, thay bằng nút ☰ trên header mở `MobileSidebar` (Sheet trượt từ trái).
  */
-export function AppSidebar({ role, branding }: { role: Role; branding: { name: string; logoUrl: string | null } }) {
+export function AppSidebar({ role, branding }: { role: Role; branding: Branding }) {
+  return (
+    <aside className="sticky top-0 z-20 hidden h-screen w-[260px] shrink-0 flex-col bg-sidebar text-sidebar-foreground shadow-sm lg:flex">
+      <SidebarContent role={role} branding={branding} />
+    </aside>
+  );
+}
+
+/** Nút ☰ (chỉ hiện < lg) + menu trượt từ trái — cùng nội dung với sidebar. Tự đóng khi chuyển trang. */
+export function MobileSidebar({ role, branding }: { role: Role; branding: Branding }) {
+  const [open, setOpen] = useState(false);
+  const pathname = usePathname();
+  // Đổi trang (bấm mục menu, nút Back) → đóng menu
+  const [lastPath, setLastPath] = useState(pathname);
+  if (pathname !== lastPath) {
+    setLastPath(pathname);
+    setOpen(false);
+  }
+  useEffect(() => {
+    // Màn hình lớn lên (xoay ngang / kéo cửa sổ) → sidebar thường hiện lại, đóng sheet
+    const mq = window.matchMedia("(min-width: 1024px)");
+    const onChange = () => mq.matches && setOpen(false);
+    mq.addEventListener("change", onChange);
+    return () => mq.removeEventListener("change", onChange);
+  }, []);
+
+  return (
+    <>
+      <Button variant="ghost" size="icon" className="-ml-1 shrink-0 lg:hidden" aria-label="Mở menu" onClick={() => setOpen(true)}>
+        <Menu className="size-[22px]" strokeWidth={1.75} />
+      </Button>
+      <Sheet open={open} onOpenChange={setOpen}>
+        <SheetContent side="left" className="w-[280px] bg-sidebar p-0 text-sidebar-foreground sm:max-w-[280px]" showCloseButton={false}>
+          <SheetTitle className="sr-only">Menu chính</SheetTitle>
+          <SidebarContent role={role} branding={branding} />
+        </SheetContent>
+      </Sheet>
+    </>
+  );
+}
+
+function SidebarContent({ role, branding }: { role: Role; branding: Branding }) {
   const pathname = usePathname();
   const activeHref = findMenuItem(pathname)?.href;
   const groups = menuForRole(role);
@@ -69,7 +116,7 @@ export function AppSidebar({ role, branding }: { role: Role; branding: { name: s
   const [scrolled, setScrolled] = useState(false);
 
   return (
-    <aside className="sticky top-0 z-20 flex h-screen w-[260px] shrink-0 flex-col bg-sidebar text-sidebar-foreground shadow-sm">
+    <>
       <div className="relative flex h-16 shrink-0 items-center pr-4 pl-[22px]">
         <Link href="/dashboard" aria-label="Về trang tổng quan">
           <AppLogo name={branding.name} logoUrl={branding.logoUrl} />
@@ -108,7 +155,7 @@ export function AppSidebar({ role, branding }: { role: Role; branding: { name: s
                       href={item.href}
                       aria-current={active ? "page" : undefined}
                       className={cn(
-                        "flex items-center gap-2 rounded-md px-3 py-2 text-[15px] leading-[1.47] transition-colors outline-none focus-visible:ring-3 focus-visible:ring-ring/50",
+                        "flex min-h-10 items-center gap-2 rounded-md px-3 py-2 text-[15px] leading-[1.47] transition-colors outline-none focus-visible:ring-3 focus-visible:ring-ring/50",
                         active
                           ? "bg-linear-to-l from-primary/70 to-primary text-primary-foreground shadow-primary-sm"
                           : "text-sidebar-foreground hover:bg-sidebar-accent",
@@ -124,6 +171,6 @@ export function AppSidebar({ role, branding }: { role: Role; branding: { name: s
           </div>
         ))}
       </nav>
-    </aside>
+    </>
   );
 }

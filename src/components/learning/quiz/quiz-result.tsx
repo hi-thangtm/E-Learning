@@ -30,7 +30,7 @@ export function QuizResultView({
 }) {
   return (
     <div className="space-y-6">
-      <section className="rounded-md bg-card p-8 text-center shadow-sm">
+      <section className="rounded-md bg-card p-4 text-center shadow-sm sm:p-8">
         <p className="text-[13px] text-muted-foreground">
           {title}
           {preview ? " · Kết quả làm thử (không lưu)" : ` · Lần ${result.attemptNo}`}
@@ -68,7 +68,11 @@ export function QuizResultView({
           )}
         </div>
         {!result.details && (
-          <p className="mt-6 text-[13px] text-muted-foreground">Bài kiểm tra này không cho xem đáp án sau khi nộp.</p>
+          <p className="mt-6 text-[13px] text-muted-foreground">
+            {result.answersLocked
+              ? "Đáp án sẽ hiện khi bạn đạt hoặc đã dùng hết lượt làm bài."
+              : "Bài kiểm tra này không cho xem đáp án sau khi nộp."}
+          </p>
         )}
       </section>
 

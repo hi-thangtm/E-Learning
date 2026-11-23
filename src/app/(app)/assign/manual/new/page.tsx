@@ -88,7 +88,7 @@ export default async function AssignNewPage({ searchParams }: { searchParams: Pr
         </Link>
         <h1 className="text-2xl font-medium text-foreground">Giao khoá học / lộ trình</h1>
         <p className="text-[15px] text-muted-foreground">
-          Chọn khoá học hoặc lộ trình đã phát hành, chọn người học và đặt hạn. Người đã có lượt giao chỉ được rút ngắn hạn, người đã học xong được bỏ qua.
+          Chọn khoá học hoặc lộ trình đã phát hành, chọn học viên và đặt hạn. Người đã có lượt giao chỉ được rút ngắn hạn, người đã học xong được bỏ qua.
         </p>
       </div>
       <AssignWizard

@@ -17,6 +17,7 @@ import { cn } from "@/lib/utils";
 import { CourseSelect } from "./course-select";
 import { QuestionFormDialog } from "./question-form-dialog";
 import { QuestionRowActions } from "./question-row-actions";
+import { EmptyState } from "@/components/empty-state";
 
 export const metadata: Metadata = { title: "Ngân hàng câu hỏi" };
 
@@ -71,17 +72,16 @@ export default async function QuestionsPage({ searchParams }: { searchParams: Pr
     return (
       <>
         {header}
-        <div className="flex flex-col items-center justify-center gap-3 rounded-md bg-card py-16 text-center shadow-md">
-          <div className="flex size-16 items-center justify-center rounded-full bg-primary/16 text-primary">
-            <ListChecks className="size-8" />
-          </div>
-          <p className="text-lg font-medium text-foreground">Chọn khoá học để xem ngân hàng câu hỏi</p>
-          <p className="max-w-md text-[15px] text-muted-foreground">
-            {courses.length > 0
+        <EmptyState
+          icon={ListChecks}
+          title="Chọn khoá học để xem ngân hàng câu hỏi"
+          description={
+            courses.length > 0
               ? "Mỗi khoá học có ngân hàng câu hỏi riêng. Chọn khoá ở ô phía trên."
-              : "Chưa có khoá học nào trong phạm vi của bạn. Tạo khoá học trước ở mục Nội dung › Khoá học."}
-          </p>
-        </div>
+              : "Chưa có khoá học nào trong phạm vi của bạn. Tạo khoá học trước ở mục Nội dung › Khoá học."
+          }
+          className="rounded-md bg-card shadow-md"
+        />
       </>
     );
   }
@@ -301,19 +301,22 @@ export default async function QuestionsPage({ searchParams }: { searchParams: Pr
         ]}
         toolbar={
           <>
-            <a
-              href={`${PATHNAME}/export?course=${course.id}`}
-              className={buttonVariants({ variant: "secondary" })}
-              download
-            >
-              <Download />
-              Xuất Excel
-            </a>
+            {/* File xuất có đáp án đúng + giải thích → chỉ người được SỬA khoá (Việc 29B #1) */}
             {canEdit && (
-              <Link href={`${PATHNAME}/import?course=${course.id}`} className={buttonVariants({ variant: "secondary" })}>
-                <FileUp />
-                Import Excel
-              </Link>
+              <>
+                <a
+                  href={`${PATHNAME}/export?course=${course.id}`}
+                  className={buttonVariants({ variant: "secondary" })}
+                  download
+                >
+                  <Download />
+                  Xuất Excel
+                </a>
+                <Link href={`${PATHNAME}/import?course=${course.id}`} className={buttonVariants({ variant: "secondary" })}>
+                  <FileUp />
+                  Import Excel
+                </Link>
+              </>
             )}
             {addButton}
           </>

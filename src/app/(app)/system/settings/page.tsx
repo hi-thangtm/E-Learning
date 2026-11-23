@@ -3,6 +3,7 @@ import { PageHeader } from "@/components/page-header";
 import { requireRole } from "@/lib/current-user";
 import { getSettings } from "@/lib/settings";
 import { logoUrl, SETTING_GROUPS } from "@/lib/settings-meta";
+import { BunnyCard } from "./bunny-card";
 import { SettingsGroupCard } from "./settings-form";
 
 export const metadata: Metadata = { title: "Cài đặt hệ thống" };
@@ -26,6 +27,7 @@ export default async function SettingsPage() {
             logoUrl={g.id === "branding" ? logoUrl(values.SYSTEM_LOGO_KEY) : undefined}
           />
         ))}
+        <BunnyCard />
       </div>
     </>
   );

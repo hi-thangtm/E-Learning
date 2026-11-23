@@ -338,6 +338,10 @@ model Lesson {
   videoStatus     VideoStatus?
   durationSeconds Int?
   minWatchPercent Int     @default(90) // Xem đủ % mới tính hoàn thành
+  // Bunny: video đã tạo trên Bunny, ĐANG tải lên, chưa gắn vào bài (Việc 31B, security-review #8).
+  // Vé tải lên chỉ hợp lệ khi đúng id này (dùng 1 lần); quá 24 giờ chưa xong → tác vụ hằng ngày xoá trên Bunny.
+  pendingVideoId        String?
+  pendingVideoCreatedAt DateTime?
 
   // --- DOCUMENT ---
   content  String? // Nội dung bài đọc (HTML)
@@ -360,6 +364,7 @@ model Lesson {
   quizAttempts QuizAttempt[]
 
   @@index([sectionId, sortOrder])
+  @@index([videoId]) // Webhook Bunny tra bài theo guid video
   @@map("lessons")
 }
 
@@ -527,6 +532,9 @@ model LessonProgress {
 
   @@unique([userId, lessonId])
   @@index([lessonId])
+  // Việc 30: "Lần học gần nhất" (MAX(updatedAt) theo người — báo cáo Theo người), "Người học 30 ngày" (Dashboard tập đoàn),
+  // "Tiếp tục học" (bài dở mới nhất của 1 người) → index-only scan thay vì quét cả bảng
+  @@index([userId, updatedAt])
   @@map("lesson_progress")
 }
 

@@ -9,7 +9,7 @@ export default async function VerifyHomePage({ searchParams }: { searchParams: P
   if (code) redirect(`/verify/${encodeURIComponent(code.slice(0, 40))}`);
 
   return (
-    <section className="rounded-md bg-card p-8 shadow-md">
+    <section className="rounded-md bg-card p-5 shadow-md sm:p-8">
       <div className="mb-6 flex items-center gap-3">
         <span className="flex size-12 items-center justify-center rounded-md bg-primary/16 text-primary">
           <ShieldCheck className="size-6" />

@@ -16,8 +16,8 @@ export function HeaderBreadcrumb() {
     <nav aria-label="Vị trí trang" className="flex min-w-0 items-center gap-1.5 text-[15px]">
       {group && group.label !== item.label && (
         <>
-          <span className="truncate text-muted-foreground">{group.label}</span>
-          <ChevronRight className="size-4 shrink-0 text-foreground/40" />
+          <span className="hidden truncate text-muted-foreground sm:inline">{group.label}</span>
+          <ChevronRight className="hidden size-4 shrink-0 text-foreground/40 sm:block" />
         </>
       )}
       <span className="truncate font-medium text-foreground">{item.label}</span>

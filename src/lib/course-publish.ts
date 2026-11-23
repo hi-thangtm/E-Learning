@@ -22,6 +22,33 @@ export type PublishCheckResult = {
   summary: { sections: number; lessons: number; videos: number; documents: number; quizzes: number; questions: number };
 };
 
+type VideoFields = { videoProvider: string | null; videoId: string | null; videoStatus: string | null; durationSeconds: number | null };
+
+/** Lý do bài video CHƯA phát được (null = sẵn sàng). */
+function videoBlockReason(l: VideoFields): string | null {
+  if (!l.videoProvider || !l.videoId) return "chưa có video";
+  if (l.videoStatus === "PROCESSING") return "video đang xử lý";
+  if (l.videoStatus === "FAILED") return "video xử lý lỗi";
+  if (l.videoStatus !== "READY" || !l.durationSeconds) return "video chưa có thời lượng";
+  return null;
+}
+
+/**
+ * Bài video đang dùng (chương / bài không ẩn) chưa sẵn sàng — chặn phát hành bản cập nhật MINOR / MAJOR / duyệt MAJOR
+ * (VD vừa thay video Bunny trên khoá đã phát hành, video còn đang xử lý). Trả danh sách “Chương › Bài: lý do”.
+ */
+export async function getVideoBlockers(courseId: string): Promise<string[]> {
+  const lessons = await prisma.lesson.findMany({
+    where: { type: "VIDEO", isArchived: false, section: { courseId, isArchived: false } },
+    orderBy: [{ section: { sortOrder: "asc" } }, { sortOrder: "asc" }],
+    select: { title: true, videoProvider: true, videoId: true, videoStatus: true, durationSeconds: true, section: { select: { title: true } } },
+  });
+  return lessons.flatMap((l) => {
+    const reason = videoBlockReason(l);
+    return reason ? [`${l.section.title} › ${l.title}: ${reason}`] : [];
+  });
+}
+
 export async function getPublishChecks(courseId: string): Promise<PublishCheckResult> {
   const [sections, bank] = await Promise.all([
     prisma.courseSection.findMany({
@@ -63,15 +90,8 @@ export async function getPublishChecks(courseId: string): Promise<PublishCheckRe
 
   for (const l of lessons) {
     if (l.type === "VIDEO") {
-      const ok = !!l.videoProvider && !!l.videoId && l.videoStatus === "READY" && !!l.durationSeconds;
-      const reason = !l.videoProvider || !l.videoId
-        ? "chưa có video"
-        : l.videoStatus === "PROCESSING"
-          ? "video đang xử lý"
-          : l.videoStatus === "FAILED"
-            ? "video xử lý lỗi"
-            : "video chưa có thời lượng";
-      checks.push(ok ? { ok, label: `Bài ${l.title}: video sẵn sàng` } : { ok, label: `Bài ${l.title}: ${reason}`, fix: contentFix });
+      const reason = videoBlockReason(l);
+      checks.push(!reason ? { ok: true, label: `Bài ${l.title}: video sẵn sàng` } : { ok: false, label: `Bài ${l.title}: ${reason}`, fix: contentFix });
     } else if (l.type === "DOCUMENT") {
       const ok = (!!l.content && !isBlankHtml(l.content)) || !!l.fileUrl;
       checks.push(

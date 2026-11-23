@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import type { ComponentType, ReactNode } from "react";
 import { cn } from "@/lib/utils";
 import type { SearchParams } from "@/lib/table-params";
 import { DataTableEmpty } from "./data-table-empty";
@@ -28,8 +28,16 @@ export type DataTableColumn<T> = {
   key: string;
   header: ReactNode;
   cell: (row: T) => ReactNode;
-  /** Lớp cho cả ô đầu bảng và ô dữ liệu (VD: "w-32 text-right") */
+  /** Lớp cho cả ô đầu bảng và ô dữ liệu (VD: "w-32") */
   className?: string;
+  /** Cột số / tiền / %: căn phải (cả tiêu đề) */
+  align?: "right";
+  /**
+   * Chữ dài: cắt bằng “…” trong độ rộng tối đa (mặc định 320px), di chuột thấy đủ (title).
+   * `truncateText` = chữ đầy đủ cho tooltip khi `cell` trả về phần tử (link, badge…).
+   */
+  truncate?: boolean | { maxWidth?: number };
+  truncateText?: (row: T) => string;
 };
 
 export type DataTableFilterConfig = {
@@ -69,7 +77,7 @@ export function DataTable<T>({
   filters?: DataTableFilterConfig[];
   /** Nút bên phải thanh công cụ (VD: "+ Thêm") */
   toolbar?: ReactNode;
-  empty: { title: string; description?: string; action?: ReactNode };
+  empty: { title: string; description?: string; action?: ReactNode; icon?: ComponentType<{ className?: string }> };
   /** Bấm cả dòng để mở trang / panel chi tiết (link, nút trong dòng vẫn hoạt động riêng) */
   rowHref?: (row: T) => string;
   /** Ô lọc tuỳ biến (VD: khoảng ngày) — chèn vào lưới bộ lọc, sau các ô chọn */
@@ -114,6 +122,7 @@ export function DataTable<T>({
                   scope="col"
                   className={cn(
                     "h-14 px-4 text-left align-middle text-[13px] font-medium tracking-[0.2px] whitespace-nowrap text-foreground uppercase first:pl-6 last:pr-6",
+                    col.align === "right" && "text-right",
                     col.className,
                   )}
                 >
@@ -136,10 +145,11 @@ export function DataTable<T>({
                     key={col.key}
                     className={cn(
                       "h-[50px] px-4 align-middle text-[15px] whitespace-nowrap text-muted-foreground first:pl-6 last:pr-6",
+                      col.align === "right" && "text-right tabular-nums",
                       col.className,
                     )}
                   >
-                    {col.cell(row)}
+                    {col.truncate ? <TruncatedCell col={col} row={row} /> : col.cell(row)}
                   </td>
                 ));
                 const rowClass = "border-b border-border transition-colors last:border-0 hover:bg-muted/50";
@@ -165,6 +175,18 @@ export function DataTable<T>({
         pageSize={pageSize}
         total={total}
       />
+    </div>
+  );
+}
+
+/** Ô chữ dài: cắt “…” trong maxWidth, title = chữ đầy đủ (lấy từ truncateText hoặc chính ô nếu là chuỗi). */
+function TruncatedCell<T>({ col, row }: { col: DataTableColumn<T>; row: T }) {
+  const content = col.cell(row);
+  const maxWidth = typeof col.truncate === "object" && col.truncate.maxWidth ? col.truncate.maxWidth : 320;
+  const full = col.truncateText?.(row) ?? (typeof content === "string" || typeof content === "number" ? String(content) : undefined);
+  return (
+    <div className="truncate" style={{ maxWidth }} title={full}>
+      {content}
     </div>
   );
 }

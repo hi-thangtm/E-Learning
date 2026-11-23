@@ -200,10 +200,16 @@ async function resolveOrg(
 
 const NO_ACCESS = "Người dùng không tồn tại hoặc bạn không có quyền.";
 
-/** Phạm vi (Quy tắc 1): Admin công ty chỉ thao tác người cùng công ty và không phải Admin tập đoàn. */
-function canManageUser(actor: CurrentUser, target: { companyId: string; role: Role }): boolean {
+/**
+ * Phạm vi (Quy tắc 1): Admin công ty chỉ thao tác người cùng công ty, không phải Admin tập đoàn,
+ * và KHÔNG phải Admin công ty khác (sửa / đặt lại mật khẩu / khoá / mở khoá / xoá khoá đăng nhập / đổi vai trò
+ * người đang là COMPANY_ADMIN → chỉ GROUP_ADMIN — Việc 29B #15). Ngoại lệ: tự sửa hồ sơ của chính mình
+ * (tự đổi vai trò / công ty, tự khoá, tự đặt lại mật khẩu đã bị chặn riêng ở từng action).
+ */
+function canManageUser(actor: CurrentUser, target: { id: string; companyId: string; role: Role }): boolean {
   if (actor.role === "GROUP_ADMIN") return true;
-  return target.companyId === actor.companyId && target.role !== "GROUP_ADMIN";
+  if (target.companyId !== actor.companyId || target.role === "GROUP_ADMIN") return false;
+  return target.role !== "COMPANY_ADMIN" || target.id === actor.id;
 }
 
 function revalidateAll() {

@@ -8,10 +8,24 @@ import { NextResponse, type NextRequest } from "next/server";
  *   'unsafe-eval' chỉ ở dev (React dùng eval để dựng lại stack lỗi).
  * - style-src 'unsafe-inline': thuộc tính style="" (thanh tiến độ, biểu đồ recharts, vị trí popup của Base UI…) KHÔNG gắn nonce được;
  *   style không chạy mã nên rủi ro thấp hơn script nhiều.
- * - frame-src 'self': xem trước / đọc PDF trong iframe trỏ tới /api/files (cùng nguồn). Ngoài ra chỉ YouTube (nocookie) và Bunny.
+ * - frame-src 'self': xem trước / đọc PDF trong iframe trỏ tới /api/files (cùng nguồn). Ngoài ra chỉ YouTube (nocookie) và trình phát
+ *   Bunny (player.mediadelivery.net — host hiện hành; iframe.mediadelivery.net — host cũ).
  * - connect-src video.bunnycdn.com: trình duyệt tải video thẳng lên Bunny Stream (TUS).
+ * - Kiểm thử (Bunny giả lập): BUNNY_EMBED_HOST / BUNNY_TUS_ENDPOINT được đặt → thêm ĐÚNG origin của chúng (không dùng *).
  * Route /api/* không qua proxy (không trả HTML); header chung khác đặt ở next.config.ts.
  */
+/** Origin của URL trong biến môi trường (chỉ http / https); không đặt hoặc sai → "" */
+function envOrigin(name: string): string {
+  const value = process.env[name]?.trim();
+  if (!value) return "";
+  try {
+    const url = new URL(value);
+    return url.protocol === "https:" || url.protocol === "http:" ? ` ${url.origin}` : "";
+  } catch {
+    return "";
+  }
+}
+
 export function proxy(request: NextRequest) {
   const nonce = Buffer.from(crypto.randomUUID()).toString("base64");
   const isDev = process.env.NODE_ENV === "development";
@@ -24,8 +38,8 @@ export function proxy(request: NextRequest) {
     `style-src 'self' 'unsafe-inline'`,
     `img-src 'self' data: blob: https://i.ytimg.com`,
     `font-src 'self'`,
-    `connect-src 'self' https://video.bunnycdn.com${isDev ? " ws: wss:" : ""}`,
-    `frame-src 'self' https://www.youtube-nocookie.com https://iframe.mediadelivery.net`,
+    `connect-src 'self' https://video.bunnycdn.com${envOrigin("BUNNY_TUS_ENDPOINT")}${isDev ? " ws: wss:" : ""}`,
+    `frame-src 'self' https://www.youtube-nocookie.com https://iframe.mediadelivery.net https://player.mediadelivery.net${envOrigin("BUNNY_EMBED_HOST")}`,
     `media-src 'self' blob:`,
     `worker-src 'self' blob:`,
     `object-src 'none'`,

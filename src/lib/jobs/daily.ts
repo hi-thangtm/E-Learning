@@ -1,5 +1,7 @@
 import "server-only";
 import { ackDueDate, knownVersion } from "@/lib/acknowledgements";
+import { deleteBunnyVideo, isBunnyConfigured } from "@/lib/bunny";
+import { syncBunnyLesson } from "@/lib/bunny-sync";
 import { logAudit } from "@/lib/audit";
 import { prisma } from "@/lib/db";
 import { addDaysIso, dueAfterDays, formatDate, vnDayEnd, vnIsoDate } from "@/lib/format";
@@ -34,6 +36,8 @@ export type DailyJobCounts = {
   certExpiredReset: number;
   notificationsDeleted: number;
   ackOverdue: number;
+  bunnyStatusSynced: number;
+  bunnyPendingCleaned: number;
 };
 
 export const DAILY_JOB_PARTS: { key: keyof DailyJobCounts; label: string }[] = [
@@ -44,6 +48,8 @@ export const DAILY_JOB_PARTS: { key: keyof DailyJobCounts; label: string }[] = [
   { key: "certExpiredReset", label: "Chứng nhận hết hạn → học lại" },
   { key: "notificationsDeleted", label: "Dọn thông báo cũ" },
   { key: "ackOverdue", label: "Nhắc xác nhận cập nhật quá hạn" },
+  { key: "bunnyStatusSynced", label: "Cập nhật video đang xử lý" },
+  { key: "bunnyPendingCleaned", label: "Dọn video tải dở" },
 ];
 
 export type DailyJobResult =
@@ -333,6 +339,55 @@ async function cleanupNotifications(now: Date): Promise<number> {
 // ---------------------------------------------------------------------------------------------
 // Chạy
 
+/** h. Video Bunny còn “đang xử lý” (webhook bị lỡ, đóng dialog sớm) → hỏi lại Bunny. Trả số bài đã đổi trạng thái. */
+async function syncProcessingVideos(): Promise<number> {
+  if (!isBunnyConfigured()) return 0;
+  let changed = 0;
+  await forEachBatch(
+    (cursor) =>
+      prisma.lesson.findMany({
+        where: { videoProvider: "BUNNY", videoStatus: "PROCESSING", videoId: { not: null } },
+        select: { id: true, videoId: true },
+        ...page(cursor),
+      }),
+    async (rows) => {
+      for (const l of rows) {
+        const r = await syncBunnyLesson({ id: l.id, videoId: l.videoId! });
+        if (r?.changed) changed++;
+      }
+    },
+  );
+  return changed;
+}
+
+/** i. Video Bunny tải dở quá 24 giờ (tạo rồi không hoàn tất / huỷ — đóng tab, mất mạng) → xoá trên Bunny + bỏ khỏi bài. */
+async function cleanupPendingVideos(now: Date): Promise<number> {
+  const before = new Date(now.getTime() - DAY_MS);
+  let cleaned = 0;
+  await forEachBatch(
+    (cursor) =>
+      prisma.lesson.findMany({
+        where: { pendingVideoId: { not: null }, pendingVideoCreatedAt: { lt: before } },
+        select: { id: true, pendingVideoId: true },
+        ...page(cursor),
+      }),
+    async (rows) => {
+      for (const l of rows) {
+        // Bỏ khỏi bài trước (có điều kiện — không đụng lượt tải mới vừa bắt đầu), rồi mới xoá trên Bunny
+        const cleared = await prisma.lesson.updateMany({
+          where: { id: l.id, pendingVideoId: l.pendingVideoId },
+          data: { pendingVideoId: null, pendingVideoCreatedAt: null },
+        });
+        if (cleared.count === 1) {
+          await deleteBunnyVideo(l.pendingVideoId);
+          cleaned++;
+        }
+      }
+    },
+  );
+  return cleaned;
+}
+
 export async function runDailyJob(options: { triggeredBy: string | null; trigger: DailyJobTrigger }): Promise<DailyJobResult> {
   const started = Date.now();
 
@@ -353,6 +408,8 @@ export async function runDailyJob(options: { triggeredBy: string | null; trigger
         certExpiredReset: 0,
         notificationsDeleted: 0,
         ackOverdue: 0,
+        bunnyStatusSynced: 0,
+        bunnyPendingCleaned: 0,
       };
       const errors: Partial<Record<keyof DailyJobCounts, string>> = {};
       const parts: [keyof DailyJobCounts, (now: Date) => Promise<number>][] = [
@@ -363,6 +420,8 @@ export async function runDailyJob(options: { triggeredBy: string | null; trigger
         ["certExpiredReset", resetExpiredCertificates],
         ["notificationsDeleted", cleanupNotifications],
         ["ackOverdue", remindAckOverdue],
+        ["bunnyStatusSynced", syncProcessingVideos],
+        ["bunnyPendingCleaned", cleanupPendingVideos],
       ];
       for (const [key, run] of parts) {
         try {

@@ -7,6 +7,7 @@ import { getParam, type SearchParams } from "@/lib/table-params";
 import { findCourseForEdit } from "../scope";
 import { QuestionImportWizard } from "./import-wizard";
 import { QUESTION_IMPORT_MAX_ROWS } from "./types";
+import { formatNumber } from "@/lib/format";
 
 export const metadata: Metadata = { title: "Import câu hỏi" };
 
@@ -31,7 +32,7 @@ export default async function ImportQuestionsPage({ searchParams }: { searchPara
         <h1 className="text-2xl font-medium text-foreground">Import câu hỏi từ Excel</h1>
         <p className="text-[15px] text-muted-foreground">
           Tải file mẫu, điền câu hỏi, tải lên để kiểm tra. Hệ thống chỉ lưu khi file không còn dòng lỗi. Tối đa{" "}
-          {QUESTION_IMPORT_MAX_ROWS.toLocaleString("vi-VN")} câu, 5MB, định dạng .xlsx.
+          {formatNumber(QUESTION_IMPORT_MAX_ROWS)} câu, 5MB, định dạng .xlsx.
         </p>
       </div>
       <QuestionImportWizard course={{ id: course.id, label: `${course.code} — ${course.title}` }} />

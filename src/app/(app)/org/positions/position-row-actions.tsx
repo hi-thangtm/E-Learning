@@ -5,6 +5,7 @@ import { ConfirmDialog } from "@/components/confirm-dialog";
 import { Button } from "@/components/ui/button";
 import { togglePositionAction } from "./actions";
 import { PositionFormDialog, type PositionFormValue } from "./position-form-dialog";
+import { Tooltip } from "@/components/ui/tooltip";
 
 /** Nút sửa + ẩn/hiện trên mỗi dòng (chỉ hiện cho Admin tập đoàn). */
 export function PositionRowActions({
@@ -21,21 +22,20 @@ export function PositionRowActions({
       <PositionFormDialog
         position={position}
         trigger={
-          <Button variant="ghost" size="icon-sm" aria-label={`Sửa ${position.code}`} title="Sửa">
+          <Tooltip label="Sửa"><Button variant="ghost" size="icon-sm" aria-label={`Sửa ${position.code}`}>
             <Pencil className="size-[18px]" />
-          </Button>
+          </Button></Tooltip>
         }
       />
       <ConfirmDialog
         trigger={
-          <Button
+          <Tooltip label={isActive ? "Ẩn" : "Hiện lại"}><Button
             variant="ghost"
             size="icon-sm"
             aria-label={isActive ? `Ẩn ${position.code}` : `Hiện ${position.code}`}
-            title={isActive ? "Ẩn" : "Hiện lại"}
           >
             {isActive ? <EyeOff className="size-[18px]" /> : <Eye className="size-[18px]" />}
-          </Button>
+          </Button></Tooltip>
         }
         title={isActive ? `Ẩn chức danh ${position.code}?` : `Hiện lại chức danh ${position.code}?`}
         description={

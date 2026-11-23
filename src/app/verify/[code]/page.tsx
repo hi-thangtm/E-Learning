@@ -62,7 +62,7 @@ export default async function VerifyCodePage({ params }: { params: Promise<{ cod
   return (
     <div className="space-y-6">
       <section className="overflow-hidden rounded-md bg-card shadow-md">
-        <div className={cn("flex items-center gap-4 px-8 py-6", view.box)}>
+        <div className={cn("flex items-center gap-4 px-5 py-5 sm:px-8 sm:py-6", view.box)}>
           <Icon className="size-12 shrink-0" />
           <div>
             <p className="text-2xl font-medium">{view.title}</p>
@@ -71,12 +71,12 @@ export default async function VerifyCodePage({ params }: { params: Promise<{ cod
         </div>
 
         {cert ? (
-          <dl className="grid grid-cols-2 gap-x-8 gap-y-5 p-8 text-[15px]">
-            <div className="col-span-2">
+          <dl className="grid grid-cols-1 gap-x-8 gap-y-5 p-5 text-[15px] sm:grid-cols-2 sm:p-8">
+            <div className="sm:col-span-2">
               <dt className="text-[13px] text-muted-foreground">Người nhận</dt>
               <dd className="text-xl font-medium text-foreground">{cert.recipientName}</dd>
             </div>
-            <div className="col-span-2">
+            <div className="sm:col-span-2">
               <dt className="text-[13px] text-muted-foreground">Khoá học</dt>
               <dd className="font-medium text-foreground">
                 {cert.courseTitle} <span className="font-normal text-muted-foreground">· phiên bản v{cert.courseVersion}</span>
@@ -105,7 +105,7 @@ export default async function VerifyCodePage({ params }: { params: Promise<{ cod
             )}
           </dl>
         ) : (
-          <p className="p-8 text-[15px] text-muted-foreground">
+          <p className="p-5 text-[15px] text-muted-foreground sm:p-8">
             Không có chứng nhận nào mang mã này. Kiểm tra lại mã (VD: CERT-2026-AB3KZ9) — mã không phân biệt chữ hoa / thường.
           </p>
         )}

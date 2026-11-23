@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { Download, SearchX, Users } from "lucide-react";
+import { Download, Users } from "lucide-react";
 import { DataTableFilter } from "@/components/data-table/data-table-filter";
 import { DataTablePagination } from "@/components/data-table/data-table-pagination";
 import { DataTableSearch } from "@/components/data-table/data-table-search";
@@ -13,6 +13,7 @@ import { cn } from "@/lib/utils";
 import { EmptyTeam } from "../empty-team";
 import { MembersTable } from "./members-table";
 import { loadMembers, parseMemberQuery } from "./query";
+import { EmptyFiltered, EmptyState } from "@/components/empty-state";
 
 export const metadata: Metadata = { title: "Nhân viên" };
 
@@ -114,17 +115,11 @@ export default async function TeamMembersPage({ searchParams }: { searchParams: 
         </div>
 
         {rows.length === 0 ? (
-          <div className="flex flex-col items-center gap-3 border-t border-border py-14 text-center">
-            <div className="flex size-16 items-center justify-center rounded-full bg-primary/16 text-primary">
-              {filtered ? <SearchX className="size-8" /> : <Users className="size-8" />}
-            </div>
-            <p className="text-lg font-medium text-foreground">{filtered ? "Không có nhân viên phù hợp" : "Chưa có nhân viên nào trong phạm vi"}</p>
-            {filtered && (
-              <Link href={buildHref(PATHNAME, sp, { q: null, department: null, overdue: null, unack: null, page: null })} className="text-[15px] text-primary hover:underline">
-                Xoá tìm kiếm và bộ lọc
-              </Link>
-            )}
-          </div>
+          filtered ? (
+            <EmptyFiltered className="border-t border-border" clearHref={buildHref(PATHNAME, sp, { q: null, department: null, overdue: null, unack: null, page: null })} />
+          ) : (
+            <EmptyState icon={Users} title="Chưa có nhân viên nào trong phạm vi" className="border-t border-border" />
+          )
         ) : (
           <>
             <MembersTable key={`${exportQuery}|${page}`} rows={pageRows} total={rows.length} />

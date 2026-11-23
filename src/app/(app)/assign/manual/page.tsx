@@ -130,10 +130,10 @@ export default async function EnrollmentsPage({ searchParams }: { searchParams: 
   const columns: DataTableColumn<Row>[] = [
     {
       key: "learner",
-      header: "Người học",
+      header: "Học viên",
       cell: (e) => (
         <div className="min-w-0">
-          <Link href={`/org/users/${e.user.id}`} className="block truncate font-medium text-foreground hover:text-primary">
+          <Link href={`/org/users/${e.user.id}`} className="block max-w-56 truncate font-medium text-foreground hover:text-primary" title={e.user.fullName}>
             {e.user.fullName}
           </Link>
           <p className="text-[13px]">{e.user.employeeCode}</p>
@@ -336,7 +336,7 @@ export default async function EnrollmentsPage({ searchParams }: { searchParams: 
         total={total}
         page={page}
         pageSize={pageSize}
-        searchPlaceholder="Tìm người học (tên, mã NV)..."
+        searchPlaceholder="Tìm học viên (tên, mã NV)..."
         filters={filters}
         toolbar={assignButton}
         empty={{

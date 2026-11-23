@@ -58,6 +58,35 @@ export function formatNumber(value: number): string {
   return new Intl.NumberFormat("vi-VN").format(value);
 }
 
+/** Số thập phân kiểu Việt Nam (4,5). `digits` = số chữ số sau dấu phẩy tối đa; `fixed` = luôn đủ `digits` chữ số (4,0). Không bao giờ in "-0". */
+export function formatDecimal(value: number, digits = 1, fixed = false): string {
+  const factor = 10 ** digits;
+  const rounded = Math.round(value * factor) / factor || 0;
+  return rounded.toLocaleString("vi-VN", { minimumFractionDigits: fixed ? digits : 0, maximumFractionDigits: digits });
+}
+
+/** Phần trăm: 12,5% (value đã là số %, không phải tỉ lệ 0–1). */
+export function formatPercent(value: number, digits = 1): string {
+  return `${formatDecimal(value, digits)}%`;
+}
+
+/** Dung lượng file: “2,1MB”, từ 1GB trở lên “4,3GB”. `roundUp` = làm tròn LÊN (báo vượt giới hạn không hiện thành đúng bằng giới hạn). */
+export function formatFileSize(bytes: number, roundUp = false): string {
+  const mb = bytes / 1024 / 1024;
+  const [value, unit] = mb >= 1024 ? [mb / 1024, "GB"] : [mb, "MB"];
+  return `${formatDecimal(roundUp ? Math.ceil(value * 10) / 10 : value)}${unit}`;
+}
+
+/** Thời lượng giây → “m:ss” hoặc “h:mm:ss”; không có → “—”. */
+export function formatDuration(seconds: number | null | undefined): string {
+  if (!seconds || seconds < 0) return "—";
+  const s = Math.round(seconds);
+  const h = Math.floor(s / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  const sec = String(s % 60).padStart(2, "0");
+  return h > 0 ? `${h}:${String(m).padStart(2, "0")}:${sec}` : `${m}:${sec}`;
+}
+
 const dateTimeSecondsFormatter = new Intl.DateTimeFormat("vi-VN", {
   timeZone: TIME_ZONE,
   day: "2-digit",
@@ -86,6 +115,13 @@ const isoDayFormatter = new Intl.DateTimeFormat("en-CA", {
 /** Ngày hôm nay (hoặc `date`) theo giờ Việt Nam, dạng yyyy-MM-dd. */
 export function vnIsoDate(date: Date = new Date()): string {
   return isoDayFormatter.format(date);
+}
+
+/** Chuỗi yyyy-MM-dd là NGÀY CÓ THẬT (VD 2026-02-31 → null). Trả lại chính chuỗi đó nếu hợp lệ. */
+export function validIsoDate(value: string): string | null {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return null;
+  const d = new Date(`${value}T00:00:00Z`);
+  return Number.isNaN(d.getTime()) || d.toISOString().slice(0, 10) !== value ? null : value;
 }
 
 /** Thời điểm 00:00 giờ Việt Nam (UTC+7, không có giờ mùa hè) của ngày yyyy-MM-dd. */

@@ -76,4 +76,4 @@ export function isPublished(course: { currentVersion: number }): boolean {
   return course.currentVersion > 0;
 }
 
-export const LESSON_TYPE_LABELS = { VIDEO: "Video", DOCUMENT: "Tài liệu", QUIZ: "Kiểm tra" } as const;
+export const LESSON_TYPE_LABELS = { VIDEO: "Video", DOCUMENT: "Tài liệu", QUIZ: "Bài kiểm tra" } as const;

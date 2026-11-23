@@ -77,7 +77,7 @@ export function CourseCard({
 
         <Link
           href={detailHref}
-          className={cn("line-clamp-2 min-h-[3em] text-lg leading-snug font-medium text-foreground hover:text-primary", pathLock && "text-foreground/60")}
+          className={cn("line-clamp-2 min-h-[3em] text-lg leading-normal break-words font-medium text-foreground hover:text-primary", pathLock && "text-foreground/60")}
         >
           {e.course.title}
         </Link>

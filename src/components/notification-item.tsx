@@ -27,12 +27,13 @@ export function NotificationItem({
   const Icon = meta.icon;
 
   return (
-    <div className={cn("flex items-start gap-3 transition-colors", !item.read && "bg-primary/8", className)}>
+    // Có nút thao tác: điện thoại xếp nút xuống dưới nội dung (không ép chữ thành cột hẹp)
+    <div className={cn("flex items-start gap-3 transition-colors", actions && "flex-col gap-2 sm:flex-row sm:gap-3", !item.read && "bg-primary/8", className)}>
       <button
         type="button"
         onClick={() => onOpen(item)}
         disabled={disabled}
-        className="flex min-w-0 flex-1 items-start gap-3 text-left outline-none focus-visible:ring-3 focus-visible:ring-ring/50 disabled:opacity-60"
+        className="flex w-full min-w-0 flex-1 items-start gap-3 text-left outline-none focus-visible:ring-3 focus-visible:ring-ring/50 disabled:opacity-60"
       >
         <span className={cn("flex size-[38px] shrink-0 items-center justify-center rounded-full", TONE_ICON_CLASSES[meta.tone])}>
           <Icon className="size-5" />
@@ -50,7 +51,7 @@ export function NotificationItem({
         </span>
         {!item.read && <span className="mt-2 size-2 shrink-0 rounded-full bg-primary" aria-label="Chưa đọc" />}
       </button>
-      {actions}
+      {actions && <div className="self-end sm:self-start">{actions}</div>}
     </div>
   );
 }

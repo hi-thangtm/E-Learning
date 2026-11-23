@@ -2,6 +2,7 @@
 
 import { Bar, BarChart, CartesianGrid, Cell, LabelList, Line, LineChart, XAxis, YAxis } from "recharts";
 import { ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig } from "@/components/ui/chart";
+import { formatPercent } from "@/lib/format";
 
 /** Màu theo docs/design-system.md: --chart-1 primary, -3 success, -4 warning, -5 error. */
 const RATE_CONFIG = { rate: { label: "Tỷ lệ hoàn thành (%)", color: "var(--chart-1)" } } satisfies ChartConfig;
@@ -29,7 +30,7 @@ export function CompanyRateChart({ data }: { data: CompanyRatePoint[] }) {
               labelFormatter={(_, payload) => (payload?.[0]?.payload as CompanyRatePoint | undefined)?.name ?? ""}
               formatter={(_, __, item) => {
                 const r = (item.payload as CompanyRatePoint).rate;
-                return r === null ? "Chưa giao khoá nào" : `${r.toLocaleString("vi-VN")}% hoàn thành`;
+                return r === null ? "Chưa giao khoá nào" : `${formatPercent(r)} hoàn thành`;
               }}
             />
           }

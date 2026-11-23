@@ -34,7 +34,7 @@ export type WizardCourse = {
   ownerCode: string;
   /** Lộ trình: số khoá */
   courseCount: number;
-  /** Công ty có người học được giao khoá này ("all" = mọi công ty trong phạm vi) */
+  /** Công ty có học viên được giao khoá này ("all" = mọi công ty trong phạm vi) */
   learnerCompanies: string[] | "all";
 };
 

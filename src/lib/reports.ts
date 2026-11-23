@@ -1,5 +1,6 @@
 import "server-only";
 import { Prisma, type EnrollmentStatus } from "@prisma/client";
+import { courseVisibleWhere } from "@/lib/course-scope";
 import { prisma } from "@/lib/db";
 import { vnDayEnd, vnDayStart } from "@/lib/format";
 import { getTeamScope, type TeamActor, type TeamScope } from "@/lib/scope";
@@ -202,7 +203,8 @@ function enrollmentCond(ctx: ReportContext, opts: { ignoreDate?: boolean } = {})
 }
 
 const pct = (part: number, whole: number) => (whole > 0 ? Math.round((part / whole) * 1000) / 10 : null);
-const round1 = (v: number | null) => (v === null ? null : Math.round(v * 10) / 10);
+/** Làm tròn 1 chữ số; `|| 0` đổi -0 (số âm rất nhỏ làm tròn) thành 0 để không hiện "-0" */
+const round1 = (v: number | null) => (v === null ? null : Math.round(v * 10) / 10 || 0);
 
 // ---------------------------------------------------------------------------------------------
 // Tab 1 — Theo khoá học
@@ -301,6 +303,26 @@ export type LearnerRow = {
   ackState: "unconfirmed" | "relearning" | null;
 };
 
+const REPORT_COURSE_SELECT = { id: true, code: true, title: true, currentVersion: true } as const;
+
+/**
+ * Khoá được xem trong báo cáo (Việc 29B #10): có lượt học của người trong phạm vi (getTeamScope → ctx.userIds)
+ * HOẶC nằm trong phạm vi xem khoá (courseVisibleWhere). Ngoài phạm vi → null (coi như không tồn tại).
+ */
+export async function findReportCourse(ctx: ReportContext, courseId: string, db: Db = prisma) {
+  if (!courseId || courseId.length > 50) return null;
+  return db.course.findFirst({
+    where: {
+      id: courseId,
+      OR: [
+        ...(ctx.userIds.length ? [{ enrollments: { some: { userId: { in: ctx.userIds } } } }] : []),
+        await courseVisibleWhere(ctx.actor),
+      ],
+    },
+    select: REPORT_COURSE_SELECT,
+  });
+}
+
 /** Người của 1 khoá (theo bộ lọc). `mode = "unacknowledged"` -> chỉ người chưa nắm bản mới nhất (tab Nắm quy trình). */
 export async function courseLearners(
   ctx: ReportContext,
@@ -308,7 +330,7 @@ export async function courseLearners(
   mode: "all" | "unacknowledged" = "all",
   db: Db = prisma,
 ): Promise<{ course: { id: string; code: string; title: string; currentVersion: number }; rows: LearnerRow[] } | null> {
-  const course = await db.course.findUnique({ where: { id: courseId }, select: { id: true, code: true, title: true, currentVersion: true } });
+  const course = await findReportCourse(ctx, courseId, db);
   if (!course || ctx.userIds.length === 0) return course ? { course, rows: [] } : null;
   const extra =
     mode === "unacknowledged"

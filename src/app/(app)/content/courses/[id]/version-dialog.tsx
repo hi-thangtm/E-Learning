@@ -245,7 +245,7 @@ function VersionWizard({
                 htmlFor="version-summary"
                 required
                 error={errors.summary}
-                hint={kind === "MINOR" ? "Người học đọc phần này rồi bấm xác nhận." : "Người học thấy phần này khi được yêu cầu học lại."}
+                hint={kind === "MINOR" ? "Học viên đọc phần này rồi bấm xác nhận." : "Học viên thấy phần này khi được yêu cầu học lại."}
               >
                 <div id="version-summary">
                   <DocumentEditor name="summary" initialHtml="" invalid={!!errors.summary} />
@@ -354,7 +354,7 @@ function VersionWizard({
             {kind === "MAJOR" && !proposing && (
               <p className="flex items-start gap-2 text-[13px] text-warning">
                 <TriangleAlert className="mt-0.5 size-4 shrink-0" />
-                Người học nhận thông báo ngay sau khi phát hành.
+                Học viên nhận thông báo ngay sau khi phát hành.
               </p>
             )}
           </div>

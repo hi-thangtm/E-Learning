@@ -16,6 +16,7 @@ import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { NotificationView } from "@/lib/notification-types";
+import { Tooltip } from "@/components/ui/tooltip";
 
 const POLL_MS = 60_000;
 
@@ -113,7 +114,7 @@ export function NotificationBell({ initialCount }: { initialCount: number }) {
     <DropdownMenu open={open} onOpenChange={onOpenChange}>
       <DropdownMenuTrigger
         render={
-          <Button
+          <Tooltip label={count > 0 ? `Thông báo, ${count} chưa đọc` : "Thông báo"}><Button
             variant="ghost"
             size="icon"
             className="relative rounded-full"
@@ -125,7 +126,7 @@ export function NotificationBell({ initialCount }: { initialCount: number }) {
                 {badge}
               </span>
             )}
-          </Button>
+          </Button></Tooltip>
         }
       />
       {/* Rộng 380px, căn mép phải với chuông; không bao giờ rộng hơn màn hình (chừa 16px mỗi bên) */}

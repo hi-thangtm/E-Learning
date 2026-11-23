@@ -1,8 +1,9 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { redirect } from "next/navigation";
+import { notFound } from "next/navigation";
 import { ChevronLeft } from "lucide-react";
 import { StatusBadge } from "@/components/status-badge";
+import { assignmentRuleScopeWhere } from "@/lib/assignment-scope";
 import { requireRole } from "@/lib/current-user";
 import { prisma } from "@/lib/db";
 import { loadRuleFormOptions } from "../load-options";
@@ -14,11 +15,11 @@ export default async function EditRulePage({ params }: { params: Promise<{ id: s
   const actor = await requireRole(["GROUP_ADMIN", "COMPANY_ADMIN"]);
   const { id } = await params;
 
-  // Phạm vi: Admin công ty chỉ quy tắc của công ty mình
+  // Phạm vi (Việc 29B #3): Admin công ty chỉ quy tắc do công ty mình tạo VÀ áp cho công ty mình; ngoài phạm vi → 404
   const rule =
     id && id.length <= 50
       ? await prisma.assignmentRule.findFirst({
-          where: { id, ...(actor.role === "GROUP_ADMIN" ? {} : { ownerCompanyId: actor.companyId }) },
+          where: { id, ...assignmentRuleScopeWhere(actor) },
           select: {
             id: true,
             name: true,
@@ -34,7 +35,7 @@ export default async function EditRulePage({ params }: { params: Promise<{ id: s
         })
       : null;
   const subjectId = rule?.courseId ?? rule?.learningPathId;
-  if (!rule || !subjectId) redirect("/assign/rules");
+  if (!rule || !subjectId) notFound();
 
   const options = await loadRuleFormOptions(actor, { courseId: rule.courseId, pathId: rule.learningPathId });
 

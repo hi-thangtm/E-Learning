@@ -8,7 +8,7 @@ import { StatusBadge } from "@/components/status-badge";
 import { buttonVariants } from "@/components/ui/button";
 import { defaultCoverUrl } from "@/lib/course-cover";
 import { requireUser } from "@/lib/current-user";
-import { formatDate } from "@/lib/format";
+import { formatDate, formatPercent } from "@/lib/format";
 import { getNextLessonIds } from "@/lib/learning";
 import { getMyPath, type PathStep } from "@/lib/my-paths";
 import { cn } from "@/lib/utils";
@@ -32,10 +32,10 @@ export default async function MyPathDetailPage({ params }: { params: Promise<{ i
         Lộ trình
       </Link>
 
-      <section className="flex items-center justify-between gap-6 rounded-md bg-card p-6 shadow-md">
+      <section className="flex flex-col gap-4 rounded-md bg-card p-4 shadow-md sm:flex-row sm:items-center sm:justify-between sm:gap-6 sm:p-6">
         <div className="min-w-0 space-y-2">
           <div className="flex flex-wrap items-center gap-3">
-            <h1 className="text-2xl font-medium text-foreground">{path.title}</h1>
+            <h1 className="text-xl font-medium break-words text-foreground sm:text-2xl">{path.title}</h1>
             {path.completed ? (
               <StatusBadge tone="success">Hoàn thành</StatusBadge>
             ) : path.overdue ? (
@@ -94,45 +94,48 @@ function TimelineItem({ step: s, index, last, nextLessonId }: { step: PathStep; 
       {!last && <span className="absolute top-9 bottom-0 left-[17px] w-0.5 bg-border" aria-hidden />}
       <span className="relative z-10 shrink-0">{marker}</span>
 
-      <div className={cn("flex min-w-0 flex-1 items-center gap-4 rounded-md border border-border p-3", locked && "bg-muted/40")}>
+      {/* Điện thoại: ảnh + chữ ở trên, nút đầy chiều ngang ở dưới */}
+      <div className={cn("flex min-w-0 flex-1 flex-col gap-3 rounded-md border border-border p-3 sm:flex-row sm:items-center sm:gap-4", locked && "bg-muted/40")}>
+        <div className="flex min-w-0 flex-1 items-start gap-3 sm:items-center sm:gap-4">
         <CourseThumbnail
           thumbnailKey={s.course.thumbnailUrl}
           fallbackSrc={defaultCoverUrl(s.course.categoryId)}
           alt=""
-          className={cn("w-28", locked && "opacity-50")}
+          className={cn("w-16 shrink-0 sm:w-28", locked && "opacity-50")}
         />
         <div className="min-w-0 flex-1 space-y-1.5">
           <p className="text-[13px] text-muted-foreground">Khoá {index + 1}</p>
-          <p className={cn("truncate font-medium", locked ? "text-foreground/60" : "text-foreground")} title={s.course.title}>
+          <p className={cn("line-clamp-2 font-medium break-words sm:truncate", locked ? "text-foreground/60" : "text-foreground")} title={s.course.title}>
             {s.course.title}
           </p>
           {s.state === "completed" && <StatusBadge tone="success">✓ Hoàn thành</StatusBadge>}
           {s.state === "open" && (
-            <div className="flex items-center gap-3">
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
               <StatusBadge tone="primary">Đang mở</StatusBadge>
-              <ProgressBar value={s.progressPercent} className="max-w-40" label={`Tiến độ khoá ${s.course.title}`} />
-              <span className="text-[13px] text-muted-foreground tabular-nums">{s.progressPercent}%</span>
+              <ProgressBar value={s.progressPercent} className="max-w-40 min-w-24 flex-1" label={`Tiến độ khoá ${s.course.title}`} />
+              <span className="text-[13px] text-muted-foreground tabular-nums">{formatPercent(s.progressPercent, 0)}</span>
             </div>
           )}
           {locked && s.blockedBy && (
-            <p className="flex items-center gap-1.5 text-[13px] text-muted-foreground">
-              <Lock className="size-3.5" />
+            <p className="text-[13px] text-muted-foreground">
+              <Lock className="mr-1 inline size-3.5 align-[-2px]" />
               Hoàn thành <span className="font-medium text-foreground">{s.blockedBy.title}</span> để mở
             </p>
           )}
+        </div>
         </div>
         {s.state === "open" && (
           <Link
             href={nextLessonId ? `/learn/${s.course.id}/${nextLessonId}` : `/my-courses/${s.course.id}`}
             prefetch={false}
-            className={cn(buttonVariants(), "shrink-0")}
+            className={cn(buttonVariants(), "h-10 w-full shrink-0 sm:h-[38px] sm:w-auto")}
           >
             <Play />
             Học ngay
           </Link>
         )}
         {s.state === "completed" && (
-          <Link href={`/my-courses/${s.course.id}`} className={cn(buttonVariants({ variant: "secondary" }), "shrink-0")}>
+          <Link href={`/my-courses/${s.course.id}`} className={cn(buttonVariants({ variant: "outline" }), "h-10 w-full shrink-0 sm:h-[38px] sm:w-auto")}>
             <RotateCcw />
             Xem lại
           </Link>

@@ -12,7 +12,7 @@ import {
 } from "@/lib/audit";
 import type { CurrentUser } from "@/lib/current-user";
 import { prisma } from "@/lib/db";
-import { addDaysIso, vnDayStart, vnIsoDate } from "@/lib/format";
+import { addDaysIso, validIsoDate, vnDayStart, vnIsoDate } from "@/lib/format";
 import { getParam, type SearchParams } from "@/lib/table-params";
 
 /**
@@ -26,12 +26,6 @@ export const AUDIT_ENTITY_VALUES = Object.keys(ENTITY_LABELS) as AuditEntityType
 
 export function auditScopeWhere(actor: CurrentUser): Prisma.AuditLogWhereInput {
   return actor.role === "GROUP_ADMIN" ? {} : { companyId: actor.companyId };
-}
-
-function validIsoDate(value: string): string | null {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return null;
-  const d = new Date(`${value}T00:00:00Z`);
-  return Number.isNaN(d.getTime()) || d.toISOString().slice(0, 10) !== value ? null : value;
 }
 
 export type AuditFilters = {

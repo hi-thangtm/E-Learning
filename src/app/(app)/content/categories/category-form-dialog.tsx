@@ -120,7 +120,7 @@ function CategoryForm({ category, onSuccess }: { category?: CategoryFormValue; o
       <DialogFooter>
         <DialogClose render={<Button type="button" variant="outline" disabled={pending} />}>Huỷ</DialogClose>
         <Button type="submit" disabled={pending}>
-          {pending ? "Đang lưu..." : "Lưu"}
+          {pending ? "Đang lưu..." : category ? "Lưu thay đổi" : "Thêm danh mục"}
         </Button>
       </DialogFooter>
     </form>

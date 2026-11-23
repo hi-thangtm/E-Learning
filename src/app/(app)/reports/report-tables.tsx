@@ -5,7 +5,7 @@ import { DataTable, type DataTableColumn } from "@/components/data-table/data-ta
 import { ProgressBar } from "@/components/progress";
 import { StatusBadge } from "@/components/status-badge";
 import { ENROLLMENT_STATUS_LABELS } from "@/lib/enrollment-labels";
-import { formatDate, formatDateTime, formatNumber } from "@/lib/format";
+import { formatDate, formatDateTime, formatDecimal, formatNumber, formatPercent } from "@/lib/format";
 import { CERT_WINDOWS, type CertWindow, type LearnerRow } from "@/lib/reports";
 import { buildHref, type SearchParams } from "@/lib/table-params";
 import { cn } from "@/lib/utils";
@@ -19,17 +19,17 @@ const PATHNAME = "/reports";
 
 const num = (v: number) => <span className="tabular-nums">{formatNumber(v)}</span>;
 const dash = <span className="text-foreground/45">—</span>;
-const one = (v: number | null) => (v === null ? dash : <span className="tabular-nums">{v.toLocaleString("vi-VN", { maximumFractionDigits: 1 })}</span>);
+const one = (v: number | null) => (v === null ? dash : <span className="tabular-nums">{formatDecimal(v)}</span>);
 const rate = (v: number | null) =>
   v === null ? (
     dash
   ) : (
     <div className="flex items-center gap-2">
       <ProgressBar value={v} className="w-16" />
-      <span className="text-[13px] tabular-nums">{v.toLocaleString("vi-VN", { maximumFractionDigits: 1 })}%</span>
+      <span className="text-[13px] tabular-nums">{formatPercent(v)}</span>
     </div>
   );
-const pctText = (v: number | null) => (v === null ? dash : <span className="tabular-nums">{v.toLocaleString("vi-VN", { maximumFractionDigits: 1 })}%</span>);
+const pctText = (v: number | null) => (v === null ? dash : <span className="tabular-nums">{formatPercent(v)}</span>);
 
 type Common = { sp: SearchParams; page: number; pageSize: number; toolbar: ReactNode; filterParams: Record<string, string>; isGroupAdmin: boolean };
 
@@ -86,7 +86,7 @@ export function ReportTable({ data, ...c }: { data: TabData } & Common) {
             ) : (
               <span className="inline-flex items-center gap-1 whitespace-nowrap tabular-nums">
                 <Star className="size-3.5 fill-warning text-warning" />
-                {r.avgRating.toLocaleString("vi-VN", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}
+                {formatDecimal(r.avgRating, 1, true)}
                 <span className="text-muted-foreground">· {r.ratingCount}</span>
               </span>
             ),
@@ -115,8 +115,8 @@ export function ReportTable({ data, ...c }: { data: TabData } & Common) {
           key: "name",
           header: <SortHeader field="fullName" label="Nhân viên" text />,
           cell: (r) => (
-            <Link href={`/team/members/${r.userId}`} className="block hover:text-primary">
-              <span className="block font-medium text-foreground">{r.fullName}</span>
+            <Link href={`/team/members/${r.userId}`} className="block max-w-64 hover:text-primary" title={r.fullName}>
+              <span className="block truncate font-medium text-foreground">{r.fullName}</span>
               <span className="text-[13px] text-muted-foreground">{r.employeeCode}</span>
             </Link>
           ),
@@ -329,8 +329,8 @@ export function ReportTable({ data, ...c }: { data: TabData } & Common) {
           key: "name",
           header: <SortHeader field="fullName" label="Nhân viên" text />,
           cell: (r) => (
-            <Link href={`/team/members/${r.userId}`} className="block hover:text-primary">
-              <span className="block font-medium text-foreground">{r.fullName}</span>
+            <Link href={`/team/members/${r.userId}`} className="block max-w-64 hover:text-primary" title={r.fullName}>
+              <span className="block truncate font-medium text-foreground">{r.fullName}</span>
               <span className="text-[13px] text-muted-foreground">{r.employeeCode}</span>
             </Link>
           ),

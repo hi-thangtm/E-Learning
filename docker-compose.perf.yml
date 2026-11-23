@@ -1,0 +1,61 @@
+# =============================================================================
+# Đo hiệu năng (Việc 30) — file OVERRIDE, dùng KÈM docker-compose.yml (không sửa file gốc):
+#
+#   npm run perf:env && npm run perf:db && npm run perf:seed -- --scale 1
+#   docker compose -f docker-compose.yml -f docker-compose.perf.yml --profile app up -d --build
+#   npm run perf:bench
+#
+# Giả lập VPS 2GB: app ≤ 1GB, Postgres ≤ 512MB (phần còn lại cho Caddy + hệ điều hành), mỗi dịch vụ 1 CPU.
+# App dùng database RIÊNG elearning_perf và chạy ở cổng 3100 (không đụng `npm run dev` ở cổng 3000).
+#
+# LƯU Ý: lệnh trên khởi động lại container "elearning-db" (dùng chung với database phát triển) với giới hạn 512MB.
+# Đo xong, trả cấu hình thường:   docker compose -f docker-compose.yml -f docker-compose.perf.yml --profile app stop app
+#                                 docker compose up -d
+# =============================================================================
+
+services:
+  db:
+    mem_limit: 512m
+    cpus: 1
+    # Cấu hình Postgres cho container 512MB:
+    # - shared_buffers=128MB        bộ đệm trang dùng chung ≈ 25% RAM (khuyến nghị chuẩn); phần còn lại cho page cache của hệ điều hành
+    # - effective_cache_size=384MB  ước lượng tổng bộ nhớ đệm (shared_buffers + page cache) — chỉ giúp bộ lập kế hoạch chọn index, không cấp phát
+    # - work_mem=4MB                bộ nhớ cho MỖI thao tác sort / hash; truy vấn báo cáo vài thao tác × vài kết nối vẫn trong 512MB
+    # - maintenance_work_mem=64MB   VACUUM / CREATE INDEX / migration nhanh hơn, chỉ dùng lúc bảo trì
+    # - max_connections=30          1 app (pool Prisma mặc định = số CPU × 2 + 1) + migrate + công cụ; mỗi kết nối tốn vài MB
+    # - random_page_cost=1.1        ổ SSD: đọc ngẫu nhiên gần như đọc tuần tự → planner dùng index hợp lý hơn
+    # - wal_buffers=4MB, checkpoint_completion_target=0.9  ghi WAL đều, tránh dồn I/O
+    command:
+      - postgres
+      - -c
+      - shared_buffers=128MB
+      - -c
+      - effective_cache_size=384MB
+      - -c
+      - work_mem=4MB
+      - -c
+      - maintenance_work_mem=64MB
+      - -c
+      - max_connections=30
+      - -c
+      - random_page_cost=1.1
+      - -c
+      - wal_buffers=4MB
+      - -c
+      - checkpoint_completion_target=0.9
+
+  migrate:
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/elearning_perf?schema=public
+
+  app:
+    mem_limit: 1g
+    cpus: 1
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/elearning_perf?schema=public
+      AUTH_URL: http://localhost:3100
+      APP_URL: http://localhost:3100
+      # Đếm truy vấn Prisma mỗi request (route /api/perf/queries) — chỉ bật khi đo: PERF_LOG_QUERIES=true docker compose ...
+      PERF_LOG_QUERIES: ${PERF_LOG_QUERIES:-false}
+    ports: !override
+      - "127.0.0.1:3100:3000"

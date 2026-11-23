@@ -6,6 +6,7 @@ import { DataTable, type DataTableColumn } from "@/components/data-table/data-ta
 import { PageHeader } from "@/components/page-header";
 import { StatusBadge } from "@/components/status-badge";
 import { buttonVariants } from "@/components/ui/button";
+import { assignmentRuleScopeWhere } from "@/lib/assignment-scope";
 import { requireRole } from "@/lib/current-user";
 import { prisma } from "@/lib/db";
 import { formatNumber } from "@/lib/format";
@@ -25,7 +26,8 @@ export default async function RulesPage({ searchParams }: { searchParams: Promis
   const sp = await searchParams;
   const { q, page, pageSize, skip, take } = parseTableParams(sp);
   const status = getEnumParam(sp, "status", STATUS_VALUES);
-  const scope: Prisma.AssignmentRuleWhereInput = isGroupAdmin ? {} : { ownerCompanyId: actor.companyId };
+  // Quy tắc toàn tập đoàn / nhắm công ty khác chỉ Admin tập đoàn thấy (Việc 29B #3)
+  const scope: Prisma.AssignmentRuleWhereInput = assignmentRuleScopeWhere(actor);
 
   const [courses, paths] = await Promise.all([
     prisma.course.findMany({

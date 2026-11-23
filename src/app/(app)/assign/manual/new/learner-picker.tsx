@@ -12,11 +12,12 @@ import { formatNumber } from "@/lib/format";
 import { flattenTree } from "@/lib/tree";
 import { searchLearnersAction } from "./actions";
 import type { DepartmentOption, LearnerFilter, LearnerRow, Option, Selection, WizardCourse } from "./types";
+import { Tooltip } from "@/components/ui/tooltip";
 
 const ALL = "__all__";
 
 /**
- * Bước 3 — chọn người học: lọc công ty / phòng ban (gồm phòng con) / chức danh / tìm kiếm,
+ * Bước 3 — chọn học viên: lọc công ty / phòng ban (gồm phòng con) / chức danh / tìm kiếm,
  * tích từng người, chọn cả trang, hoặc “Chọn tất cả N người theo bộ lọc”.
  */
 export function LearnerPicker({
@@ -63,7 +64,7 @@ export function LearnerPicker({
         if (r.ok) setResult({ rows: r.rows, total: r.total, pageSize: r.pageSize });
         else toast.error(r.message);
       } catch {
-        toast.error("Không tải được danh sách người học.");
+        toast.error("Không tải được danh sách học viên.");
       }
     });
   }, [course.kind, course.id, filter, page]);
@@ -118,7 +119,7 @@ export function LearnerPicker({
         <FilterSelect label="Chức danh" value={filter.positionId} allLabel="Mọi chức danh" options={positions} onChange={(v) => setF({ positionId: v })} />
         <div className="relative">
           <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
-          <Input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Tìm tên, mã NV..." aria-label="Tìm người học" className="pl-9" />
+          <Input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Tìm tên, mã NV..." aria-label="Tìm học viên" className="pl-9" />
         </div>
       </div>
 
@@ -163,7 +164,7 @@ export function LearnerPicker({
                   onChange={togglePage}
                 />
               </th>
-              <th className="px-4 py-3 font-medium">Người học</th>
+              <th className="px-4 py-3 font-medium">Học viên</th>
               <th className="px-4 py-3 font-medium">Công ty</th>
               <th className="px-4 py-3 font-medium">Phòng ban</th>
               <th className="px-4 py-3 font-medium">Chức danh</th>
@@ -174,7 +175,7 @@ export function LearnerPicker({
             {rows.length === 0 ? (
               <tr>
                 <td colSpan={6} className="py-10 text-center text-muted-foreground">
-                  {loading ? "Đang tải..." : "Không có người học nào khớp bộ lọc."}
+                  {loading ? "Đang tải..." : "Không có học viên nào khớp bộ lọc."}
                 </td>
               </tr>
             ) : (
@@ -228,12 +229,12 @@ export function LearnerPicker({
               {formatNumber(result.total)} người · trang {page}/{pageCount}
             </span>
             <div className="flex gap-2">
-              <Button type="button" variant="outline" size="icon-sm" aria-label="Trang trước" disabled={page <= 1 || loading} onClick={() => setPage(page - 1)}>
+              <Tooltip label="Trang trước"><Button type="button" variant="outline" size="icon-sm" aria-label="Trang trước" disabled={page <= 1 || loading} onClick={() => setPage(page - 1)}>
                 <ChevronLeft />
-              </Button>
-              <Button type="button" variant="outline" size="icon-sm" aria-label="Trang sau" disabled={page >= pageCount || loading} onClick={() => setPage(page + 1)}>
+              </Button></Tooltip>
+              <Tooltip label="Trang sau"><Button type="button" variant="outline" size="icon-sm" aria-label="Trang sau" disabled={page >= pageCount || loading} onClick={() => setPage(page + 1)}>
                 <ChevronRight />
-              </Button>
+              </Button></Tooltip>
             </div>
           </div>
         )}

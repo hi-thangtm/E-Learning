@@ -1,50 +1,23 @@
-import type { ReactNode } from "react";
-import Link from "next/link";
-import { Inbox, SearchX } from "lucide-react";
-import { buttonVariants } from "@/components/ui/button";
+import type { ComponentType, ReactNode } from "react";
+import { EmptyFiltered, EmptyState } from "@/components/empty-state";
 
-/** Trạng thái rỗng (docs/design-system.md mục 5.6). */
+/** Trạng thái rỗng của bảng (docs/design-system.md mục 5.6) — dùng `EmptyState` chung. */
 export function DataTableEmpty({
   title,
   description,
   action,
+  icon,
   filtered,
   clearHref,
 }: {
   title: string;
   description?: string;
   action?: ReactNode;
+  icon?: ComponentType<{ className?: string }>;
   /** Đang có tìm kiếm / bộ lọc -> hiện "Không tìm thấy kết quả phù hợp" + nút Xoá bộ lọc */
   filtered?: boolean;
   clearHref?: string;
 }) {
-  if (filtered) {
-    return (
-      <div className="flex flex-col items-center justify-center gap-3 py-16 text-center">
-        <div className="flex size-16 items-center justify-center rounded-full bg-primary/16 text-primary">
-          <SearchX className="size-8" />
-        </div>
-        <p className="text-lg font-medium text-foreground">Không tìm thấy kết quả phù hợp</p>
-        <p className="max-w-sm text-[15px] text-muted-foreground">
-          Thử từ khoá khác hoặc bỏ bớt bộ lọc.
-        </p>
-        {clearHref && (
-          <Link href={clearHref} className={buttonVariants({ variant: "secondary" })}>
-            Xoá bộ lọc
-          </Link>
-        )}
-      </div>
-    );
-  }
-
-  return (
-    <div className="flex flex-col items-center justify-center gap-3 py-16 text-center">
-      <div className="flex size-16 items-center justify-center rounded-full bg-primary/16 text-primary">
-        <Inbox className="size-8" />
-      </div>
-      <p className="text-lg font-medium text-foreground">{title}</p>
-      {description && <p className="max-w-sm text-[15px] text-muted-foreground">{description}</p>}
-      {action}
-    </div>
-  );
+  if (filtered) return <EmptyFiltered clearHref={clearHref} />;
+  return <EmptyState icon={icon} title={title} description={description} action={action} />;
 }

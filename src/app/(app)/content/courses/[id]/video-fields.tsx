@@ -10,8 +10,9 @@ import { FormField } from "@/components/form-field";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { VideoPlayer } from "@/components/video-player/video-player";
+import { formatDuration, formatFileSize } from "@/lib/format";
 import { cn } from "@/lib/utils";
-import { formatDuration, parseYoutubeId } from "@/lib/youtube";
+import { parseYoutubeId } from "@/lib/youtube";
 import type { ContentLesson } from "./content-types";
 import {
   cancelBunnyUploadAction,
@@ -26,7 +27,7 @@ import {
 
 const POLL_MS = 10_000;
 const YT_READY_TIMEOUT_MS = 8_000;
-const MAX_VIDEO_BYTES = 2 * 1024 * 1024 * 1024;
+const MAX_VIDEO_BYTES = 4 * 1024 * 1024 * 1024; // 4GB
 const VIDEO_EXT = ["mp4", "mov", "mkv", "webm"];
 const EMBED_HELP = "Video phải để chế độ Không công khai và cho phép nhúng.";
 
@@ -376,7 +377,7 @@ function YoutubeForm({ lessonId, onDone }: { lessonId: string; onDone: () => voi
 
 type UploadState = { file: File; sent: number; total: number; upload: tus.Upload; info: BunnyUpload };
 
-const formatMb = (bytes: number) => `${(bytes / 1024 / 1024).toLocaleString("vi-VN", { maximumFractionDigits: 1 })}MB`;
+const formatMb = (bytes: number) => formatFileSize(bytes);
 
 function BunnyUploader({ lessonId, onDone }: { lessonId: string; onDone: () => void }) {
   const router = useRouter();
@@ -408,8 +409,9 @@ function BunnyUploader({ lessonId, onDone }: { lessonId: string; onDone: () => v
     if (!file) return;
     setError(null);
     const ext = file.name.split(".").pop()?.toLowerCase() ?? "";
-    if (!VIDEO_EXT.includes(ext)) return setError("Chỉ nhận file video MP4, MOV, MKV hoặc WEBM.");
-    if (file.size > MAX_VIDEO_BYTES) return setError("File video tối đa 2GB.");
+    if (!VIDEO_EXT.includes(ext)) return setError("Chỉ nhận video MP4, MOV, WEBM hoặc MKV.");
+    if (file.size <= 0) return setError("File rỗng.");
+    if (file.size > MAX_VIDEO_BYTES) return setError(`Video tối đa 4GB (file này ${formatFileSize(file.size)}).`);
 
     setPreparing(true);
     let info: BunnyUpload;
@@ -527,7 +529,7 @@ function BunnyUploader({ lessonId, onDone }: { lessonId: string; onDone: () => v
         >
           {preparing ? <Loader2 className="size-8 animate-spin text-primary" /> : <CloudUpload className="size-8 text-primary" />}
           <span className="font-medium text-foreground">{preparing ? "Đang chuẩn bị..." : "Chọn file video để tải lên"}</span>
-          <span className="text-[13px] text-muted-foreground">MP4, MOV, MKV hoặc WEBM, tối đa 2GB. Tải thẳng lên Bunny Stream.</span>
+          <span className="text-[13px] text-muted-foreground">MP4, MOV, WEBM hoặc MKV, tối đa 4GB. Tải thẳng lên Bunny Stream.</span>
         </button>
       )}
       {error && (

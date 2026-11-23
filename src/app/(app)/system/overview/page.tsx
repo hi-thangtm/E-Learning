@@ -10,7 +10,7 @@ import { PageHeader } from "@/components/page-header";
 import { AUDIT_LOG_SELECT, enrichAuditLogs } from "@/lib/audit-query";
 import { requireRole } from "@/lib/current-user";
 import { prisma } from "@/lib/db";
-import { formatNumber } from "@/lib/format";
+import { formatNumber, formatPercent } from "@/lib/format";
 import { getAttentionCourses, getCompanyStats, getMonthlyCompletions, type AttentionCourse, type CompanyStats } from "@/lib/group-dashboard";
 import { METRICS, type MetricKey } from "@/lib/report-definitions";
 import { sortRows } from "@/lib/reports";
@@ -34,7 +34,7 @@ const TONES = {
   secondary: "bg-secondary text-secondary-foreground",
 } as const;
 
-const pctText = (v: number | null) => (v === null ? "—" : `${v.toLocaleString("vi-VN", { maximumFractionDigits: 1 })}%`);
+const pctText = (v: number | null) => (v === null ? "—" : `${formatPercent(v)}`);
 
 /** Ngưỡng tỷ lệ hoàn thành: xanh ≥ 90, vàng 70–89, đỏ < 70. */
 function rateTone(v: number | null) {
@@ -76,7 +76,7 @@ export default async function GroupOverviewPage({ searchParams }: { searchParams
         <span className="block">
           <span className="font-medium text-foreground">{c.code}</span>
           {c.isGroup && <span className="ml-2 rounded-sm bg-primary/16 px-1.5 text-[12px] text-primary">Công ty tổng</span>}
-          <span className="block text-[13px] text-muted-foreground">{c.name}</span>
+          <span className="block max-w-72 truncate text-[13px] text-muted-foreground" title={c.name}>{c.name}</span>
         </span>
       ),
     },

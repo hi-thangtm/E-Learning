@@ -30,7 +30,7 @@ export default async function JobsPage() {
 
   const parts = DAILY_JOB_PARTS.map(({ key, label }) => ({ key, label }));
   const s = await getSettings();
-  const summary = `Nhắc sắp hạn (${s.DUE_SOON_DAYS} ngày) / quá hạn (mỗi ${s.OVERDUE_REMIND_INTERVAL_DAYS} ngày), chấm bài kiểm tra bỏ dở, nhắc chứng nhận sắp hết hạn (${s.CERT_EXPIRING_DAYS} ngày), chứng nhận hết hạn → đặt lại khoá để học lại, dọn thông báo cũ (đã đọc > ${s.NOTIFICATION_READ_RETENTION_DAYS} ngày, chưa đọc > ${s.NOTIFICATION_UNREAD_RETENTION_DAYS} ngày). Đổi các mốc ở Hệ thống › Cài đặt.`;
+  const summary = `Nhắc sắp hạn (${s.DUE_SOON_DAYS} ngày) / quá hạn (mỗi ${s.OVERDUE_REMIND_INTERVAL_DAYS} ngày), chấm bài kiểm tra bỏ dở, nhắc chứng nhận sắp hết hạn (${s.CERT_EXPIRING_DAYS} ngày), chứng nhận hết hạn → đặt lại khoá để học lại, dọn thông báo cũ (đã đọc > ${s.NOTIFICATION_READ_RETENTION_DAYS} ngày, chưa đọc > ${s.NOTIFICATION_UNREAD_RETENTION_DAYS} ngày), hỏi lại Bunny các video còn đang xử lý, xoá video Bunny tải dở quá 24 giờ. Đổi các mốc ở Hệ thống › Cài đặt.`;
 
   return (
     <>

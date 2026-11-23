@@ -117,11 +117,12 @@ export default async function UsersPage({ searchParams }: { searchParams: Promis
           <div className="min-w-0">
             <Link
               href={`${PATHNAME}/${u.id}`}
-              className="block truncate font-medium text-foreground hover:text-primary focus-visible:text-primary focus-visible:outline-none"
+              title={u.fullName}
+              className="block max-w-64 truncate font-medium text-foreground hover:text-primary focus-visible:text-primary focus-visible:outline-none"
             >
               {u.fullName}
             </Link>
-            <p className="truncate text-[13px]">{u.email ?? "—"}</p>
+            <p className="max-w-64 truncate text-[13px]" title={u.email ?? undefined}>{u.email ?? "—"}</p>
           </div>
         </div>
       ),
@@ -203,7 +204,8 @@ export default async function UsersPage({ searchParams }: { searchParams: Promis
           state={{
             status: u.status,
             tempLockedUntil: u.lockedUntil && u.lockedUntil > now ? u.lockedUntil.toISOString() : null,
-            canEdit: isGroupAdmin || u.role !== "GROUP_ADMIN",
+            // Admin công ty không thao tác Admin tập đoàn / Admin công ty khác (trừ chính mình) — Việc 29B #15
+            canEdit: isGroupAdmin || (u.role !== "GROUP_ADMIN" && (u.role !== "COMPANY_ADMIN" || u.id === user.id)),
             isSelf: u.id === user.id,
           }}
           user={{

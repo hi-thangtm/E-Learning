@@ -75,7 +75,7 @@ export function UserMenu({ fullName, employeeCode, avatarUrl, roleLabel, company
         </DropdownMenuItem>
 
         <form action={logout} className="px-3 pt-2 pb-1">
-          <Button type="submit" size="sm" className="w-full bg-destructive text-destructive-foreground shadow-none hover:bg-destructive/90 hover:shadow-none">
+          <Button type="submit" size="sm" variant="destructive" className="w-full">
             Đăng xuất
             <LogOut data-icon="inline-end" />
           </Button>

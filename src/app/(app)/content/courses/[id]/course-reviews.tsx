@@ -103,6 +103,12 @@ export async function CourseReviews({ actor, courseId, searchParams: sp }: { act
         </a>
       </div>
 
+      {actor.role !== "GROUP_ADMIN" && (
+        <p className="-mt-2 text-[13px] text-muted-foreground">
+          Điểm tổng quan tính trên mọi học viên; danh sách nhận xét và file Excel chỉ gồm nhân viên {actor.company.name}.
+        </p>
+      )}
+
       {/* Danh sách */}
       {list.rows.length === 0 ? (
         <p className="py-10 text-center text-[15px] text-muted-foreground">Không có đánh giá nào khớp bộ lọc.</p>

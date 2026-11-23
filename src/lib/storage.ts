@@ -2,6 +2,7 @@ import "server-only";
 import { randomUUID } from "node:crypto";
 import { mkdir, readFile as fsReadFile, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
+import { formatFileSize } from "@/lib/format";
 
 /**
  * Lưu file dùng chung (ảnh bìa, PDF tài liệu...) — chỉ chạy ở server.
@@ -116,8 +117,7 @@ function assertValidKey(key: string): void {
 
 /** Dung lượng dạng “2,1MB” — làm tròn LÊN để file vượt giới hạn không hiện thành đúng bằng giới hạn. */
 function formatMb(bytes: number): string {
-  const mb = Math.ceil((bytes / 1024 / 1024) * 10) / 10;
-  return `${mb.toLocaleString("vi-VN", { maximumFractionDigits: 1 })}MB`;
+  return formatFileSize(bytes, true);
 }
 
 // ---------------------------------------------------------------------------------------------

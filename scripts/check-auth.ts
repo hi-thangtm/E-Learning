@@ -1,7 +1,7 @@
 /**
  * Kiểm tra quyền tự động (Việc 29A):   npm run check:auth
  *
- * Quét mọi file "use server" và mọi route.ts trong src/app. Mỗi hàm được export (server action / GET, POST...) phải gọi
+ * Quét mọi file "use server" trong src/ (không chỉ src/app — VD src/components/quick-search/actions.ts) và mọi route.ts trong src/app. Mỗi hàm được export (server action / GET, POST...) phải gọi
  * requireUser / requireRole / getCurrentUser / auth() — trực tiếp, hoặc qua hàm CÙNG FILE đã được bảo vệ
  * (VD action gọi `loadEditable()` mà `loadEditable` gọi `requireRole`). Ngoại lệ phải nằm trong EXCEPTIONS kèm lý do.
  * Có vi phạm → in danh sách và thoát mã 1.
@@ -11,7 +11,8 @@ import path from "node:path";
 import ts from "typescript";
 
 const ROOT = path.resolve(__dirname, "..");
-const APP_DIR = path.join(ROOT, "src", "app");
+const SRC_DIR = path.join(ROOT, "src");
+const APP_DIR = path.join(SRC_DIR, "app");
 const GUARDS = new Set(["requireUser", "requireRole", "getCurrentUser", "auth"]);
 const HTTP_METHODS = new Set(["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"]);
 
@@ -20,6 +21,8 @@ const EXCEPTIONS: Record<string, string> = {
   "src/app/api/auth/[...nextauth]/route.ts": "Auth.js — chính là điểm đăng nhập / đăng xuất.",
   "src/app/api/branding/logo/route.ts": "Logo công khai (trang đăng nhập, /verify cần khi chưa đăng nhập); chỉ trả đúng file trong cài đặt.",
   "src/app/api/jobs/daily/route.ts": "Bộ lập lịch gọi bằng CRON_SECRET (Bearer, so sánh timingSafeEqual), không có phiên người dùng.",
+  "src/app/api/bunny/webhook/route.ts":
+    "Bunny Stream gọi khi video đổi trạng thái, không có phiên. Chỉ đọc VideoGuid rồi HỎI LẠI Bunny bằng API key (không tin Status trong body); kiểm chữ ký HMAC khi có BUNNY_STREAM_READONLY_KEY; rate limit theo IP; luôn trả 200.",
   "src/app/login/actions.ts": "Đăng nhập — người dùng chưa có phiên; giới hạn tần suất trong src/auth.ts.",
 };
 
@@ -79,14 +82,14 @@ function calledNames(node: ts.Node): Set<string> {
 
 type Violation = { file: string; fn: string; line: number };
 
-const files = walk(APP_DIR);
+const files = walk(SRC_DIR);
 const violations: Violation[] = [];
 const exceptionsUsed: string[] = [];
 let checked = 0;
 
 for (const file of files) {
   const rel = path.relative(ROOT, file).split(path.sep).join("/");
-  const isRoute = path.basename(file) === "route.ts";
+  const isRoute = path.basename(file) === "route.ts" && file.startsWith(APP_DIR + path.sep);
   const sf = ts.createSourceFile(file, fs.readFileSync(file, "utf8"), ts.ScriptTarget.Latest, true, file.endsWith(".tsx") ? ts.ScriptKind.TSX : ts.ScriptKind.TS);
   const isServerActions = hasUseServerDirective(sf);
   if (!isRoute && !isServerActions) continue;
@@ -122,7 +125,7 @@ for (const file of files) {
   }
 }
 
-console.log(`Đã kiểm tra ${checked} hàm (server action + route handler) trong src/app.`);
+console.log(`Đã kiểm tra ${checked} hàm (server action trong src/ + route handler trong src/app).`);
 console.log(`Ngoại lệ (${exceptionsUsed.length}):`);
 for (const rel of exceptionsUsed) console.log(`  - ${rel}: ${EXCEPTIONS[rel]}`);
 for (const rel of Object.keys(EXCEPTIONS)) {

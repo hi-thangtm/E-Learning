@@ -10,6 +10,7 @@ import {
   type QuestionOption,
   type TopicStats,
 } from "@/lib/question-labels";
+import { formatNumber } from "@/lib/format";
 
 /**
  * Ngân hàng câu hỏi — phần chạy ở server (docs/database.md — mục "Ngân hàng câu hỏi").
@@ -39,7 +40,7 @@ export const questionInputSchema = z
       .string()
       .trim()
       .min(1, "Vui lòng nhập nội dung câu hỏi.")
-      .max(QUESTION_LIMITS.content, `Nội dung tối đa ${QUESTION_LIMITS.content.toLocaleString("vi-VN")} ký tự.`),
+      .max(QUESTION_LIMITS.content, `Nội dung tối đa ${formatNumber(QUESTION_LIMITS.content)} ký tự.`),
     topic: z
       .string()
       .trim()
@@ -50,7 +51,7 @@ export const questionInputSchema = z
     explanation: z
       .string()
       .trim()
-      .max(QUESTION_LIMITS.explanation, `Giải thích tối đa ${QUESTION_LIMITS.explanation.toLocaleString("vi-VN")} ký tự.`)
+      .max(QUESTION_LIMITS.explanation, `Giải thích tối đa ${formatNumber(QUESTION_LIMITS.explanation)} ký tự.`)
       .transform((v) => (v === "" ? null : v)),
   })
   .superRefine((q, ctx) => {

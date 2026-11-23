@@ -34,9 +34,15 @@ PostgreSQL 17 · Prisma 6 · tên bảng `snake_case` (`@@map`), cột `camelCas
 - Công ty tổng = `companies.parentId IS NULL`.
 - `GROUP_ADMIN` (thuộc công ty tổng): thấy và sửa mọi thứ.
 - `COMPANY_ADMIN`, `CONTENT_EDITOR`: chỉ dữ liệu có `ownerCompanyId = user.companyId`, và chỉ nhân viên có `companyId = user.companyId`. `COMPANY_ADMIN` không được gán vai trò `GROUP_ADMIN`.
+- `COMPANY_ADMIN` **không thao tác** người đang là `GROUP_ADMIN` **hoặc `COMPANY_ADMIN` khác** (sửa, đặt lại mật khẩu, khoá, mở khoá, xoá khoá đăng nhập,
+  đổi vai trò) — chỉ `GROUP_ADMIN` làm được; tự sửa hồ sơ của chính mình vẫn được (Việc 29B, `canManageUser` trong `org/users/actions.ts`).
 - `MANAGER`: chỉ nhân viên thuộc các phòng có `departments.managerId = user.id` **và mọi phòng con** của chúng. Chỉ xem và nhắc nhở, không giao khoá.
 - Khoá học / lộ trình một công ty con **thấy được** = của công ty tổng (PUBLISHED) + của chính công ty đó.
 - Quy tắc giao do công ty con tạo: `targetCompanyId` bắt buộc = chính công ty đó.
+- **Quy tắc giao xem / xem trước / sửa / bật / tắt được** (`assignmentRuleScopeWhere`, `src/lib/assignment-scope.ts` — Việc 29B):
+  `GROUP_ADMIN` = mọi quy tắc; người khác = chỉ quy tắc có `ownerCompanyId = targetCompanyId = user.companyId`. Quy tắc toàn tập đoàn
+  (`targetCompanyId` NULL) hoặc nhắm công ty khác chỉ Admin tập đoàn thao tác — kể cả Admin công ty **thuộc công ty tổng**.
+  Mở thẳng `/assign/rules/<id>` ngoài phạm vi → trang “Không tìm thấy”.
 - Mọi kiểm tra quyền làm ở server (không tin dữ liệu từ trình duyệt).
 
 ### Đội của tôi (`/team`, `/team/members` — `src/lib/scope.ts`, `src/lib/team-stats.ts`)
@@ -129,6 +135,7 @@ Lõi dùng chung: `assignCourse` / `previewAssignment` / `onUserOrgChanged` tron
 - **Huỷ giao** → `CANCELLED` (giữ tiến độ). Lượt `RULE` mà quy tắc còn chạy thì **không huỷ được** — phải tắt quy tắc.
 - **Quy tắc giao tự động** (`assignment_rules`): điều kiện kết hợp kiểu VÀ (công ty / phòng ban + “gồm phòng con” / chức danh; trống = không lọc).
   - Quy tắc do công ty con tạo: `ownerCompanyId` = `targetCompanyId` = chính công ty đó. Admin tập đoàn: 1 công ty hoặc toàn tập đoàn (`targetCompanyId` NULL).
+  - Ai thao tác được quy tắc nào: xem Quy tắc 1 (`assignmentRuleScopeWhere`).
   - Khoá của quy tắc **cố định** sau khi tạo.
   - Tạo / bật lại / sửa (khi đang chạy) → giao ngay cho mọi người đang khớp (`source = RULE`, `assignmentRuleId`, hạn = hôm nay + `dueInDays`).
   - **Thu hẹp nhóm không thu hồi** lượt đã giao; chỉ áp dụng thêm cho người mới khớp. Người chuyển RA khỏi nhóm: giữ nguyên lượt đã giao.
@@ -161,7 +168,9 @@ Lõi dùng chung: `assignCourse` / `previewAssignment` / `onUserOrgChanged` tron
 - **Đánh giá khoá học** (`course_reviews`, `src/lib/reviews.ts`):
   - Chỉ người có lượt học (khác `CANCELLED`) đã `COMPLETED` hoặc có `completedVersion` (từng học xong, kể cả đang học lại sau MAJOR).
   - Mỗi người 1 đánh giá / khoá (`@@unique courseId + userId`), gửi lại = sửa. `rating` 1–5; `comment` chữ thường ≤ 1.000 ký tự, rỗng = NULL.
-  - Người soạn / quản trị thấy nhận xét kèm tên, mã NV, phòng ban (phạm vi như `/content/courses`), xuất Excel được.
+  - Người soạn / quản trị thấy được khoá (phạm vi như `/content/courses`) xem điểm TB + phân bố sao của **mọi** lượt đánh giá;
+    **danh sách nhận xét** (kèm tên, mã NV, phòng ban) và file Excel theo phạm vi nhân viên (Quy tắc 1): Admin tập đoàn thấy hết,
+    người khác chỉ thấy nhân viên công ty mình (Việc 29A).
   - Thư viện chỉ hiện điểm TB + số lượt khi **≥ 3 lượt** (ít hơn: “Chưa đủ đánh giá”), không hiện nhận xét.
   - Không ghi `audit_logs`, không gửi thông báo.
 - **Khoá theo lộ trình** (`src/lib/path-lock.ts` — `getPathLock` / `getPathLocks`), kiểm tra ở SERVER:
@@ -181,14 +190,23 @@ Lõi dùng chung: `assignCourse` / `previewAssignment` / `onUserOrgChanged` tron
   - `YOUTUBE`: chỉ lưu mã 11 ký tự (server tự tách từ link). Video phải để **Không công khai** và cho phép nhúng — **ai có link đều xem được**,
     không dùng cho quy trình nội bộ cần bảo mật. Phát qua `www.youtube-nocookie.com`. Thời lượng đo bằng trình phát lúc gắn; `videoStatus = READY` ngay.
   - `BUNNY`: trình duyệt tải **thẳng** lên Bunny Stream bằng TUS (server chỉ tạo video + ký chữ ký 1 giờ, API key không rời server).
-    Tải xong → `PROCESSING`; hỏi Bunny mỗi 10 giây → `READY` (lưu `durationSeconds`) hoặc `FAILED`. Phát bằng iframe kèm **token hết hạn sau 6 giờ**,
-    tạo ở server mỗi lần mở bài. Cần đủ `BUNNY_STREAM_LIBRARY_ID`, `BUNNY_STREAM_API_KEY`, `BUNNY_STREAM_TOKEN_KEY`.
-  - Thay video / đổi nguồn / gỡ video / **xoá hẳn** bài: xoá video cũ trên Bunny (lỗi chỉ ghi log, không chặn). **Ẩn** bài: giữ video.
+    Tải xong → `PROCESSING` → `READY` (lưu `durationSeconds`) hoặc `FAILED`. Phát bằng iframe kèm **token hết hạn sau 6 giờ**,
+    tạo ở server mỗi lần mở bài. Cần đủ `BUNNY_STREAM_LIBRARY_ID`, `BUNNY_STREAM_API_KEY`, `BUNNY_STREAM_TOKEN_KEY` (vận hành: `docs/bunny-setup.md`).
+  - **Video đang tải lên** (Việc 31B, security-review #8): `lessons.pendingVideoId` + `pendingVideoCreatedAt` — video đã tạo trên Bunny nhưng
+    CHƯA gắn vào bài. Vé tải lên (HMAC `lessonId:videoId:expire`) chỉ được nhận khi `videoId = pendingVideoId`; hoàn tất / huỷ là cập nhật
+    **có điều kiện** `WHERE pendingVideoId = videoId` → mỗi vé dùng đúng 1 lần. Tải lại → xoá video chờ cũ trên Bunny. Tạo video: tối đa
+    20 lần / giờ / người. Chờ quá **24 giờ** → tác vụ hằng ngày xoá trên Bunny + bỏ khỏi bài. Index `lessons.videoId` cho webhook.
+  - **Cập nhật trạng thái** (`src/lib/bunny-sync.ts`, luôn hỏi lại Bunny bằng API key — không tin dữ liệu gửi tới): dialog bài học hỏi mỗi 10 giây;
+    webhook `POST /api/bunny/webhook` (chỉ đọc `VideoGuid`; kiểm chữ ký nếu có `BUNNY_STREAM_READONLY_KEY`); tác vụ hằng ngày hỏi lại mọi bài
+    `PROCESSING`; mở trang soạn khoá / trang học hỏi lại bài `PROCESSING` (tối đa 1 lần / phút / bài). Đổi trạng thái → audit `LESSON_VIDEO_SET`.
+  - Phát hành lần đầu **và** bản cập nhật MINOR / MAJOR / duyệt MAJOR bị chặn khi còn bài video đang dùng chưa `READY` (nêu rõ chương › bài).
+  - Thay video / đổi nguồn / gỡ video / **xoá hẳn** bài: xoá video cũ (và video đang chờ) trên Bunny (lỗi chỉ ghi log, không chặn). **Ẩn** bài: giữ video.
   - Bài chỉ tính được hoàn thành khi `videoStatus = READY` và có `durationSeconds`.
 - VIDEO xong khi `maxWatchedSeconds ≥ durationSeconds × minWatchPercent / 100`. Vị trí nhảy quá `maxWatchedSeconds + 15` giây là tua → không tăng `maxWatchedSeconds`.
   - Tiến độ video gửi về `POST /api/learn/progress` (mỗi 10 giây khi phát, khi tạm dừng / hết video, `sendBeacon` lúc rời trang) →
     `recordVideoProgress` (`src/lib/learning.ts`). **Chống gửi số giả:** `maxWatchedSeconds` chỉ tăng tối đa
-    (thời gian thực từ `lesson_progress.updatedAt`) × 2 + 5 giây; luôn ghi `lastPositionSeconds`. Trình duyệt kéo về khi tua vượt; bài đã xong tua tự do.
+    min(thời gian thực từ `lesson_progress.updatedAt`, **25 giây**) × 2 + 5 giây mỗi lần gửi (trình phát gửi mỗi 10 giây — mở bài rồi bỏ đi
+    lâu không được cộng dồn, Việc 29B); luôn ghi `lastPositionSeconds`. Trình duyệt kéo về khi tua vượt; bài đã xong tua tự do.
 - **Mở bài = bắt đầu học** (`startLearning`): lượt học `NOT_STARTED → IN_PROGRESS` + `startedAt`; bài VIDEO / DOCUMENT chưa xong
   được tạo / chạm `lesson_progress` (`updatedAt` = lúc mở — mốc cho chống gửi số giả và 15 giây của tài liệu). Mọi kiểm tra quyền học bài
   dùng `getLessonAccess`: lượt học khác CANCELLED + bài chưa ẩn thuộc khoá + không bị khoá tuần tự. Không ghi `audit_logs` cho tiến độ học.
@@ -198,7 +216,9 @@ Lõi dùng chung: `assignCourse` / `previewAssignment` / `onUserOrgChanged` tron
   gọi `onCourseCompleted` (Việc 22 cấp chứng nhận, Việc 23 mở khoá tiếp theo trong lộ trình). Lượt đã COMPLETED không bị hạ trạng thái khi xem lại.
 - **Xem file** (`/api/files/...`, `src/lib/file-access.ts`): file khoá học (`courses/...`: ảnh bìa, PDF bài học, ảnh câu hỏi) chỉ trả cho người có lượt học
   khoá đó (khác CANCELLED) hoặc GROUP_ADMIN / COMPANY_ADMIN / CONTENT_EDITOR thấy được khoá theo phạm vi (Quy tắc 1); sai → 403.
-  File không gắn khoá nào → 404. File khác: chỉ cần đăng nhập.
+  File không gắn khoá nào → 404. File mẫu chứng nhận của công ty (`companies/<id>/...`: logo, chữ ký) → người thuộc công ty `<id>`, `GROUP_ADMIN`,
+  `COMPANY_ADMIN` công ty con khi file là của công ty tổng (mẫu mặc định), hoặc người có chứng nhận của chính mình đang dùng file đó
+  (`templateSnapshot.logoKey / signatureKey`) — Việc 29B. File khác (VD `branding/`): chỉ cần đăng nhập.
 - QUIZ (`src/lib/quiz.ts`): rút ngẫu nhiên `questionCount` câu từ `questions` của **cùng khoá** với điều kiện `isActive AND isApproved` (và `topic = lessons.questionTopic` nếu có),
   **xáo thứ tự câu và phương án**. Xong khi có 1 lần `passed = true` → `completeLesson`.
   - **Số lượt tối đa = `maxAttempts + lesson_progress.bonusAttempts`** (`maxAttempts` NULL = không giới hạn), đếm số `quiz_attempts` trong
@@ -209,7 +229,11 @@ Lõi dùng chung: `assignCourse` / `previewAssignment` / `onUserOrgChanged` tron
     (`deadline = startedAt + timeLimitMinutes`). Hết giờ → tự nộp (trình duyệt) và mỗi lần mở trang bài kiểm tra server chấm các lượt dở đã quá hạn.
   - Chấm: câu một đáp án đúng khi chọn đúng phương án đúng; câu nhiều đáp án đúng khi tập đã chọn **trùng khớp** tập đáp án đúng (không điểm từng phần).
     `score = round(số câu đúng ÷ tổng câu × 100)`, `passed = score ≥ passingScore`.
-  - **Đề gửi trình duyệt không có `isCorrect` và `explanation`.** Đáp án / giải thích chỉ trả về sau khi nộp và khi `showAnswers = true`.
+  - **Đề gửi trình duyệt không có `isCorrect` và `explanation`.** Đáp án / giải thích chỉ trả về sau khi nộp, khi `showAnswers = true`
+    **VÀ** lượt đó đạt hoặc đã hết lượt (`attemptNo` hoặc số lượt đã nộp ≥ `maxAttempts + bonusAttempts`; `maxAttempts` NULL → chỉ khi đạt),
+    chỉ với lượt của phiên bản hiện tại — chống nộp bài trống để lấy đáp án (Việc 29B, `answersRevealable`). Áp dụng cả khi xem lại lượt cũ.
+  - Lưu câu trả lời / nộp bài kiểm tra lại quyền học (`learnerQuizAccess`: lượt học khác CANCELLED, bài chưa ẩn); chấm điểm trong transaction
+    khoá dòng `quiz_attempts` (`SELECT … FOR UPDATE`, cùng khoá với lưu câu trả lời).
   - Xem trước (người soạn): làm thử không ghi `quiz_attempts`, luôn hiện đáp án. Không ghi `audit_logs` cho việc làm bài.
 - `progressPercent` = bài xong ÷ tổng bài × 100, tính lại mỗi khi một bài xong.
 
@@ -351,3 +375,12 @@ npx prisma migrate dev --name mo_ta_thay_doi
 ```
 
 Chạy trên máy dev (Postgres trong Docker). Commit `prisma/schema.prisma` + `prisma/migrations/`. Không sửa tay migration đã có. Server chạy `prisma migrate deploy` (container `migrate`).
+
+### Index phục vụ hiệu năng (Việc 30 — đo trên `elearning_perf`, xem `docs/performance.md`)
+
+| Bảng | Index | Truy vấn hưởng lợi | Đo (`EXPLAIN ANALYZE`, 226k dòng) |
+|---|---|---|---|
+| `lesson_progress` | `[userId, updatedAt]` (migration `perf_indexes`) | “Lần học gần nhất” (`MAX(updatedAt)` theo người — báo cáo Theo người, Đội của tôi), “Người học 30 ngày qua” (Dashboard tập đoàn), “Tiếp tục học” (bài dở mới nhất của 1 người) | 84 → 25 ms và 48 → 25 ms (quét cả bảng → index-only scan) |
+
+Các index ứng viên khác (`lesson_progress[updatedAt]`, `notifications[userId, createdAt]`, `notifications[createdAt]`, `enrollments[userId, status]`,
+`certificates[userId, courseId, issuedAt]`, `quiz_attempts[userId, lessonId]`) **không thêm**: truy vấn tương ứng đã < 15 ms hoặc planner không dùng.

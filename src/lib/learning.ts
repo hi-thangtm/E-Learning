@@ -226,15 +226,16 @@ export async function getMyEnrollmentCounts(userId: string, f: Omit<MyFilters, "
 
 export async function getMyStats(userId: string) {
   const now = new Date();
-  const [inProgress, completed, overdue, certificates] = await Promise.all([
+  const [inProgress, notStarted, completed, overdue, certificates] = await Promise.all([
     prisma.enrollment.count({ where: { userId, status: "IN_PROGRESS" } }),
+    prisma.enrollment.count({ where: { userId, status: "NOT_STARTED" } }),
     prisma.enrollment.count({ where: { userId, status: "COMPLETED" } }),
     prisma.enrollment.count({ where: { userId, status: { in: OPEN }, dueDate: { lt: now } } }),
     prisma.certificate.count({
       where: { userId, revokedAt: null, OR: [{ expiresAt: null }, { expiresAt: { gt: now } }] },
     }),
   ]);
-  return { inProgress, completed, overdue, certificates };
+  return { inProgress, notStarted, completed, overdue, certificates };
 }
 
 /** “Cần làm”: khoá chưa xong, hạn gần nhất trước (không hạn xếp cuối). Bỏ khoá đang 🔒 theo lộ trình. */
@@ -263,7 +264,8 @@ export async function getContinueLearning(userId: string, take = 3) {
         section: { isArchived: false, course: { enrollments: { some: { userId, status: { not: "CANCELLED" } } } } },
       },
     },
-    orderBy: { updatedAt: "desc" },
+    // id: thứ tự xác định khi 2 bài cùng thời điểm cập nhật (Việc 30 — kế hoạch truy vấn đổi theo index không làm đảo thứ tự)
+    orderBy: [{ updatedAt: "desc" }, { id: "desc" }],
     take,
     select: {
       updatedAt: true,
@@ -707,13 +709,16 @@ export async function completeDocumentLesson(userId: string, lessonId: string): 
   return { ok: true, completion: await completeLesson(userId, lessonId) };
 }
 
+/** Trình phát gửi tiến độ mỗi 10 giây → mỗi lần gửi tính tối đa 25 giây thời gian thực (×2 cho tốc độ phát 2x). */
+const MAX_PROGRESS_GAP_SECONDS = 25;
+
 export type VideoProgressResult =
   | { ok: true; maxWatchedSeconds: number; completed: boolean; completion: LessonCompletion | null }
   | { ok: false; status: 400 | 403 | 404; error: string };
 
 /**
  * Ghi tiến độ xem video (route POST /api/learn/progress). Chống gửi số giả:
- * maxWatchedSeconds chỉ tăng tối đa (thời gian thực trôi qua từ lần ghi trước) × 2 + 5 giây (cho phép tốc độ phát 2x).
+ * maxWatchedSeconds chỉ tăng tối đa min(thời gian thực trôi qua từ lần ghi trước, 25 giây) × 2 + 5 giây (cho phép tốc độ phát 2x).
  * Luôn cập nhật lastPositionSeconds. Xem đủ durationSeconds × minWatchPercent / 100 → completeLesson.
  */
 export async function recordVideoProgress(
@@ -736,7 +741,8 @@ export async function recordVideoProgress(
 
   const prev = await getLessonProgress(userId, lessonId);
   const prevMax = prev?.maxWatchedSeconds ?? 0;
-  const elapsed = prev ? Math.max(0, (Date.now() - prev.updatedAt.getTime()) / 1000) : 0;
+  // Trần thời gian mỗi lần gửi: mở bài rồi bỏ đi lâu không được cộng dồn thành "đã xem" (Việc 29B #6)
+  const elapsed = prev ? Math.min(MAX_PROGRESS_GAP_SECONDS, Math.max(0, (Date.now() - prev.updatedAt.getTime()) / 1000)) : 0;
   const allowed = prevMax + elapsed * 2 + 5;
   const maxWatchedSeconds = Math.max(prevMax, Math.round(Math.min(input.watched, allowed, duration)));
   const lastPositionSeconds = Math.round(Math.min(Math.max(input.position, 0), duration));

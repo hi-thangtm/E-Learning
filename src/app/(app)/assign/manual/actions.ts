@@ -8,7 +8,7 @@ import { logAudit } from "@/lib/audit";
 import { notify } from "@/lib/notifications";
 import { requireRole } from "@/lib/current-user";
 import { prisma } from "@/lib/db";
-import { vnDayEnd, vnIsoDate } from "@/lib/format";
+import { validIsoDate, vnDayEnd, vnIsoDate } from "@/lib/format";
 
 /**
  * Lượt giao khoá: gia hạn, huỷ giao, cấp thêm lượt làm bài kiểm tra (docs/database.md — Quy tắc 3, 4).
@@ -52,9 +52,8 @@ export async function extendEnrollmentAction(enrollmentId: string, newDate: stri
   }
 
   const date = String(newDate ?? "");
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || Number.isNaN(new Date(`${date}T00:00:00Z`).getTime())) {
-    return { errors: { dueDate: "Ngày không hợp lệ." } };
-  }
+  // Ngày có thật (2026-02-31 → không hợp lệ) — Việc 29B #14
+  if (!validIsoDate(date)) return { errors: { dueDate: "Ngày không hợp lệ." } };
   if (date <= vnIsoDate()) return { errors: { dueDate: "Hạn mới phải sau hôm nay." } };
   if (date > `${new Date().getUTCFullYear() + 5}-12-31`) return { errors: { dueDate: "Hạn quá xa (tối đa 5 năm)." } };
   const dueDate = vnDayEnd(date);
@@ -127,7 +126,7 @@ export type QuizGrantOption = {
   passed: boolean;
 };
 
-/** Các bài kiểm tra đang dùng của khoá + tình hình làm bài của người học (version hiện tại). */
+/** Các bài kiểm tra đang dùng của khoá + tình hình làm bài của học viên (version hiện tại). */
 export async function getQuizGrantOptionsAction(
   enrollmentId: string,
 ): Promise<{ ok: true; options: QuizGrantOption[] } | { ok: false; message: string }> {
@@ -215,7 +214,7 @@ export async function grantQuizAttemptsAction(enrollmentId: string, lessonId: st
         count: parsed.data.count,
       },
     }),
-    // Báo cho người học — mở thẳng trang bài kiểm tra
+    // Báo cho học viên — mở thẳng trang bài kiểm tra
     notify(prisma, {
       userIds: [userId],
       type: "QUIZ_ATTEMPTS_GRANTED",

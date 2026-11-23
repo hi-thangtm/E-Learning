@@ -7,8 +7,8 @@ export default function Loading() {
       <PageHeader title="Thông báo" description="Đang tải..." />
       <div className="overflow-hidden rounded-md bg-card shadow-md" aria-busy="true" aria-label="Đang tải">
         <div className="flex items-center justify-between p-6">
-          <Skeleton className="h-[38px] w-56" />
-          <Skeleton className="h-[38px] w-64" />
+          <Skeleton className="h-[38px] w-full sm:w-56" />
+          <Skeleton className="h-[38px] w-full sm:w-64" />
         </div>
         {Array.from({ length: 6 }, (_, i) => (
           <div key={i} className="flex items-center gap-3 border-t border-border px-6 py-4">

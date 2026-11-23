@@ -16,6 +16,7 @@ import {
   QUESTION_IMPORT_MAX_ROWS,
   type QuestionColumnKey,
 } from "./import/types";
+import { formatNumber } from "@/lib/format";
 
 /**
  * Định dạng file Excel ngân hàng câu hỏi — MỘT định dạng cho file mẫu, file xuất và file import
@@ -154,7 +155,7 @@ export function buildQuestionWorkbook(rows: QuestionSheetRow[], options: { withE
   guide.addRow([]);
   const notes = [
     ...(options.courseLabel ? [`Câu hỏi của khoá: ${options.courseLabel}. Có thể sửa rồi import vào khoá khác.`] : []),
-    `Tối đa ${QUESTION_IMPORT_MAX_ROWS.toLocaleString("vi-VN")} câu mỗi file, dung lượng tối đa 5MB, định dạng .xlsx.`,
+    `Tối đa ${formatNumber(QUESTION_IMPORT_MAX_ROWS)} câu mỗi file, dung lượng tối đa 5MB, định dạng .xlsx.`,
     `Dòng có Nội dung bắt đầu bằng “${EXAMPLE_MARK}” là dòng ví dụ và sẽ được bỏ qua — có thể xoá đi.`,
     "Mỗi câu có 2–6 phương án, không để trống, không trùng nhau. Một đáp án = đúng 1 đáp án đúng; Nhiều đáp án = ít nhất 1.",
     "Import KHÔNG hỗ trợ ảnh minh hoạ — thêm ảnh sau trong trang Ngân hàng câu hỏi (nút Sửa từng câu).",

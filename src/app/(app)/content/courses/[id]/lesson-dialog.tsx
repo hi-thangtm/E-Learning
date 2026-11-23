@@ -396,7 +396,10 @@ function QuizFields({
         <Switch id="showAnswers" checked={showAnswers} onCheckedChange={setShowAnswers} className="mt-0.5" />
         <label htmlFor="showAnswers" className="cursor-pointer">
           <span className="block text-[15px] text-foreground">Cho xem đáp án sau khi nộp</span>
-          <span className="block text-[13px] text-muted-foreground">Học viên xem được đáp án đúng và giải thích sau mỗi lần nộp bài.</span>
+          <span className="block text-[13px] text-muted-foreground">
+            Học viên xem được đáp án đúng và giải thích khi lượt nộp ĐẠT, hoặc khi đã dùng hết lượt làm bài
+            (không giới hạn lượt: chỉ khi đạt) — tránh nộp bài trống để lấy đáp án.
+          </span>
         </label>
       </div>
     </>

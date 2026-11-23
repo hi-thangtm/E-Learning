@@ -7,6 +7,7 @@ import { prisma } from "@/lib/db";
 import { getLessonAccess, getLessonDetail, getLessonProgress, startLearning } from "@/lib/learning";
 import { autoSubmitExpired, getQuizOverview } from "@/lib/quiz";
 import { getMyReview } from "@/lib/reviews";
+import { syncProcessingLessonsThrottled } from "@/lib/bunny-sync";
 
 export const metadata: Metadata = { title: "Học bài" };
 
@@ -28,6 +29,14 @@ export default async function LearnLessonPage({ params }: { params: Promise<{ co
           : `/my-courses/${courseId}`,
     );
   }
+
+  // Video Bunny của bài còn "đang xử lý" → hỏi lại Bunny trước khi hiển thị (tối đa 1 lần / phút / bài)
+  await syncProcessingLessonsThrottled(
+    await prisma.lesson.findMany({
+      where: { id: lessonId, videoProvider: "BUNNY", videoStatus: "PROCESSING" },
+      select: { id: true, videoProvider: true, videoId: true, videoStatus: true },
+    }),
+  );
 
   const [course, lesson, myReview] = await Promise.all([
     prisma.course.findUniqueOrThrow({ where: { id: courseId }, select: { id: true, title: true } }),

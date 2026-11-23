@@ -1,11 +1,10 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import type { Prisma } from "@prisma/client";
 import { z } from "zod";
 import { fieldErrors, formValues, type ActionState } from "@/lib/action-state";
 import { assignCourse, assignPath, previewAssignment, previewPathAssignment } from "@/lib/assignment";
-import { assignableCoursesWhere, ruleUsersWhere } from "@/lib/assignment-scope";
+import { assignableCoursesWhere, assignmentRuleScopeWhere, ruleUsersWhere } from "@/lib/assignment-scope";
 import { logAudit } from "@/lib/audit";
 import { getGroupCompanyId } from "@/lib/course-scope";
 import { requireRole, type CurrentUser } from "@/lib/current-user";
@@ -156,14 +155,11 @@ async function matchingUserIds(r: RuleShape) {
   return prisma.user.findMany({ where, select: { id: true }, orderBy: { fullName: "asc" } });
 }
 
-function ruleScopeWhere(actor: CurrentUser): Prisma.AssignmentRuleWhereInput {
-  return actor.role === "GROUP_ADMIN" ? {} : { ownerCompanyId: actor.companyId };
-}
 
 async function findRule(actor: CurrentUser, ruleId: string) {
   if (!ruleId || ruleId.length > 50) return null;
   const rule = await prisma.assignmentRule.findFirst({
-    where: { id: ruleId, ...ruleScopeWhere(actor) },
+    where: { id: ruleId, ...assignmentRuleScopeWhere(actor) },
     select: {
       id: true,
       name: true,

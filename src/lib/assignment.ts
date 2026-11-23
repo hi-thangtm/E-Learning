@@ -67,7 +67,7 @@ async function loadCourse(courseId: string) {
   return prisma.course.findUnique({ where: { id: courseId }, select: { id: true, code: true, title: true, status: true } });
 }
 
-/** Người học hợp lệ (đang làm + công ty hoạt động) trong danh sách id. */
+/** Học viên hợp lệ (đang làm + công ty hoạt động) trong danh sách id. */
 async function loadLearners(userIds: string[]): Promise<Learner[]> {
   const unique = [...new Set(userIds)];
   const result: Learner[] = [];
@@ -130,7 +130,7 @@ export async function previewAssignment(input: Pick<AssignInput, "courseId" | "u
 
 /**
  * Giao khoá: ghi theo lô 500 người / transaction, tạo thông báo COURSE_ASSIGNED cho người được giao mới / kích hoạt lại,
- * ghi nhật ký ENROLLMENTS_ASSIGNED — 1 dòng cho mỗi công ty của người học (Admin công ty thấy được trong phạm vi mình).
+ * ghi nhật ký ENROLLMENTS_ASSIGNED — 1 dòng cho mỗi công ty của học viên (Admin công ty thấy được trong phạm vi mình).
  * Khoá phải đang PUBLISHED (người gọi kiểm tra trước; ở đây chặn lại lần nữa).
  */
 export async function assignCourse(input: AssignInput): Promise<AssignCounts> {

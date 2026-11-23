@@ -44,6 +44,7 @@ import {
   type ImportSummary,
 } from "./types";
 import { logAudit } from "@/lib/audit";
+import { formatNumber } from "@/lib/format";
 
 /**
  * Lõi import nhân viên từ Excel (docs/database.md — Quy tắc 1, 5). KHÔNG phải server action:
@@ -283,7 +284,7 @@ export async function buildTemplateWorkbook(company: ImportCompany): Promise<Wor
   guide.addRow([]);
   const notes = [
     `File này dành cho công ty: ${company.code} — ${company.name}. Mỗi file chỉ import cho 1 công ty.`,
-    `Tối đa ${MAX_ROWS.toLocaleString("vi-VN")} dòng, dung lượng tối đa 5MB, định dạng .xlsx.`,
+    `Tối đa ${formatNumber(MAX_ROWS)} dòng, dung lượng tối đa 5MB, định dạng .xlsx.`,
     `Các dòng có Mã NV bắt đầu bằng “${EXAMPLE_PREFIX}” là dòng ví dụ và sẽ được bỏ qua — có thể xoá đi.`,
     "Mã NV chưa có trong hệ thống → TẠO MỚI (mật khẩu tạm tự sinh, bắt đổi khi đăng nhập lần đầu).",
     "Mã NV đã có trong công ty này → CẬP NHẬT họ tên, email, điện thoại, phòng ban, chức danh, ngày vào làm. Ô trống = giữ nguyên giá trị cũ. Không đổi vai trò, trạng thái, mật khẩu.",
@@ -385,7 +386,7 @@ export async function analyzeImportFile(
     }
     raw.push({ rowNumber: r, get });
     if (raw.length > MAX_ROWS) {
-      return { fileError: `File có hơn ${MAX_ROWS.toLocaleString("vi-VN")} dòng dữ liệu. Hãy chia thành nhiều file.` };
+      return { fileError: `File có hơn ${formatNumber(MAX_ROWS)} dòng dữ liệu. Hãy chia thành nhiều file.` };
     }
   }
   if (raw.length === 0) {
@@ -497,7 +498,6 @@ export async function analyzeImportFile(
           departmentId: true,
           positionId: true,
           hireDate: true,
-          company: { select: { code: true } },
         },
       })
     : [];
@@ -509,7 +509,8 @@ export async function analyzeImportFile(
 
     if (current && !row.errors.employeeCode) {
       if (current.companyId !== company.id) {
-        row.errors.employeeCode = `Mã NV đã thuộc công ty ${current.company.code}.`;
+        // Không nêu tên công ty: tránh dò mã NV của công ty khác (Việc 29B #12)
+        row.errors.employeeCode = "Mã NV đã được dùng trong tập đoàn.";
       } else if (actor.role !== "GROUP_ADMIN" && current.role === "GROUP_ADMIN") {
         row.errors.employeeCode = "Không được sửa tài khoản Admin tập đoàn.";
       }

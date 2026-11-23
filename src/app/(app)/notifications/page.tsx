@@ -41,7 +41,7 @@ export default async function NotificationsPage({ searchParams }: { searchParams
       />
 
       <div className="overflow-hidden rounded-md bg-card shadow-md">
-        <div className="flex items-center justify-between gap-4 p-6">
+        <div className="flex flex-wrap items-center justify-between gap-4 p-4 sm:p-6">
           <nav aria-label="Lọc theo trạng thái đọc" className="inline-flex h-[38px] rounded-lg bg-muted p-1">
             {tabs.map((t) => (
               <Link
@@ -60,7 +60,7 @@ export default async function NotificationsPage({ searchParams }: { searchParams
               </Link>
             ))}
           </nav>
-          <div className="w-64">
+          <div className="w-full sm:w-64">
             <DataTableFilter
               param="type"
               label="Loại"

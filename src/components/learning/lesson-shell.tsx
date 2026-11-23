@@ -21,8 +21,10 @@ import { Button, buttonVariants } from "@/components/ui/button";
 import type { LessonCompletion, OutlineSection } from "@/lib/learning";
 import { relock } from "@/lib/learning-sequence";
 import { cn } from "@/lib/utils";
-import { formatDuration } from "@/lib/youtube";
 import { CourseCompletedDialog } from "./course-completed-dialog";
+import { formatDuration } from "@/lib/format";
+import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
+import { Tooltip } from "@/components/ui/tooltip";
 
 export type ShellMode = "learn" | "preview";
 
@@ -51,6 +53,9 @@ const LESSON_ICON = { VIDEO: PlayCircle, DOCUMENT: FileText, QUIZ: ListChecks } 
  * Thanh trên (quay lại, tên khoá, % , Bài X/Y) · nội dung bài bên trái · mục lục bên phải (thu gọn được).
  * Link sang bài khác do server tính sẵn (`lessonHrefs`), tắt prefetch vì mở trang học có ghi dữ liệu.
  */
+/** Nút Bài trước / Bài tiếp: điện thoại cao 44px, đầy chiều rộng ô lưới */
+const NAV_BUTTON = "h-11 w-full sm:h-[38px] sm:w-auto";
+
 export function LessonShell({
   mode,
   course,
@@ -78,6 +83,17 @@ export function LessonShell({
   const [sections, setSections] = useState(initialSections);
   const [percent, setPercent] = useState(initialPercent);
   const [outlineOpen, setOutlineOpen] = useState(true);
+  // Màn hình < lg: mục lục là Sheet trượt từ phải; đóng khi chuyển bài
+  const [mobileOutline, setMobileOutline] = useState(false);
+  const [lastLessonId, setLastLessonId] = useState(currentLessonId);
+  if (lastLessonId !== currentLessonId) {
+    setLastLessonId(currentLessonId);
+    setMobileOutline(false);
+  }
+  function toggleOutline() {
+    if (window.matchMedia("(min-width: 1024px)").matches) setOutlineOpen((o) => !o);
+    else setMobileOutline(true);
+  }
   const [celebrate, setCelebrate] = useState<{
     completedAt: string;
     certificateId: string | null;
@@ -112,92 +128,108 @@ export function LessonShell({
         )}
 
         {/* Thanh trên */}
-        <header className="flex h-16 shrink-0 items-center gap-4 border-b border-border bg-card px-6 shadow-xs">
+        <header className="flex h-16 shrink-0 items-center gap-2 border-b border-border bg-card px-2 shadow-xs sm:gap-4 sm:px-6">
           <Link
             href={backHref}
-            className={buttonVariants({ variant: "ghost", size: "sm" })}
+            className={cn(buttonVariants({ variant: "ghost", size: "sm" }), "h-10 shrink-0 px-2.5 sm:h-[30px] sm:px-3.5")}
             title={backLabel}
+            aria-label={backLabel}
             prefetch={false}
           >
             <ArrowLeft />
-            {backLabel}
+            <span className="hidden sm:inline">{backLabel}</span>
           </Link>
-          <span aria-hidden className="h-6 w-px bg-border" />
-          <h1 className="min-w-0 flex-1 truncate text-lg font-medium text-foreground">{course.title}</h1>
+          <span aria-hidden className="hidden h-6 w-px bg-border sm:block" />
+          <h1 className="min-w-0 flex-1 truncate text-[15px] font-medium text-foreground sm:text-lg" title={course.title}>
+            {course.title}
+          </h1>
           {!preview && (
-            <div className="flex w-56 items-center gap-3">
+            <div className="hidden w-56 items-center gap-3 md:flex">
               <ProgressBar value={percent} label="Tiến độ khoá học" />
               <span className="text-[13px] font-medium text-foreground tabular-nums">{percent}%</span>
             </div>
           )}
-          <span className="inline-flex shrink-0 items-center rounded-full bg-primary/16 px-3 py-1 text-[13px] font-medium whitespace-nowrap text-primary tabular-nums">
+          <span className="inline-flex shrink-0 items-center rounded-full bg-primary/16 px-2.5 py-1 text-[13px] font-medium whitespace-nowrap text-primary tabular-nums sm:px-3">
             Bài {index + 1}/{flat.length}
           </span>
-          <Button
+          <Tooltip label={outlineOpen ? "Thu gọn mục lục" : "Mở mục lục"}><Button
             variant="ghost"
             size="icon-sm"
-            onClick={() => setOutlineOpen((o) => !o)}
+            className="size-10 shrink-0 sm:size-[30px]"
+            onClick={toggleOutline}
             aria-expanded={outlineOpen}
             aria-controls="lesson-outline"
-            title={outlineOpen ? "Thu gọn mục lục" : "Mở mục lục"}
           >
             {outlineOpen ? <PanelRightClose /> : <PanelRightOpen />}
             <span className="sr-only">{outlineOpen ? "Thu gọn mục lục" : "Mở mục lục"}</span>
-          </Button>
+          </Button></Tooltip>
         </header>
 
         <div className="flex min-h-0 flex-1">
           {/* Vùng chính */}
           <main className="min-w-0 flex-1 overflow-y-auto">
-            <div className="mx-auto flex max-w-[1100px] flex-col gap-6 p-6">
+            <div className="mx-auto flex max-w-[1100px] flex-col gap-4 p-3 sm:gap-6 sm:p-6">
               {children}
 
-              <div className="flex items-center gap-4 rounded-md bg-card p-4 shadow-sm">
+              <div className="flex flex-col gap-3 rounded-md bg-card p-4 shadow-sm sm:flex-row sm:items-center sm:gap-4">
                 <div className="min-w-0 flex-1">
                   <p className="text-[13px] text-muted-foreground">Bài {index + 1}</p>
                   <h2 className="truncate text-lg font-medium text-foreground">{current?.title}</h2>
                 </div>
+                {/* Điện thoại: 2 nút chia đôi chiều ngang, cao 44px */}
+                <div className="grid grid-cols-2 gap-3 sm:flex sm:gap-4">
                 {prev ? (
-                  <Link href={lessonHrefs[prev.id]} prefetch={false} className={buttonVariants({ variant: "outline" })}>
+                  <Link href={lessonHrefs[prev.id]} prefetch={false} className={cn(buttonVariants({ variant: "outline" }), NAV_BUTTON)}>
                     <ChevronLeft />
                     Bài trước
                   </Link>
                 ) : (
-                  <Button variant="outline" disabled>
+                  <Button variant="outline" disabled className={NAV_BUTTON}>
                     <ChevronLeft />
                     Bài trước
                   </Button>
                 )}
                 {next ? (
                   currentDone ? (
-                    <Link href={lessonHrefs[next.id]} prefetch={false} className={buttonVariants()}>
+                    <Link href={lessonHrefs[next.id]} prefetch={false} className={cn(buttonVariants(), NAV_BUTTON)}>
                       Bài tiếp theo
                       <ChevronRight />
                     </Link>
                   ) : (
-                    <span title="Hoàn thành bài này để mở bài tiếp theo">
-                      <Button disabled>
+                    <span title="Hoàn thành bài này để mở bài tiếp theo" className="flex">
+                      <Button disabled className={NAV_BUTTON}>
                         Bài tiếp theo
                         <ChevronRight />
                       </Button>
                     </span>
                   )
                 ) : (
-                  <Link href={backHref} prefetch={false} className={buttonVariants({ variant: currentDone ? "default" : "secondary" })}>
+                  <Link href={backHref} prefetch={false} className={cn(buttonVariants({ variant: currentDone ? "default" : "secondary" }), NAV_BUTTON)}>
                     {preview ? "Xong xem trước" : "Về trang khoá học"}
                   </Link>
                 )}
+                </div>
               </div>
             </div>
           </main>
 
           {/* Mục lục */}
           {outlineOpen && (
-            <aside id="lesson-outline" aria-label="Mục lục khoá học" className="w-[360px] shrink-0 overflow-y-auto border-l border-border bg-card">
+            <aside id="lesson-outline" aria-label="Mục lục khoá học" className="hidden w-[360px] shrink-0 overflow-y-auto border-l border-border bg-card lg:block">
               <Outline sections={sections} currentLessonId={currentLessonId} lessonHrefs={lessonHrefs} />
             </aside>
           )}
         </div>
+
+        {/* < lg: mục lục trượt từ phải */}
+        <Sheet open={mobileOutline} onOpenChange={setMobileOutline}>
+          <SheetContent side="right" className="w-[min(360px,100vw)] p-0 sm:max-w-[360px]">
+            <SheetTitle className="sr-only">Mục lục khoá học</SheetTitle>
+            <div className="flex-1 overflow-y-auto pt-8">
+              <Outline sections={sections} currentLessonId={currentLessonId} lessonHrefs={lessonHrefs} />
+            </div>
+          </SheetContent>
+        </Sheet>
       </div>
 
       {celebrate && (
@@ -255,7 +287,7 @@ function Outline({
                   <>
                     <Icon className={cn("size-4 shrink-0", isCurrent ? "text-primary" : "text-muted-foreground")} />
                     <span className="min-w-0 flex-1">
-                      <span className="line-clamp-2 text-[14px] leading-snug">
+                      <span className="line-clamp-2 text-[14px] leading-normal">
                         {n}. {l.title}
                       </span>
                       {l.durationSeconds ? (

@@ -185,7 +185,7 @@ export function QuestionImportWizard({ course }: { course: { id: string; label: 
             htmlFor="import-file"
             required
             error={fileError ?? undefined}
-            hint={`Tối đa 5MB, ${QUESTION_IMPORT_MAX_ROWS.toLocaleString("vi-VN")} câu. Không hỗ trợ ảnh — thêm ảnh sau trong trang.`}
+            hint={`Tối đa 5MB, ${formatNumber(QUESTION_IMPORT_MAX_ROWS)} câu. Không hỗ trợ ảnh — thêm ảnh sau trong trang.`}
             span="full"
           >
             <div className="flex items-center gap-4">

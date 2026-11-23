@@ -262,7 +262,7 @@ function DepartmentForm({
       <DialogFooter>
         <DialogClose render={<Button type="button" variant="outline" disabled={pending} />}>Huỷ</DialogClose>
         <Button type="submit" disabled={pending}>
-          {pending ? "Đang lưu..." : "Lưu"}
+          {pending ? "Đang lưu..." : department ? "Lưu thay đổi" : "Thêm phòng ban"}
         </Button>
       </DialogFooter>
     </form>

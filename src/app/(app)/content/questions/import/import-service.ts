@@ -9,6 +9,7 @@ import {
   isRowEmpty,
   loadWorkbook,
   normalizeHeader,
+  safeText,
   type Workbook,
   type Worksheet,
 } from "@/lib/excel";
@@ -25,6 +26,7 @@ import {
   type QuestionImportSummary,
   type QuestionPreviewRow,
 } from "./types";
+import { formatNumber } from "@/lib/format";
 
 /**
  * Import câu hỏi từ Excel vào 1 khoá — chỉ chạy ở server.
@@ -196,7 +198,7 @@ export async function analyzeQuestionFile(
     raw.push({ rowNumber: r, values });
     if (raw.length > QUESTION_IMPORT_MAX_ROWS) {
       return {
-        fileError: `File có hơn ${QUESTION_IMPORT_MAX_ROWS.toLocaleString("vi-VN")} câu hỏi. Hãy chia thành nhiều file.`,
+        fileError: `File có hơn ${formatNumber(QUESTION_IMPORT_MAX_ROWS)} câu hỏi. Hãy chia thành nhiều file.`,
       };
     }
   }
@@ -259,7 +261,7 @@ export function buildQuestionErrorReport(result: Extract<QuestionAnalyzeResult, 
       cell.font = { ...(cell.font ?? {}), color: { argb: ERROR_TEXT } };
     }
     const cell = sheet.getCell(row.rowNumber, errorCol);
-    cell.value = entries.map(([key, message]) => `${QUESTION_COLUMN_LABELS[key]}: ${message}`).join("\n");
+    cell.value = safeText(entries.map(([key, message]) => `${QUESTION_COLUMN_LABELS[key]}: ${message}`).join("\n"));
     cell.alignment = { wrapText: true, vertical: "top" };
     cell.font = { color: { argb: ERROR_TEXT } };
   }

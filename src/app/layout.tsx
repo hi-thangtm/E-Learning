@@ -21,7 +21,7 @@ export async function generateMetadata(): Promise<Metadata> {
   } catch {
     // giữ tên mặc định
   }
-  return { title: { default: name, template: `%s | ${name}` }, description: "Hệ thống đào tạo nội bộ tập đoàn" };
+  return { title: { default: name, template: `%s · ${name}` }, description: "Hệ thống đào tạo nội bộ tập đoàn" };
 }
 
 export default async function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {

@@ -20,6 +20,7 @@ import { buildUserFormOptions, loadOrgCatalog } from "../form-options";
 import { UserActions } from "../user-actions";
 import { UserFormOptionsProvider } from "../user-form-options";
 import { RevokeCertificateDialog } from "./revoke-certificate-dialog";
+import { EmptyState } from "@/components/empty-state";
 
 export const metadata: Metadata = { title: "Chi tiết người dùng" };
 
@@ -113,7 +114,8 @@ export default async function UserDetailPage({
 
   const now = new Date();
   const tempLocked = !!user.lockedUntil && user.lockedUntil > now;
-  const canEdit = isGroupAdmin || user.role !== "GROUP_ADMIN";
+  // Admin công ty không thao tác Admin tập đoàn / Admin công ty khác (trừ chính mình) — Việc 29B #15
+  const canEdit = isGroupAdmin || (user.role !== "GROUP_ADMIN" && (user.role !== "COMPANY_ADMIN" || user.id === actor.id));
 
   return (
     <UserFormOptionsProvider value={buildUserFormOptions(actor, catalog)}>
@@ -332,10 +334,8 @@ function Panel({
 
 function EmptyBlock({ icon, title, description }: { icon: ReactNode; title: string; description: string }) {
   return (
-    <div className="flex flex-col items-center justify-center gap-3 rounded-md border border-dashed border-border py-10 text-center">
-      <div className="flex size-16 items-center justify-center rounded-full bg-primary/16 text-primary">{icon}</div>
-      <p className="text-lg font-medium text-foreground">{title}</p>
-      <p className="max-w-sm text-[15px] text-muted-foreground">{description}</p>
+    <div className="rounded-md border border-dashed border-border">
+      <EmptyState iconNode={icon} title={title} description={description} className="py-10" />
     </div>
   );
 }

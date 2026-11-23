@@ -1,6 +1,7 @@
 import type { Prisma, Role } from "@prisma/client";
 import { ROLE_LABELS } from "@/lib/roles";
 import { SETTING_KEYS, SETTING_META } from "@/lib/settings-meta";
+import { formatNumber } from "@/lib/format";
 
 /**
  * Nhật ký thao tác (audit_logs) — ghi và hiển thị.
@@ -58,6 +59,7 @@ export const AUDIT_ACTION_LABELS = {
   LESSON_RESTORED: "Hiện lại bài học",
   LESSON_VIDEO_SET: "Gắn video cho bài",
   LESSON_VIDEO_REMOVED: "Gỡ video khỏi bài",
+  LESSON_VIDEO_UPLOAD_STARTED: "Bắt đầu tải video lên Bunny",
   ENROLLMENTS_ASSIGNED: "Giao khoá học",
   ENROLLMENT_EXTENDED: "Gia hạn lượt giao",
   ENROLLMENT_CANCELLED: "Huỷ lượt giao",
@@ -83,6 +85,7 @@ export const AUDIT_ACTION_LABELS = {
   TEAM_REMINDER_SENT: "Nhắc nhở nhân viên",
   REPORT_EXPORTED: "Xuất báo cáo",
   SETTINGS_UPDATED: "Sửa cài đặt hệ thống",
+  BUNNY_CONNECTION_TESTED: "Kiểm tra kết nối Bunny Stream",
 } as const;
 
 export type AuditAction = keyof typeof AUDIT_ACTION_LABELS;
@@ -203,6 +206,8 @@ const GROUP_ACTIONS: Record<AuditGroup, AuditAction[]> = {
   ],
   update: [
     "SETTINGS_UPDATED",
+    "BUNNY_CONNECTION_TESTED",
+    "LESSON_VIDEO_UPLOAD_STARTED",
     "USER_UPDATED",
     "USER_ROLE_CHANGED",
     "USER_TRANSFERRED",
@@ -378,7 +383,7 @@ export const FIELD_LABELS: Record<string, string> = {
   unchanged: "Giữ nguyên",
   completed: "Đã hoàn thành (bỏ qua)",
   reactivated: "Kích hoạt lại",
-  learnerName: "Người học",
+  learnerName: "Học viên",
   dueInDays: "Hạn (ngày)",
   targetCompanyId: "Công ty áp dụng",
   includeSubDepartments: "Gồm phòng con",
@@ -438,7 +443,7 @@ const VALUE_LABELS: Record<string, Record<string, string>> = {
   status: { DRAFT: "Nháp", PUBLISHED: "Đã phát hành", ARCHIVED: "Lưu trữ", PROCESSING: "Đang xử lý", READY: "Sẵn sàng", FAILED: "Lỗi xử lý" },
   from: { DRAFT: "Nháp", PUBLISHED: "Đã phát hành", ARCHIVED: "Lưu trữ" },
   to: { DRAFT: "Nháp", PUBLISHED: "Đã phát hành", ARCHIVED: "Lưu trữ" },
-  lessonType: { VIDEO: "Video", DOCUMENT: "Tài liệu", QUIZ: "Kiểm tra" },
+  lessonType: { VIDEO: "Video", DOCUMENT: "Tài liệu", QUIZ: "Bài kiểm tra" },
   provider: { YOUTUBE: "YouTube", BUNNY: "Bunny Stream" },
   source: { RULE: "Tự động", ASSIGNED: "Thủ công", SELF: "Tự đăng ký" },
   cancelMode: { keep: "Giữ các lượt đã giao", cancelNotStarted: "Huỷ các lượt chưa bắt đầu" },
@@ -453,7 +458,7 @@ const VALUE_LABELS: Record<string, Record<string, string>> = {
 export function formatAuditValue(key: string, value: unknown, resolved: Record<string, string> = {}): string {
   if (value === null || value === undefined || value === "") return "—";
   if (typeof value === "boolean") return value ? "Có" : "Không";
-  if (typeof value === "number") return value.toLocaleString("vi-VN");
+  if (typeof value === "number") return formatNumber(value);
   if (typeof value === "string") {
     if (resolved[value]) return resolved[value];
     if (VALUE_LABELS[key]?.[value]) return VALUE_LABELS[key][value];
@@ -636,11 +641,25 @@ export function describeAuditEntry(action: string, metadata: unknown): string | 
         `học lại ${c.certExpiredReset ?? 0}`,
         `xoá TB ${c.notificationsDeleted ?? 0}`,
         `nhắc xác nhận ${c.ackOverdue ?? 0}`,
+        c.bunnyStatusSynced ? `cập nhật video ${c.bunnyStatusSynced}` : null,
+        c.bunnyPendingCleaned ? `dọn video tải dở ${c.bunnyPendingCleaned}` : null,
         errors > 0 ? `${errors} phần lỗi` : null,
       ]
         .filter(Boolean)
         .join(" · ");
     }
+    case "BUNNY_CONNECTION_TESTED":
+      return (
+        {
+          ok: `Đã kết nối${typeof m.videoCount === "number" ? ` · ${m.videoCount} video` : ""}`,
+          not_configured: "Chưa cấu hình",
+          bad_key: "Lỗi: sai API key",
+          bad_library: "Lỗi: sai Library ID",
+          unreachable: "Lỗi: không gọi được Bunny",
+        } as Record<string, string>
+      )[String(m.result)] ?? null;
+    case "LESSON_VIDEO_UPLOAD_STARTED":
+      return `${m.lessonTitle ?? "Bài"}${m.fileName ? ` — file ${m.fileName}` : ""}`;
     case "QUIZ_ATTEMPTS_GRANTED":
       return `${m.learnerName ?? ""} — ${m.courseCode ?? ""} · bài “${m.lessonTitle ?? "?"}”: +${m.count ?? 0} lượt`;
     case "QUESTIONS_IMPORTED":

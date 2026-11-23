@@ -28,14 +28,13 @@ import { LessonContent } from "@/components/learning/lesson-content";
 import { VersionUpdateBanner } from "@/components/learning/version-update-banner";
 import { requireUser } from "@/lib/current-user";
 import { LEARNER_SOURCE_LABELS } from "@/lib/enrollment-labels";
-import { formatDate } from "@/lib/format";
+import { formatDate, formatDuration } from "@/lib/format";
 import { dueHint, getCourseOutline, getMyEnrollment, type OutlineLesson } from "@/lib/learning";
 import { cancellableSelfEnrollment } from "@/lib/library";
 import { canReview, getMyReview } from "@/lib/reviews";
 import { CancelEnrollmentButton } from "./cancel-enrollment-button";
 import { MyReview } from "./my-review";
 import { cn } from "@/lib/utils";
-import { formatDuration } from "@/lib/youtube";
 
 export const metadata: Metadata = { title: "Giới thiệu khoá học" };
 
@@ -87,30 +86,30 @@ export default async function MyCourseDetailPage({ params }: { params: Promise<{
       </Link>
 
       {/* Đầu trang */}
-      <section className="grid grid-cols-12 gap-6 rounded-md bg-card p-6 shadow-md">
+      <section className="grid grid-cols-1 gap-6 rounded-md bg-card p-4 shadow-md sm:p-6 lg:grid-cols-12">
         <CourseThumbnail
           thumbnailKey={course.thumbnailUrl}
           fallbackSrc={defaultCoverUrl(course.categoryId)}
           alt={course.title}
           sizes="420px"
-          className="col-span-4 self-start rounded-md"
+          className="self-start rounded-md lg:col-span-4"
         />
 
-        <div className="col-span-5 flex min-w-0 flex-col gap-3">
+        <div className="flex min-w-0 flex-col gap-3 lg:col-span-5">
           <div className="flex flex-wrap items-center gap-2">
             <StatusBadge tone={source.tone}>{source.label}</StatusBadge>
             <span className="text-[13px] text-muted-foreground">{course.category?.name ?? "Chưa phân loại"}</span>
             {course.currentVersion > 0 && <span className="text-[13px] text-muted-foreground">· Phiên bản v{course.currentVersion}</span>}
             {course.status === "ARCHIVED" && <StatusBadge tone="secondary">Đã lưu trữ</StatusBadge>}
           </div>
-          <h1 className="text-2xl font-medium text-foreground">{course.title}</h1>
+          <h1 className="text-xl font-medium break-words text-foreground sm:text-2xl">{course.title}</h1>
           {course.description ? (
             <p className="text-[15px] whitespace-pre-line text-muted-foreground">{course.description}</p>
           ) : (
             <p className="text-[15px] text-muted-foreground italic">Khoá học chưa có mô tả.</p>
           )}
 
-          <dl className="mt-auto grid grid-cols-3 gap-4 border-t border-border pt-4 text-[13px]">
+          <dl className="mt-auto grid grid-cols-2 gap-4 border-t border-border pt-4 text-[13px] sm:grid-cols-3">
             <div>
               <dt className="text-muted-foreground">Hạn hoàn thành</dt>
               <dd
@@ -141,7 +140,7 @@ export default async function MyCourseDetailPage({ params }: { params: Promise<{
           </dl>
         </div>
 
-        <div className="col-span-3 flex flex-col items-center justify-center gap-4 rounded-md bg-muted/50 p-4 text-center">
+        <div className="flex flex-col items-center justify-center gap-4 rounded-md bg-muted/50 p-4 text-center lg:col-span-3">
           <ProgressRing value={outline.progressPercent} size={112} stroke={10} />
           <p className="text-[13px] text-muted-foreground">
             Đã xong {outline.completedLessons}/{outline.totalLessons} bài
@@ -220,7 +219,7 @@ export default async function MyCourseDetailPage({ params }: { params: Promise<{
 
       {/* Mục lục */}
       <section className="rounded-md bg-card shadow-md">
-        <header className="p-6 pb-4">
+        <header className="p-4 pb-3 sm:p-6 sm:pb-4">
           <h2 className="text-lg font-medium text-foreground">Nội dung khoá học</h2>
           <p className="text-[13px] text-muted-foreground">Học lần lượt từng bài: hoàn thành bài trước để mở bài sau.</p>
         </header>
@@ -233,7 +232,7 @@ export default async function MyCourseDetailPage({ params }: { params: Promise<{
               const done = s.lessons.filter((l) => l.completed).length;
               return (
                 <details key={s.id} open className="group">
-                  <summary className="flex cursor-pointer list-none items-center gap-3 bg-muted/40 px-6 py-3 select-none [&::-webkit-details-marker]:hidden">
+                  <summary className="flex cursor-pointer list-none items-center gap-3 bg-muted/40 px-4 py-3 select-none sm:px-6 [&::-webkit-details-marker]:hidden">
                     <ChevronDown className="size-5 shrink-0 -rotate-90 text-muted-foreground transition-transform group-open:rotate-0" />
                     <span className="min-w-0 flex-1 truncate font-medium text-foreground">
                       Chương {i + 1}: {s.title}
@@ -243,7 +242,7 @@ export default async function MyCourseDetailPage({ params }: { params: Promise<{
                     </span>
                   </summary>
                   {s.lessons.length === 0 ? (
-                    <p className="px-6 py-3 pl-14 text-[13px] text-muted-foreground">Chương chưa có bài học.</p>
+                    <p className="px-4 py-3 pl-11 text-[13px] text-muted-foreground sm:px-6 sm:pl-14">Chương chưa có bài học.</p>
                   ) : (
                     <ul>
                       {s.lessons.map((l) => (
@@ -276,14 +275,19 @@ function LessonRow({ courseId, lesson: l, current }: { courseId: string; lesson:
         <Icon className="size-4" />
       </span>
       <span className="min-w-0 flex-1">
-        <span className={cn("block truncate", l.locked ? "text-muted-foreground" : "text-foreground")}>{l.title}</span>
-        <span className="text-[13px] text-muted-foreground">
+        <span className={cn("line-clamp-2 break-words sm:block sm:truncate", l.locked ? "text-muted-foreground" : "text-foreground")} title={l.title}>
+          {l.title}
+        </span>
+        <span className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[13px] text-muted-foreground">
           {LESSON_TYPE_LABEL[l.type]}
           {l.durationSeconds ? ` · ${formatDuration(l.durationSeconds)}` : ""}
+          {/* Điện thoại: nhãn xuống dòng phụ (không chiếm chỗ tên bài) */}
+          {l.inProgress && <StatusBadge tone="primary" className="sm:hidden">Đang học</StatusBadge>}
+          {current && !l.inProgress && <StatusBadge tone="warning" className="sm:hidden">Bài tiếp theo</StatusBadge>}
         </span>
       </span>
-      {l.inProgress && <StatusBadge tone="primary">Đang học</StatusBadge>}
-      {current && !l.inProgress && <StatusBadge tone="warning">Bài tiếp theo</StatusBadge>}
+      {l.inProgress && <StatusBadge tone="primary" className="hidden sm:inline-flex">Đang học</StatusBadge>}
+      {current && !l.inProgress && <StatusBadge tone="warning" className="hidden sm:inline-flex">Bài tiếp theo</StatusBadge>}
       {l.completed ? (
         <CheckCircle2 className="size-5 shrink-0 text-success" aria-label="Đã hoàn thành" />
       ) : l.locked ? (
@@ -294,7 +298,7 @@ function LessonRow({ courseId, lesson: l, current }: { courseId: string; lesson:
     </>
   );
 
-  const rowClass = "flex items-center gap-3 px-6 py-3 pl-14";
+  const rowClass = "flex items-center gap-3 px-4 py-3 pl-11 sm:px-6 sm:pl-14";
   if (l.locked) {
     return (
       <div className={cn(rowClass, "cursor-not-allowed")} title="Hoàn thành bài trước để mở" aria-disabled>

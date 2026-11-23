@@ -18,9 +18,16 @@ export const LIMITS = {
   quickSearch: { limit: 60, windowMs: 60_000 },
   learnProgress: { limit: 30, windowMs: 60_000 },
   fileDownload: { limit: 120, windowMs: 60_000 },
+  /** Tạo video Bunny để tải lên (Việc 31B, security-review #8): 20 lần / giờ / người */
+  bunnyPrepare: { limit: 20, windowMs: 60 * 60_000 },
+  /** Webhook Bunny theo IP */
+  bunnyWebhookIp: { limit: 60, windowMs: 60_000 },
+  /** Nút "Kiểm tra kết nối" Bunny */
+  bunnyTest: { limit: 10, windowMs: 60_000 },
 } as const;
 
-type Bucket = number[];
+/** Lần dùng của 1 khoá + độ dài cửa sổ của khoá đó (để dọn đúng hạn, kể cả cửa sổ 1 giờ) */
+type Bucket = { hits: number[]; windowMs: number };
 const buckets = new Map<string, Bucket>();
 let lastSweep = Date.now();
 
@@ -28,9 +35,8 @@ let lastSweep = Date.now();
 function sweep(now: number) {
   if (now - lastSweep < 60_000) return;
   lastSweep = now;
-  for (const [key, hits] of buckets) {
-    // Cửa sổ dài nhất hiện dùng là 60 giây
-    if (hits.length === 0 || now - hits[hits.length - 1] > 60_000) buckets.delete(key);
+  for (const [key, b] of buckets) {
+    if (b.hits.length === 0 || now - b.hits[b.hits.length - 1] > b.windowMs) buckets.delete(key);
   }
 }
 
@@ -39,13 +45,13 @@ export type RateResult = { ok: true } | { ok: false; retryAfterSeconds: number }
 /** Ghi nhận 1 lần dùng của `key`; vượt `limit` lần trong `windowMs` → { ok: false }. Lần bị từ chối không được đếm. */
 export function rateLimit(key: string, rule: { limit: number; windowMs: number }, now = Date.now()): RateResult {
   sweep(now);
-  const hits = (buckets.get(key) ?? []).filter((t) => now - t < rule.windowMs);
+  const hits = (buckets.get(key)?.hits ?? []).filter((t) => now - t < rule.windowMs);
   if (hits.length >= rule.limit) {
-    buckets.set(key, hits);
+    buckets.set(key, { hits, windowMs: rule.windowMs });
     return { ok: false, retryAfterSeconds: Math.max(1, Math.ceil((hits[0] + rule.windowMs - now) / 1000)) };
   }
   hits.push(now);
-  buckets.set(key, hits);
+  buckets.set(key, { hits, windowMs: rule.windowMs });
   return { ok: true };
 }
 

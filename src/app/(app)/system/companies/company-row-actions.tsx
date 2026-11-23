@@ -14,6 +14,7 @@ import {
 import { toggleCompanyAction } from "./actions";
 import { CompanyAdminDialog } from "./company-admin-dialog";
 import { CompanyFormDialog, type CompanyFormValue } from "./company-form-dialog";
+import { Tooltip } from "@/components/ui/tooltip";
 
 /**
  * Thao tác trên mỗi dòng công ty: nút Sửa + menu ⋮ (chỉ công ty con).
@@ -36,9 +37,9 @@ export function CompanyRowActions({
       <CompanyFormDialog
         company={company}
         trigger={
-          <Button variant="ghost" size="icon-sm" aria-label={`Sửa ${company.code}`} title="Sửa">
+          <Tooltip label="Sửa"><Button variant="ghost" size="icon-sm" aria-label={`Sửa ${company.code}`}>
             <Pencil className="size-[18px]" />
-          </Button>
+          </Button></Tooltip>
         }
       />
 
@@ -50,9 +51,9 @@ export function CompanyRowActions({
           <DropdownMenu>
             <DropdownMenuTrigger
               render={
-                <Button variant="ghost" size="icon-sm" aria-label={`Thao tác khác cho ${company.code}`} title="Thao tác khác">
+                <Tooltip label="Thao tác khác"><Button variant="ghost" size="icon-sm" aria-label={`Thao tác khác cho ${company.code}`}>
                   <EllipsisVertical className="size-[18px]" />
-                </Button>
+                </Button></Tooltip>
               }
             />
             <DropdownMenuContent align="end" className="w-56 rounded-md py-2 shadow-lg ring-0">

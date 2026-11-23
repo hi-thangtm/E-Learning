@@ -21,7 +21,7 @@ export async function getGroupCompanyId(): Promise<string | null> {
   return groupCompanyIdCache;
 }
 
-export async function courseVisibleWhere(actor: CurrentUser): Promise<Prisma.CourseWhereInput> {
+export async function courseVisibleWhere(actor: Pick<CurrentUser, "role" | "companyId">): Promise<Prisma.CourseWhereInput> {
   if (actor.role === "GROUP_ADMIN") return {};
   const groupId = await getGroupCompanyId();
   return {

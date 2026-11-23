@@ -10,12 +10,11 @@ import { buttonVariants } from "@/components/ui/button";
 import { defaultCoverUrl } from "@/lib/course-cover";
 import { requireUser } from "@/lib/current-user";
 import { prisma } from "@/lib/db";
-import { formatNumber } from "@/lib/format";
+import { formatDuration, formatNumber } from "@/lib/format";
 import { getPreviewOutline } from "@/lib/learning";
 import { findLibraryCourse, getCourseStats, LIBRARY_STATUS_LABELS } from "@/lib/library";
 import { getPathLock } from "@/lib/path-lock";
 import { cn } from "@/lib/utils";
-import { formatDuration } from "@/lib/youtube";
 import { getRatingSummaries } from "@/lib/reviews";
 import { RatingText } from "../library-card";
 import { EnrollButton } from "./enroll-button";
@@ -92,16 +91,16 @@ export default async function LibraryCoursePage({ params }: { params: Promise<{ 
         Thư viện khoá học
       </Link>
 
-      <section className="grid grid-cols-12 gap-6 rounded-md bg-card p-6 shadow-md">
+      <section className="grid grid-cols-1 gap-6 rounded-md bg-card p-4 shadow-md sm:p-6 lg:grid-cols-12">
         <CourseThumbnail
           thumbnailKey={course.thumbnailUrl}
           fallbackSrc={defaultCoverUrl(course.categoryId)}
           alt={course.title}
           sizes="520px"
-          className="col-span-5 self-start rounded-md"
+          className="self-start rounded-md lg:col-span-5"
         />
 
-        <div className="col-span-7 flex min-w-0 flex-col gap-3">
+        <div className="flex min-w-0 flex-col gap-3 lg:col-span-7">
           <div className="flex flex-wrap items-center gap-2">
             <span className="inline-flex items-center gap-1.5 text-[13px] text-muted-foreground">
               <Tag className="size-3.5" />
@@ -143,7 +142,7 @@ export default async function LibraryCoursePage({ params }: { params: Promise<{ 
           </dl>
 
           <div className="mt-auto flex items-center gap-4 pt-2">
-            <div className="w-64">{main}</div>
+            <div className="w-full sm:w-64">{main}</div>
             {!enrollment && <p className="text-[13px] text-muted-foreground">Không có hạn hoàn thành — học theo nhịp của bạn.</p>}
             {pathLock && (
               <p className="text-[13px] text-muted-foreground">

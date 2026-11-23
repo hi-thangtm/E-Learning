@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { LibraryBig, SearchX } from "lucide-react";
+import { LibraryBig } from "lucide-react";
 import type { Prisma } from "@prisma/client";
 import { DataTablePagination } from "@/components/data-table/data-table-pagination";
 import { DataTableSearch } from "@/components/data-table/data-table-search";
@@ -12,6 +12,7 @@ import { getRatingSummaries, MIN_PUBLIC_REVIEWS } from "@/lib/reviews";
 import { buildHref, getEnumParam, getParam, type SearchParams } from "@/lib/table-params";
 import { cn } from "@/lib/utils";
 import { LibraryCard } from "./library-card";
+import { EmptyFiltered, EmptyState } from "@/components/empty-state";
 
 export const metadata: Metadata = { title: "Thư viện khoá học" };
 
@@ -20,7 +21,7 @@ const PAGE_SIZE = 12;
 const SORTS = ["newest", "popular", "rating"] as const;
 const SORT_LABELS: Record<(typeof SORTS)[number], string> = {
   newest: "Mới nhất",
-  popular: "Nhiều người học nhất",
+  popular: "Nhiều học viên nhất",
   rating: "Đánh giá cao nhất",
 };
 const COURSE_SELECT = {
@@ -89,7 +90,7 @@ export default async function LibraryPage({ searchParams }: { searchParams: Prom
 
   const chip = (active: boolean) =>
     cn(
-      "inline-flex h-8 shrink-0 items-center rounded-full px-3 text-[13px] whitespace-nowrap transition-colors",
+      "inline-flex h-10 shrink-0 items-center rounded-full px-3.5 text-[13px] whitespace-nowrap transition-colors sm:h-8 sm:px-3",
       active ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground hover:bg-primary/16 hover:text-primary",
     );
 
@@ -98,12 +99,12 @@ export default async function LibraryPage({ searchParams }: { searchParams: Prom
       <PageHeader title="Thư viện khoá học" description="Các khoá học bạn có thể tự đăng ký để học thêm — không có hạn hoàn thành." />
 
       <section className="rounded-md bg-card shadow-md">
-        <div className="flex flex-wrap items-center justify-between gap-4 p-6 pb-4">
+        <div className="flex flex-wrap items-center justify-between gap-4 p-4 pb-3 sm:p-6 sm:pb-4">
           <div className="w-full max-w-sm">
             <DataTableSearch placeholder="Tìm tên khoá học..." />
           </div>
-          <nav aria-label="Sắp xếp" className="flex items-center gap-2">
-            <span className="text-[13px] text-muted-foreground">Sắp xếp:</span>
+          <nav aria-label="Sắp xếp" className="flex flex-wrap items-center gap-2">
+            <span className="text-[13px] whitespace-nowrap text-muted-foreground">Sắp xếp:</span>
             {SORTS.map((s) => (
               <Link
                 key={s}
@@ -119,7 +120,7 @@ export default async function LibraryPage({ searchParams }: { searchParams: Prom
         </div>
 
         {categories.length > 0 && (
-          <nav aria-label="Lọc theo danh mục" className="flex flex-wrap gap-2 px-6 pb-4">
+          <nav aria-label="Lọc theo danh mục" className="flex flex-wrap gap-2 px-4 pb-4 sm:px-6">
             <Link href={buildHref(PATHNAME, sp, { category: null, page: null })} scroll={false} className={chip(!categoryId)}>
               Tất cả
             </Link>
@@ -137,27 +138,19 @@ export default async function LibraryPage({ searchParams }: { searchParams: Prom
           </nav>
         )}
 
-        <div className="px-6 pb-6">
+        <div className="px-4 pb-4 sm:px-6 sm:pb-6">
           {courses.length === 0 ? (
-            <div className="flex flex-col items-center gap-3 py-14 text-center">
-              <div className="flex size-16 items-center justify-center rounded-full bg-primary/16 text-primary">
-                {filtered ? <SearchX className="size-8" /> : <LibraryBig className="size-8" />}
-              </div>
-              <p className="text-lg font-medium text-foreground">
-                {filtered ? "Không tìm thấy khoá học phù hợp" : "Thư viện chưa có khoá học nào"}
-              </p>
-              {filtered ? (
-                <Link href={buildHref(PATHNAME, sp, { q: null, category: null, page: null })} className="text-[15px] text-primary hover:underline">
-                  Xoá tìm kiếm và bộ lọc
-                </Link>
-              ) : (
-                <p className="max-w-md text-[15px] text-muted-foreground">
-                  Khi bộ phận đào tạo mở khoá cho phép tự đăng ký, khoá sẽ hiện ở đây. Các khoá được giao cho bạn nằm ở “Khoá học của tôi”.
-                </p>
-              )}
-            </div>
+            filtered ? (
+              <EmptyFiltered clearHref={buildHref(PATHNAME, sp, { q: null, category: null, page: null })} />
+            ) : (
+              <EmptyState
+                icon={LibraryBig}
+                title="Thư viện chưa có khoá học nào"
+                description="Khi quản trị đào tạo mở khoá cho phép tự đăng ký, khoá sẽ hiện ở đây. Các khoá được giao cho bạn nằm ở “Khoá học của tôi”."
+              />
+            )
           ) : (
-            <div className="grid grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-6 lg:grid-cols-3">
               {courses.map((c) => (
                 <LibraryCard key={c.id} course={c} stats={stats.get(c.id)!} status={myStatus.get(c.id) ?? null} rating={ratings.get(c.id) ?? null} />
               ))}

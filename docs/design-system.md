@@ -199,9 +199,23 @@ Gradient mục đang chọn trong Tailwind: `bg-linear-to-l from-primary/70 to-p
 ### 4.3 Vùng nội dung
 
 - Nền trang `bg-background` (`#F8F7FA`).
-- Rộng tối đa **1440px**, căn giữa (`mx-auto max-w-[1440px]`), padding **24px** (`p-6`).
+- Rộng tối đa **1440px**, căn giữa (`mx-auto max-w-[1440px]`), padding **24px** (`p-6`; điện thoại 16px `p-4`).
 - Tiêu đề trang: h4, cách nội dung bên dưới 24px. Có thể kèm mô tả body1 màu chữ phụ.
 - Footer: tĩnh, cùng độ rộng, chữ 13px màu phụ.
+
+### 4.4 Màn hình nhỏ — trang học viên hỗ trợ điện thoại; trang quản trị bố cục máy tính
+
+| Thành phần | < 1024px (`lg`) | Ghi chú |
+|---|---|---|
+| Sidebar | Ẩn; nút ☰ ở header mở `MobileSidebar` (Sheet trượt từ trái, rộng 280px, tự đóng khi chuyển trang) | `app-sidebar.tsx` |
+| Header | Padding 8–16px; breadcrumb chỉ còn tên trang (< 640px); ô tìm nhanh ẩn (< 768px) | `app-header.tsx` |
+| Trang học viên | Co giãn ≥ 375px: `/dashboard`, `/my-courses…`, `/learning-paths…`, `/library…`, `/certificates`, `/notifications`, `/learn/…`, đăng nhập, đổi mật khẩu, `/verify` | `LEARNER_PATHS` trong `content-frame.tsx` |
+| Trang quản trị | Giữ bố cục máy tính: nội dung rộng tối thiểu 900px, cuộn ngang trong khung (không vỡ trang) | `ContentFrame` |
+| Trang học | Mục lục thành Sheet trượt từ phải; nút “Bài trước / Bài tiếp theo” chia đôi chiều ngang, cao 44px; đáp án bài kiểm tra ≥ 44px | `lesson-shell.tsx`, `quiz-player.tsx` |
+
+Quy ước khi viết trang học viên: lưới `grid-cols-1 sm:grid-cols-2 lg:grid-cols-3` (không dùng `grid-cols-N` cố định),
+padding thẻ `p-4 sm:p-6`, vùng bấm ≥ 40px (`h-10 sm:h-8`…), ô chữ dài trong lưới cần `min-w-0` / `grid-cols-1` để `truncate` có tác dụng,
+ảnh / video / PDF `w-full`. Kiểm bằng `e2e/11-dien-thoai.spec.ts` (không cuộn ngang ở 375px).
 
 ---
 
@@ -434,7 +448,7 @@ Theo `views/apps/academy/my-courses/Courses.tsx`.
 | `dashboards/analytics` + `dashboards/crm` | Báo cáo (5.5), Dashboard tập đoàn (6.3) | `/reports` |
 | `pages/account-settings` (form) | Mẫu chứng nhận (5.6), Cài đặt (6.4) | `/system/certificate-templates`, `/system/settings` |
 | `apps/user/list` | Nhật ký (5.6), Công ty con (6.1) | `/system/audit-logs`, `/system/companies` |
-| `NotAuthorized.tsx`, `NotFound.tsx`, `pages/misc/ComingSoon.tsx` | Không có quyền, không tìm thấy, đang xây dựng | `[...slug]` |
+| `NotAuthorized.tsx`, `NotFound.tsx` | Không có quyền, không tìm thấy | Không có quyền → chuyển về `/dashboard`; không tìm thấy → `src/app/not-found.tsx`, `src/app/(app)/not-found.tsx` |
 
 ---
 
@@ -532,3 +546,62 @@ skeleton, sonner**. Thành phần khác thêm khi cần:
 - `label.tsx` vẫn 14px đậm 500; Vuexy là 13px thường (trang đăng nhập đang ghi đè bằng class).
 - Sidebar chưa có chế độ thu gọn 71px; header chưa có ô tìm kiếm, chuông thông báo (làm ở mục 2.10).
 - Thêm các component shadcn còn thiếu ở mục 7 khi làm chức năng cần đến.
+
+## 9. Thuật ngữ & cách viết
+
+Áp dụng cho MỌI chữ hiển thị: giao diện, thông báo lỗi zod, toast, nội dung thông báo, tiêu đề cột Excel, PDF chứng nhận.
+
+### 9.1 Chính tả (dấu đặt theo kiểu cũ, thống nhất toàn hệ thống)
+
+| Dùng | Không dùng |
+|---|---|
+| khoá, huỷ, hoá, xoá, thuỷ, tuỳ | khóa, hủy, hóa, xóa, thủy, tùy |
+
+### 9.2 Gọi người theo ngữ cảnh
+
+| Từ | Dùng khi | Ví dụ |
+|---|---|---|
+| **học viên** | Người học khoá: học, giao khoá, tiến độ, báo cáo theo khoá, thông báo nhắc học | “Chọn học viên”, “Học viên hoạt động 30 ngày” |
+| **nhân viên** | Người trong tổ chức: Đội của tôi, phòng ban, import Excel, mã NV | “Import nhân viên”, “Số nhân viên” |
+| **người dùng** | Tài khoản đăng nhập: trang Người dùng, khoá / mở khoá, đặt lại mật khẩu, vai trò | “Thêm người dùng”, “Khoá tài khoản” |
+| **bạn** | Nói với chính người đang xem | “Bạn đã đọc xong bài này.” |
+
+Không dùng “người học”, “nhân sự”, “user”, “thành viên”.
+
+### 9.3 Từ nghiệp vụ
+
+| Dùng | Không dùng | Ghi chú |
+|---|---|---|
+| khoá học (gọn: khoá) | khoá đào tạo, course | |
+| lượt học | lượt đăng ký, enrollment | 1 người × 1 khoá |
+| giao khoá / giao thủ công / quy tắc giao tự động | phân công, gán khoá | |
+| bài kiểm tra | kiểm tra, quiz, bài thi | Cả nhãn loại bài: Video · Tài liệu · Bài kiểm tra |
+| chứng nhận | chứng chỉ, certificate | |
+| phiên bản (bản cập nhật MINOR / MAJOR) | version | |
+| phòng ban, chức danh, công ty tổng / công ty con | bộ phận, vị trí | |
+| lộ trình | learning path | |
+| tài liệu | văn bản | Loại bài DOCUMENT |
+| hạn hoàn thành (gọn: hạn) | deadline | |
+
+### 9.4 Nút & dialog
+- Nút ghi **động từ + đối tượng**: “Thêm phòng ban”, “Tạo khoá học”, “Gửi nhắc nhở”. Form sửa: “Lưu thay đổi”. Đang xử lý: “Đang lưu...”.
+- Nút nguy hiểm (khoá, xoá hẳn, huỷ giao, lưu trữ, tạm ngưng, gỡ video): `variant="destructive"` / `ConfirmDialog tone="destructive"`.
+- Dialog xác nhận: tiêu đề là câu hỏi (“Khoá tài khoản NV001?”), mô tả nói rõ **hậu quả** và có hoàn tác được không; nút xác nhận
+  lặp lại động từ (“Khoá”, “Huỷ giao”), không dùng “OK” / “Đồng ý”.
+
+### 9.5 Định dạng — luôn dùng `src/lib/format.ts`
+| Loại | Hàm | Ví dụ |
+|---|---|---|
+| Ngày | `formatDate` | 23/11/2026 |
+| Ngày giờ | `formatDateTime`, `formatDateTimeSeconds` | 23/11/2026 14:05 |
+| Tương đối | `formatRelative` | 5 phút trước |
+| Số nguyên | `formatNumber` | 1.234 |
+| Số thập phân | `formatDecimal(v, 1)`; luôn 1 chữ số: `formatDecimal(v, 1, true)` | 4,5 · 4,0 |
+| Phần trăm | `formatPercent(v)` (v đã là %) | 12,5% |
+| Dung lượng | `formatFileSize(bytes)` | 2,1MB |
+| Thời lượng | `formatDuration(giây)` | 12:34 · 1:02:05 |
+
+Không gọi trực tiếp `toLocaleString`, `toFixed`, `Intl.*` trong component. Múi giờ luôn Asia/Ho_Chi_Minh.
+
+### 9.6 Tiêu đề tab trình duyệt
+`<Tên trang> · <Tên hệ thống trong Cài đặt>` — template ở `src/app/layout.tsx` (`getBranding`); mỗi `page.tsx` khai báo `metadata.title`.

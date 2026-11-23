@@ -456,7 +456,7 @@ function UserForm({
         <DialogFooter>
           <DialogClose render={<Button type="button" variant="outline" disabled={pending} />}>Huỷ</DialogClose>
           <Button type="submit" disabled={pending}>
-            {pending ? "Đang lưu..." : companyChanged ? "Chuyển công ty và lưu" : "Lưu"}
+            {pending ? "Đang lưu..." : companyChanged ? "Chuyển công ty và lưu" : user ? "Lưu thay đổi" : "Thêm người dùng"}
           </Button>
         </DialogFooter>
       </form>

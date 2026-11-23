@@ -9,7 +9,7 @@ import { acknowledgeVersionAction } from "./actions";
 
 const WAIT_SECONDS = 10;
 
-/** Nút "Tôi đã đọc và nắm được" — bật sau 10 giây để người học đọc phần thay đổi. */
+/** Nút "Tôi đã đọc và nắm được" — bật sau 10 giây để học viên đọc phần thay đổi. */
 export function AckButton({ courseId }: { courseId: string }) {
   const [left, setLeft] = useState(WAIT_SECONDS);
   const [pending, startTransition] = useTransition();
@@ -39,7 +39,7 @@ export function AckButton({ courseId }: { courseId: string }) {
   return (
     <Button size="lg" onClick={submit} disabled={left > 0 || pending}>
       {pending ? <Loader2 className="animate-spin" /> : <CheckCircle2 />}
-      {left > 0 ? `Tôi đã đọc và nắm được (${left}s)` : "Tôi đã đọc và nắm được"}
+      {pending ? "Đang xác nhận..." : left > 0 ? `Tôi đã đọc và nắm được (${left}s)` : "Tôi đã đọc và nắm được"}
     </Button>
   );
 }

@@ -3,10 +3,9 @@ import { BookOpen, Clock, Star, Users } from "lucide-react";
 import { CourseThumbnail } from "@/components/course-thumbnail";
 import { StatusBadge } from "@/components/status-badge";
 import { defaultCoverUrl } from "@/lib/course-cover";
-import { formatNumber } from "@/lib/format";
+import { formatDuration, formatNumber } from "@/lib/format";
 import { LIBRARY_STATUS_LABELS, type CourseStats, type LibraryStatus } from "@/lib/library";
 import { formatRating, MIN_PUBLIC_REVIEWS } from "@/lib/reviews";
-import { formatDuration } from "@/lib/youtube";
 
 export type LibraryCourse = {
   id: string;
@@ -53,7 +52,7 @@ export function LibraryCard({
           <span className="truncate text-muted-foreground">{c.category?.name ?? "Chưa phân loại"}</span>
           <RatingText rating={rating} />
         </div>
-        <Link href={href} className="line-clamp-2 min-h-[3em] text-lg leading-snug font-medium text-foreground hover:text-primary">
+        <Link href={href} className="line-clamp-2 min-h-[3em] text-lg leading-normal break-words font-medium text-foreground hover:text-primary">
           {c.title}
         </Link>
         <p className="line-clamp-2 min-h-[2.8em] text-[13px] text-muted-foreground">{c.description || "Khoá học chưa có mô tả."}</p>

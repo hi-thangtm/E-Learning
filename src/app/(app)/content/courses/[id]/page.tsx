@@ -9,10 +9,11 @@ import { canEditCourse, findCourseInScope } from "@/lib/course-scope";
 import { requireRole } from "@/lib/current-user";
 import { prisma } from "@/lib/db";
 import { isBunnyConfigured } from "@/lib/bunny";
+import { syncProcessingLessonsThrottled } from "@/lib/bunny-sync";
 import { ACTIVE_QUESTION_WHERE, getQuizBankIssues, getTopicStats } from "@/lib/question-bank";
 import { getSetting } from "@/lib/settings";
 import { canManageMajor, canProposeMajor, canPublishMinor, isUpdatable } from "@/lib/versioning";
-import { isBlankHtml } from "@/lib/sanitize";
+import { isBlankHtml, sanitizeLessonHtml } from "@/lib/sanitize";
 import { getParam, type SearchParams } from "@/lib/table-params";
 import { ContentEditor } from "./content-editor";
 import type { ContentSection } from "./content-types";
@@ -22,6 +23,7 @@ import { CourseReviews } from "./course-reviews";
 import { COURSE_TABS, CourseTabs, type CourseTab } from "./course-tabs";
 import { ProposalBanner } from "./proposal-banner";
 import { VersionHistory } from "./version-history";
+import { EmptyState } from "@/components/empty-state";
 
 export const metadata: Metadata = { title: "Soạn khoá học" };
 
@@ -54,6 +56,14 @@ export default async function CourseEditorPage({
     ownerCompany: { select: { code: true, name: true } },
   });
   if (!course) redirect("/content/courses");
+
+  // Bài video Bunny còn "đang xử lý" (webhook bị lỡ / đóng dialog sớm) → hỏi lại Bunny, tối đa 1 lần / phút / bài
+  await syncProcessingLessonsThrottled(
+    await prisma.lesson.findMany({
+      where: { section: { courseId: course.id }, videoProvider: "BUNNY", videoStatus: "PROCESSING" },
+      select: { id: true, videoProvider: true, videoId: true, videoStatus: true },
+    }),
+  );
 
   const canEdit = canEditCourse(actor, course);
   const tabParam = getParam(sp, "tab");
@@ -148,12 +158,15 @@ export default async function CourseEditorPage({
   const previewLesson = previewLessonId ? await getLessonDetail(previewLessonId) : null;
 
   // Bản cập nhật MINOR / MAJOR (Việc 21A): quyền + đề xuất MAJOR đang chờ duyệt
+  // Đề xuất MAJOR chỉ người được SỬA khoá thấy (người chỉ xem khoá công ty tổng không thấy — Việc 29B #11)
   const [pendingProposal, defaultDueDays] = await Promise.all([
-    prisma.courseVersion.findFirst({
-      where: { courseId: course.id, status: "PROPOSED" },
-      orderBy: { proposedAt: "desc" },
-      select: { id: true, changeSummary: true, dueInDays: true, proposedAt: true, createdAt: true, proposedBy: { select: { fullName: true } } },
-    }),
+    canEdit
+      ? prisma.courseVersion.findFirst({
+          where: { courseId: course.id, status: "PROPOSED" },
+          orderBy: { proposedAt: "desc" },
+          select: { id: true, changeSummary: true, dueInDays: true, proposedAt: true, createdAt: true, proposedBy: { select: { fullName: true } } },
+        })
+      : null,
     getSetting("DEFAULT_DUE_DAYS"),
   ]);
   const update = {
@@ -177,7 +190,7 @@ export default async function CourseEditorPage({
             id: pendingProposal.id,
             proposerName: pendingProposal.proposedBy?.fullName ?? "Không rõ",
             proposedAt: (pendingProposal.proposedAt ?? pendingProposal.createdAt).toISOString(),
-            summaryHtml: pendingProposal.changeSummary ?? "",
+            summaryHtml: sanitizeLessonHtml(pendingProposal.changeSummary ?? ""),
             dueInDays: pendingProposal.dueInDays ?? defaultDueDays,
           }}
         />
@@ -207,7 +220,7 @@ export default async function CourseEditorPage({
               {published && (
                 <p role="status" className="flex items-start gap-2 rounded-md bg-warning/16 px-4 py-3 text-[15px] text-warning">
                   <TriangleAlert className="mt-0.5 size-5 shrink-0" />
-                  Khoá đã phát hành — sửa xong, hãy Phát hành bản cập nhật để báo cho người học.
+                  Khoá đã phát hành — sửa xong, hãy Phát hành bản cập nhật để báo cho học viên.
                 </p>
               )}
               {quizIssues.length > 0 && (
@@ -241,7 +254,7 @@ export default async function CourseEditorPage({
               />
             </div>
           ) : tab === "versions" ? (
-            <VersionHistory courseId={course.id} />
+            <VersionHistory courseId={course.id} canEdit={canEdit} />
           ) : tab === "preview" ? (
             previewOutline && previewLesson ? (
               <div className="-m-6 overflow-hidden rounded-b-md">
@@ -262,15 +275,11 @@ export default async function CourseEditorPage({
                 </LessonShell>
               </div>
             ) : (
-              <div className="flex flex-col items-center justify-center gap-3 py-16 text-center">
-                <div className="flex size-16 items-center justify-center rounded-full bg-primary/16 text-primary">
-                  <Eye className="size-8" />
-                </div>
-                <p className="text-lg font-medium text-foreground">Khoá học chưa có bài nào để xem trước</p>
-                <p className="max-w-sm text-[15px] text-muted-foreground">
-                  Thêm chương và bài ở tab Nội dung (bài / chương đang ẩn không hiện với học viên).
-                </p>
-              </div>
+              <EmptyState
+                icon={Eye}
+                title="Khoá học chưa có bài nào để xem trước"
+                description="Thêm chương và bài ở tab Nội dung (bài / chương đang ẩn không hiện với học viên)."
+              />
             )
           ) : (
             <CourseReviews actor={actor} courseId={course.id} searchParams={sp} />

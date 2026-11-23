@@ -139,7 +139,8 @@ async function assignManager(
 ) {
   const promote = args.manager.role === "LEARNER";
   if (promote) {
-    await tx.user.update({ where: { id: args.manager.id }, data: { role: "MANAGER" } });
+    // Đổi vai trò → huỷ phiên cũ (Việc 29A)
+    await tx.user.update({ where: { id: args.manager.id }, data: { role: "MANAGER", sessionsValidAfter: new Date() } });
   }
   await logAudit(tx, {
       actorId: args.actorId,

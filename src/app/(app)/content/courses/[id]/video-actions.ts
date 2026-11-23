@@ -5,20 +5,20 @@ import type { VideoProvider, VideoStatus } from "@prisma/client";
 import { logAudit } from "@/lib/audit";
 import {
   bunnyEmbedUrl,
-  bunnyStatusToVideoStatus,
+  bunnyTusEndpoint,
   createBunnyVideo,
   createUploadTicket,
   deleteBunnyVideo,
-  getBunnyVideo,
   isBunnyConfigured,
   isBunnyVideoId,
   tusSignature,
   verifyUploadTicket,
-  BUNNY_TUS_ENDPOINT,
 } from "@/lib/bunny";
+import { syncBunnyLesson } from "@/lib/bunny-sync";
 import { findLessonForEdit } from "@/lib/course-content";
 import { requireRole } from "@/lib/current-user";
 import { prisma } from "@/lib/db";
+import { LIMITS, rateLimit } from "@/lib/rate-limit";
 import { parseYoutubeId } from "@/lib/youtube";
 
 /**
@@ -26,11 +26,15 @@ import { parseYoutubeId } from "@/lib/youtube";
  * - YouTube: chỉ lưu mã video (server tự tách từ link), thời lượng do trình phát xem trước đo được.
  * - Bunny: server tạo video + ký chữ ký TUS; trình duyệt tải thẳng lên Bunny; server hỏi trạng thái xử lý.
  * Thay / gỡ video: xoá video Bunny cũ (lỗi chỉ ghi log, không chặn).
+ *
+ * Bunny + security-review #8 (Việc 31B): video vừa tạo được giữ ở `pendingVideoId` của bài; vé tải lên chỉ được nhận
+ * khi đúng id đó (hoàn tất / huỷ = cập nhật có điều kiện → vé dùng 1 lần). Tạo video: tối đa 20 lần / giờ / người.
+ * Pending quá 24 giờ → tác vụ hằng ngày xoá trên Bunny.
  */
 
 const ROLES = ["GROUP_ADMIN", "COMPANY_ADMIN", "CONTENT_EDITOR"] as const;
 const NO_ACCESS = "Không tìm thấy bài học hoặc bạn không có quyền sửa.";
-const MAX_VIDEO_BYTES = 2 * 1024 * 1024 * 1024; // 2GB
+const MAX_VIDEO_BYTES = 4 * 1024 * 1024 * 1024; // 4GB
 const VIDEO_TYPES: Record<string, string[]> = {
   mp4: ["video/mp4"],
   mov: ["video/quicktime"],
@@ -46,7 +50,7 @@ async function loadVideoLesson(lessonId: string) {
   if (!lesson || lesson.type !== "VIDEO") return { actor, lesson: null };
   const video = await prisma.lesson.findUnique({
     where: { id: lesson.id },
-    select: { videoProvider: true, videoId: true, videoStatus: true, durationSeconds: true },
+    select: { videoProvider: true, videoId: true, videoStatus: true, durationSeconds: true, pendingVideoId: true },
   });
   return { actor, lesson: { ...lesson, ...video! } };
 }
@@ -75,6 +79,16 @@ function revalidate(lesson: VideoLesson) {
   revalidatePath(`/content/courses/${lesson.section.course.id}`);
 }
 
+/** Bỏ video Bunny đang tải dở của bài (khi chuyển sang YouTube / gỡ video): xoá cột pending rồi xoá trên Bunny. */
+async function dropPendingVideo(lesson: VideoLesson) {
+  if (!lesson.pendingVideoId) return;
+  const cleared = await prisma.lesson.updateMany({
+    where: { id: lesson.id, pendingVideoId: lesson.pendingVideoId },
+    data: { pendingVideoId: null, pendingVideoCreatedAt: null },
+  });
+  if (cleared.count === 1) await deleteBunnyVideo(lesson.pendingVideoId);
+}
+
 // --- YouTube ------------------------------------------------------------------------------------
 
 export async function setYoutubeVideoAction(lessonId: string, url: string, durationSeconds: number): Promise<Result> {
@@ -101,6 +115,7 @@ export async function setYoutubeVideoAction(lessonId: string, url: string, durat
     }),
   ]);
   if (lesson.videoProvider === "BUNNY") await deleteBunnyVideo(lesson.videoId);
+  await dropPendingVideo(lesson);
 
   revalidate(lesson);
   return { ok: true };
@@ -122,7 +137,7 @@ export async function prepareBunnyUploadAction(
   lessonId: string,
   file: { name: string; size: number; type: string },
 ): Promise<Result<{ upload: BunnyUpload }>> {
-  const { lesson } = await loadVideoLesson(lessonId);
+  const { actor, lesson } = await loadVideoLesson(lessonId);
   if (!lesson) return { ok: false, message: NO_ACCESS };
   if (!isBunnyConfigured()) return { ok: false, message: "Chưa cấu hình Bunny Stream." };
 
@@ -130,10 +145,14 @@ export async function prepareBunnyUploadAction(
   const ext = String(file?.name ?? "").split(".").pop()?.toLowerCase() ?? "";
   const size = Number(file?.size);
   if (!VIDEO_TYPES[ext] || !VIDEO_TYPES[ext].includes(String(file?.type ?? ""))) {
-    return { ok: false, message: "Chỉ nhận file video MP4, MOV, MKV hoặc WEBM." };
+    return { ok: false, message: "Chỉ nhận video MP4, MOV, WEBM hoặc MKV." };
   }
   if (!Number.isFinite(size) || size <= 0) return { ok: false, message: "File rỗng." };
-  if (size > MAX_VIDEO_BYTES) return { ok: false, message: "File video tối đa 2GB." };
+  if (size > MAX_VIDEO_BYTES) return { ok: false, message: "Video tối đa 4GB." };
+  // Mỗi lần gọi tạo 1 video trên Bunny → giới hạn để không tạo video rỗng hàng loạt
+  if (!rateLimit(`bunny-prepare:${actor.id}`, LIMITS.bunnyPrepare).ok) {
+    return { ok: false, message: "Bạn đã tạo quá 20 lượt tải video trong 1 giờ. Vui lòng thử lại sau." };
+  }
 
   const course = lesson.section.course;
   const title = `${course.code} — ${lesson.title}`.slice(0, 200);
@@ -145,11 +164,23 @@ export async function prepareBunnyUploadAction(
     return { ok: false, message: "Không tạo được video trên Bunny. Kiểm tra cấu hình hoặc thử lại sau." };
   }
 
+  // Ghi video mới vào pending (thay pending cũ — tải lại / mở 2 tab), rồi xoá pending cũ trên Bunny
+  const previousPending = lesson.pendingVideoId;
+  await prisma.$transaction([
+    prisma.lesson.update({ where: { id: lesson.id }, data: { pendingVideoId: videoId, pendingVideoCreatedAt: new Date() } }),
+    logAudit(prisma, {
+      ...auditBase(actor.id, lesson),
+      action: "LESSON_VIDEO_UPLOAD_STARTED",
+      metadata: { ...lessonMeta(lesson), provider: "BUNNY", videoId, fileName: String(file?.name ?? "").slice(0, 200), size },
+    }),
+  ]);
+  if (previousPending && previousPending !== videoId) await deleteBunnyVideo(previousPending);
+
   const { libraryId, signature, expire } = tusSignature(videoId);
   return {
     ok: true,
     upload: {
-      endpoint: BUNNY_TUS_ENDPOINT,
+      endpoint: bunnyTusEndpoint(),
       libraryId,
       videoId,
       signature,
@@ -167,19 +198,26 @@ export async function completeBunnyUploadAction(lessonId: string, videoId: strin
     return { ok: false, message: "Phiên tải lên không hợp lệ hoặc đã hết hạn. Hãy tải lại." };
   }
 
-  await prisma.$transaction([
-    prisma.lesson.update({
-      where: { id: lesson.id },
-      data: { videoProvider: "BUNNY", videoId, videoStatus: "PROCESSING", durationSeconds: null },
-    }),
-    logAudit(prisma, {
+  // Chỉ nhận đúng video đang chờ của bài, và chỉ 1 lần: cập nhật có điều kiện pendingVideoId = videoId
+  const attached = await prisma.$transaction(async (tx) => {
+    const updated = await tx.lesson.updateMany({
+      where: { id: lesson.id, pendingVideoId: videoId },
+      data: { videoProvider: "BUNNY", videoId, videoStatus: "PROCESSING", durationSeconds: null, pendingVideoId: null, pendingVideoCreatedAt: null },
+    });
+    if (updated.count !== 1) return false;
+    await logAudit(tx, {
       ...auditBase(actor.id, lesson),
       action: "LESSON_VIDEO_SET",
       metadata: { ...lessonMeta(lesson), provider: "BUNNY", videoId, durationSeconds: null, status: "PROCESSING", ...previous(lesson) },
-    }),
-  ]);
+    });
+    return true;
+  });
+  if (!attached) return { ok: false, message: "Phiên tải lên không còn hiệu lực (đã hoàn tất, đã huỷ hoặc đã có lượt tải mới). Hãy tải lại." };
+
   // Video cũ (nếu là Bunny và khác video mới) -> xoá trên Bunny
   if (lesson.videoProvider === "BUNNY" && lesson.videoId !== videoId) await deleteBunnyVideo(lesson.videoId);
+  // Hỏi Bunny ngay 1 lần (file nhỏ có thể đã xử lý xong)
+  await syncBunnyLesson({ id: lesson.id, videoId }, actor.id);
 
   revalidate(lesson);
   return { ok: true };
@@ -191,8 +229,12 @@ export async function cancelBunnyUploadAction(lessonId: string, videoId: string,
   if (!isBunnyVideoId(String(videoId)) || !verifyUploadTicket(lesson.id, videoId, String(ticket))) {
     return { ok: false, message: "Phiên tải lên không hợp lệ." };
   }
-  // Không xoá video đang gắn với bài (phòng trường hợp gọi nhầm sau khi đã hoàn tất)
-  if (lesson.videoId !== videoId) await deleteBunnyVideo(videoId);
+  // Chỉ huỷ đúng video đang chờ (không bao giờ xoá video đã gắn vào bài)
+  const cleared = await prisma.lesson.updateMany({
+    where: { id: lesson.id, pendingVideoId: videoId },
+    data: { pendingVideoId: null, pendingVideoCreatedAt: null },
+  });
+  if (cleared.count === 1) await deleteBunnyVideo(videoId);
   return { ok: true };
 }
 
@@ -206,34 +248,14 @@ export async function checkBunnyStatusAction(
     return { ok: true, status: lesson.videoStatus ?? "FAILED", durationSeconds: lesson.durationSeconds, progress: 100 };
   }
 
-  let info: Awaited<ReturnType<typeof getBunnyVideo>>;
-  try {
-    info = await getBunnyVideo(lesson.videoId);
-  } catch (error) {
-    console.error("[bunny] Hỏi trạng thái lỗi:", error);
-    // Lỗi mạng tạm thời -> giữ PROCESSING, lần sau hỏi lại
-    return { ok: true, status: "PROCESSING", durationSeconds: null, progress: 0 };
-  }
+  const result = await syncBunnyLesson({ id: lesson.id, videoId: lesson.videoId }, actor.id);
+  // Bunny lỗi / không gọi được → giữ PROCESSING, lần sau hỏi lại
+  if (!result) return { ok: true, status: "PROCESSING", durationSeconds: null, progress: 0 };
+  if (result.status === "PROCESSING") return { ok: true, status: "PROCESSING", durationSeconds: null, progress: result.progress };
 
-  const status = bunnyStatusToVideoStatus(info.status);
-  if (status === "PROCESSING") return { ok: true, status, durationSeconds: null, progress: info.encodeProgress };
-
-  const durationSeconds = status === "READY" && info.length > 0 ? info.length : null;
-  // Chỉ cập nhật nếu bài vẫn đang chờ đúng video này (tránh ghi đè khi người khác vừa thay video)
-  const updated = await prisma.lesson.updateMany({
-    where: { id: lesson.id, videoId: lesson.videoId, videoStatus: "PROCESSING" },
-    data: { videoStatus: status, durationSeconds },
-  });
-  if (updated.count === 1 && status === "READY") {
-    await logAudit(prisma, {
-      ...auditBase(actor.id, lesson),
-      action: "LESSON_VIDEO_SET",
-      metadata: { ...lessonMeta(lesson), provider: "BUNNY", videoId: lesson.videoId, durationSeconds, status: "READY" },
-    });
-  }
-
+  const fresh = await prisma.lesson.findUnique({ where: { id: lesson.id }, select: { videoStatus: true, durationSeconds: true } });
   revalidate(lesson);
-  return { ok: true, status, durationSeconds, progress: 100 };
+  return { ok: true, status: fresh?.videoStatus ?? result.status, durationSeconds: fresh?.durationSeconds ?? null, progress: 100 };
 }
 
 // --- Gỡ video / xem trước --------------------------------------------------------------------------
@@ -255,6 +277,7 @@ export async function removeVideoAction(lessonId: string): Promise<Result> {
     }),
   ]);
   if (lesson.videoProvider === "BUNNY") await deleteBunnyVideo(lesson.videoId);
+  await dropPendingVideo(lesson);
 
   revalidate(lesson);
   return { ok: true };

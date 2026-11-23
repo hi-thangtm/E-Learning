@@ -24,6 +24,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 import { disableRuleAction, enableRuleAction } from "./actions";
+import { Tooltip } from "@/components/ui/tooltip";
 
 const ITEM = "mx-1 gap-3 rounded-md px-3 py-2 text-[15px]";
 
@@ -37,9 +38,9 @@ export function RuleRowActions({ rule }: { rule: { id: string; name: string; isA
       <DropdownMenu>
         <DropdownMenuTrigger
           render={
-            <Button variant="ghost" size="icon-sm" aria-label={`Thao tác cho quy tắc “${rule.name}”`}>
+            <Tooltip label={`Thao tác cho quy tắc “${rule.name}”`}><Button variant="ghost" size="icon-sm" aria-label={`Thao tác cho quy tắc “${rule.name}”`}>
               <EllipsisVertical className="size-[18px]" />
-            </Button>
+            </Button></Tooltip>
           }
         />
         <DropdownMenuContent align="end" className="w-52 rounded-md py-2 shadow-lg ring-0">

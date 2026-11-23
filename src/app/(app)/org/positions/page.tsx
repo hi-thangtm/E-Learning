@@ -69,7 +69,7 @@ export default async function PositionsPage({ searchParams }: { searchParams: Pr
       className: "w-40",
       cell: (p) => <span className="font-medium text-foreground">{p.code}</span>,
     },
-    { key: "name", header: "Tên chức danh", cell: (p) => <span className="text-foreground">{p.name}</span> },
+    { key: "name", header: "Tên chức danh", truncate: true, truncateText: (p) => p.name, cell: (p) => <span className="text-foreground">{p.name}</span> },
     {
       key: "users",
       header: "Số nhân viên",

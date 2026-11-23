@@ -6,5 +6,5 @@ import { requireUser } from "@/lib/current-user";
  */
 export default async function LearnLayout({ children }: { children: React.ReactNode }) {
   await requireUser();
-  return <div className="min-h-dvh min-w-[1200px] bg-background">{children}</div>;
+  return <div className="min-h-dvh bg-background">{children}</div>;
 }

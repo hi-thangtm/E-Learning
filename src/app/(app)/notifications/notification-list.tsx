@@ -45,7 +45,7 @@ export function NotificationList({ items }: { items: NotificationView[] }) {
             item={n}
             onOpen={open}
             disabled={pending}
-            className="px-6 py-4"
+            className="px-4 py-4 sm:px-6"
             actions={
               !n.read ? (
                 <Button variant="ghost" size="sm" onClick={() => markOne(n.id)} disabled={pending} className="shrink-0">
@@ -68,7 +68,7 @@ export function MarkAllReadButton({ disabled }: { disabled: boolean }) {
 
   return (
     <Button
-      variant="secondary"
+      variant="outline"
       disabled={disabled || pending}
       onClick={() =>
         startTransition(async () => {

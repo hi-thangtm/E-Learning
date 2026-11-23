@@ -9,10 +9,12 @@ import { ProgressBar } from "@/components/progress";
 import { StatusBadge } from "@/components/status-badge";
 import { defaultCoverUrl } from "@/lib/course-cover";
 import { requireUser } from "@/lib/current-user";
-import { formatDate } from "@/lib/format";
+import { formatDate, formatNumber, formatPercent } from "@/lib/format";
 import { dueHint, getContinueLearning, getMyStats, getTodoEnrollments } from "@/lib/learning";
 import { ROLE_LABELS } from "@/lib/roles";
 import { cn } from "@/lib/utils";
+import { EmptyState } from "@/components/empty-state";
+import { buttonVariants } from "@/components/ui/button";
 
 export const metadata: Metadata = { title: "Tổng quan" };
 
@@ -32,7 +34,7 @@ export default async function DashboardPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-medium text-foreground">Xin chào, {user.fullName} 👋</h1>
+        <h1 className="text-xl font-medium break-words text-foreground sm:text-2xl">Xin chào, {user.fullName} 👋</h1>
         <p className="text-[15px] text-muted-foreground">
           {user.employeeCode} · {ROLE_LABELS[user.role]} · {user.company.name}
         </p>
@@ -41,8 +43,15 @@ export default async function DashboardPage() {
       {/* Quy trình có cập nhật (bản MINOR chưa xác nhận) */}
       <VersionUpdateBanner items={pendingUpdates} />
 
-      <div className="grid grid-cols-4 gap-6">
-        <StatCard href="/my-courses?tab=inProgress" label="Đang học" value={stats.inProgress} hint="Khoá học đang tham gia" icon={<BookOpen />} tone="primary" />
+      <div className="grid grid-cols-2 gap-4 sm:gap-6 lg:grid-cols-4">
+        <StatCard
+          href="/my-courses?tab=inProgress"
+          label="Đang học"
+          value={stats.inProgress}
+          hint={stats.notStarted > 0 ? `+ ${formatNumber(stats.notStarted)} khoá chưa bắt đầu` : "Khoá học đã bắt đầu học"}
+          icon={<BookOpen />}
+          tone="primary"
+        />
         <StatCard href="/my-courses?tab=completed" label="Đã hoàn thành" value={stats.completed} hint="Khoá học đã học xong" icon={<CheckCircle2 />} tone="success" />
         <StatCard
           href="/my-courses?tab=overdue"
@@ -56,34 +65,33 @@ export default async function DashboardPage() {
       </div>
 
       {!hasAnything ? (
-        <section className="flex flex-col items-center gap-3 rounded-md bg-card px-6 py-16 text-center shadow-md">
-          <div className="flex size-16 items-center justify-center rounded-full bg-primary/16 text-primary">
-            <Inbox className="size-8" />
-          </div>
-          <p className="text-lg font-medium text-foreground">Bạn chưa được giao khoá học nào</p>
-          <p className="max-w-md text-[15px] text-muted-foreground">
-            Khi quản trị đào tạo giao khoá học, khoá sẽ hiện ở đây kèm hạn hoàn thành. Trong lúc chờ, bạn có thể xem các khoá cho phép tự đăng ký.
-          </p>
-          <Link href="/library" className="text-[15px] font-medium text-primary hover:underline">
-            Mở Thư viện khoá học
-          </Link>
-        </section>
+        <EmptyState
+          icon={Inbox}
+          title="Bạn chưa được giao khoá học nào"
+          description="Khi quản trị đào tạo giao khoá học, khoá sẽ hiện ở đây kèm hạn hoàn thành. Trong lúc chờ, bạn có thể xem các khoá cho phép tự đăng ký."
+          className="rounded-md bg-card shadow-md"
+          action={
+            <Link href="/library" className={buttonVariants()}>
+              Mở Thư viện khoá học
+            </Link>
+          }
+        />
       ) : (
-        <div className="grid grid-cols-12 gap-6">
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
           {/* Cần làm */}
-          <section className="col-span-7 rounded-md bg-card shadow-md">
-            <header className="flex items-center justify-between p-6 pb-4">
+          <section className="min-w-0 rounded-md bg-card shadow-md lg:col-span-7">
+            <header className="flex items-center justify-between gap-3 p-4 pb-3 sm:p-6 sm:pb-4">
               <div>
                 <h2 className="text-lg font-medium text-foreground">Cần làm</h2>
                 <p className="text-[13px] text-muted-foreground">Khoá chưa xong, hạn gần nhất trước</p>
               </div>
-              <Link href="/my-courses" className="inline-flex items-center gap-1 text-[15px] text-primary hover:underline">
+              <Link href="/my-courses" className="inline-flex shrink-0 items-center gap-1 text-[15px] whitespace-nowrap text-primary hover:underline">
                 Xem tất cả
                 <ChevronRight className="size-4" />
               </Link>
             </header>
             {todo.length === 0 ? (
-              <p className="px-6 pb-6 text-[15px] text-muted-foreground">Bạn đã hoàn thành mọi khoá được giao. 🎉</p>
+              <p className="px-4 pb-4 text-[15px] sm:px-6 sm:pb-6 text-muted-foreground">Bạn đã hoàn thành mọi khoá được giao. 🎉</p>
             ) : (
               <ul className="divide-y divide-border border-t border-border">
                 {todo.map((e) => {
@@ -92,17 +100,27 @@ export default async function DashboardPage() {
                     <li key={e.id}>
                       <Link
                         href={`/my-courses/${e.course.id}`}
-                        className={cn("flex items-center gap-4 px-6 py-4 transition-colors hover:bg-muted/50", e.overdue && "bg-destructive/5")}
+                        className={cn("flex items-center gap-3 px-4 py-4 transition-colors hover:bg-muted/50 sm:gap-4 sm:px-6", e.overdue && "bg-destructive/5")}
                       >
-                        <CourseThumbnail thumbnailKey={e.course.thumbnailUrl} fallbackSrc={defaultCoverUrl(e.course.categoryId)} alt="" className="w-20" />
+                        <CourseThumbnail thumbnailKey={e.course.thumbnailUrl} fallbackSrc={defaultCoverUrl(e.course.categoryId)} alt="" className="w-16 shrink-0 sm:w-20" />
                         <div className="min-w-0 flex-1 space-y-1.5">
-                          <p className="truncate font-medium text-foreground">{e.course.title}</p>
+                          <p className="line-clamp-2 font-medium break-words text-foreground sm:truncate" title={e.course.title}>
+                            {e.course.title}
+                          </p>
                           <div className="flex items-center gap-3">
                             <ProgressBar value={e.progressPercent} className="max-w-48" />
-                            <span className="text-[13px] text-muted-foreground tabular-nums">{e.progressPercent}%</span>
+                            <span className="text-[13px] text-muted-foreground tabular-nums">{formatPercent(e.progressPercent, 0)}</span>
+                          </div>
+                          {/* Điện thoại: hạn + nhãn xuống dưới tên khoá */}
+                          <div className="flex flex-wrap items-center gap-2 sm:hidden">
+                            <span className={cn("text-[13px]", hint ? (hint.tone === "destructive" ? "text-destructive" : "text-warning") : "text-muted-foreground")}>
+                              <Clock className="mr-1 inline size-3.5 align-[-2px]" />
+                              {e.dueDate ? formatDate(e.dueDate) : "Không có hạn"}
+                            </span>
+                            {hint && <StatusBadge tone={hint.tone}>{hint.text}</StatusBadge>}
                           </div>
                         </div>
-                        <div className="shrink-0 text-right">
+                        <div className="hidden shrink-0 text-right sm:block">
                           <p className={cn("text-[13px]", hint ? (hint.tone === "destructive" ? "text-destructive" : "text-warning") : "text-muted-foreground")}>
                             <Clock className="mr-1 inline size-3.5 align-[-2px]" />
                             {e.dueDate ? formatDate(e.dueDate) : "Không có hạn"}
@@ -118,15 +136,15 @@ export default async function DashboardPage() {
           </section>
 
           {/* Tiếp tục học */}
-          <section className="col-span-5 self-start rounded-md bg-card shadow-md">
-            <header className="p-6 pb-4">
+          <section className="min-w-0 self-start rounded-md bg-card shadow-md lg:col-span-5">
+            <header className="p-4 pb-3 sm:p-6 sm:pb-4">
               <h2 className="text-lg font-medium text-foreground">Tiếp tục học</h2>
               <p className="text-[13px] text-muted-foreground">Bài bạn đang học dở</p>
             </header>
             {continueLearning.length === 0 ? (
-              <p className="px-6 pb-6 text-[15px] text-muted-foreground">Chưa có bài nào đang học dở. Bấm “Bắt đầu” ở một khoá để học bài đầu tiên.</p>
+              <p className="px-4 pb-4 text-[15px] sm:px-6 sm:pb-6 text-muted-foreground">Chưa có bài nào đang học dở. Bấm “Bắt đầu” ở một khoá để học bài đầu tiên.</p>
             ) : (
-              <ul className="grid gap-3 px-6 pb-6">
+              <ul className="grid grid-cols-1 gap-3 px-4 pb-4 sm:px-6 sm:pb-6">
                 {continueLearning.map((c) => {
                   const Icon = LESSON_ICON[c.lessonType];
                   return (
@@ -144,7 +162,7 @@ export default async function DashboardPage() {
                           <p className="truncate font-medium text-foreground">{c.lessonTitle}</p>
                           <div className="flex items-center gap-2">
                             <ProgressBar value={c.progressPercent} label="Tiến độ khoá học" />
-                            <span className="text-[12px] text-muted-foreground tabular-nums">{c.progressPercent}%</span>
+                            <span className="text-[12px] text-muted-foreground tabular-nums">{formatPercent(c.progressPercent, 0)}</span>
                           </div>
                         </div>
                         <ChevronRight className="size-5 shrink-0 text-foreground/40" />
@@ -186,13 +204,13 @@ function StatCard({
   tone: keyof typeof TONES;
 }) {
   return (
-    <Link href={href} className="flex items-start justify-between gap-2 rounded-md bg-card p-6 shadow-md transition-shadow hover:shadow-lg">
-      <div className="flex flex-col gap-1">
+    <Link href={href} className="flex min-w-0 items-start justify-between gap-2 rounded-md bg-card p-4 shadow-md transition-shadow hover:shadow-lg sm:p-6">
+      <div className="flex min-w-0 flex-col gap-1">
         <p className="text-[15px] text-foreground">{label}</p>
         <p className={cn("text-2xl font-medium", tone === "destructive" ? "text-destructive" : "text-foreground")}>{value}</p>
         <p className="text-[13px] text-muted-foreground">{hint}</p>
       </div>
-      <span className={cn("flex size-[42px] items-center justify-center rounded-md [&_svg]:size-[26px]", TONES[tone])}>{icon}</span>
+      <span className={cn("flex size-9 shrink-0 items-center justify-center rounded-md sm:size-[42px] [&_svg]:size-5 sm:[&_svg]:size-[26px]", TONES[tone])}>{icon}</span>
     </Link>
   );
 }

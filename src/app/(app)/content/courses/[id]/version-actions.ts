@@ -18,6 +18,7 @@ import {
   publishVersion,
   rejectProposal,
 } from "@/lib/versioning";
+import { getVideoBlockers } from "@/lib/course-publish";
 
 /**
  * Bản cập nhật MINOR / MAJOR (Việc 21A). Quyền kiểm tra lại ở server (src/lib/versioning.ts), không chỉ ẩn nút.
@@ -52,6 +53,14 @@ async function loadCourse(courseId: string) {
 function revalidate(courseId: string) {
   revalidatePath(`/content/courses/${courseId}`);
   revalidatePath("/content/courses");
+}
+
+/** Còn bài video chưa sẵn sàng (VD vừa thay video Bunny, đang xử lý) → không phát hành bản cập nhật; nêu rõ bài. */
+async function videoBlockedMessage(courseId: string): Promise<string | null> {
+  const blockers = await getVideoBlockers(courseId);
+  if (blockers.length === 0) return null;
+  const list = blockers.slice(0, 5).join("; ") + (blockers.length > 5 ? `; và ${blockers.length - 5} bài khác` : "");
+  return `Chưa phát hành được: còn bài video chưa sẵn sàng — ${list}. Chờ video xử lý xong (hoặc sửa bài) rồi thử lại.`;
 }
 
 export async function previewImpactAction(
@@ -98,6 +107,8 @@ export async function publishVersionAction(input: VersionFormInput): Promise<Act
     return { errors: { confirmCode: `Gõ đúng mã khoá “${course.code}” để xác nhận.` } };
   }
   if (input.changeType !== "MINOR" && input.changeType !== "MAJOR") return { message: "Loại cập nhật không hợp lệ." };
+  const blocked = await videoBlockedMessage(course.id);
+  if (blocked) return { message: blocked };
 
   const r = await publishVersion({
     courseId: course.id,
@@ -140,6 +151,8 @@ export async function approveProposalAction(input: {
     return { errors: { confirmCode: `Gõ đúng mã khoá “${course.code}” để xác nhận.` } };
   }
 
+  const blocked = await videoBlockedMessage(course.id);
+  if (blocked) return { message: blocked };
   const r = await approveProposal(id.data, actor, { dueInDays: due.data });
   if (!r.ok) return { message: r.message };
   revalidate(course.id);

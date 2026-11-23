@@ -12,13 +12,13 @@ import {
 } from "@/lib/assignment-scope";
 import { requireRole, type CurrentUser } from "@/lib/current-user";
 import { prisma } from "@/lib/db";
-import { dueAfterDays, vnDayEnd, vnIsoDate } from "@/lib/format";
+import { dueAfterDays, formatNumber, validIsoDate, vnDayEnd, vnIsoDate } from "@/lib/format";
 import { assignablePathsWhere } from "@/lib/path-scope";
 import type { DueChoice, LearnerFilter, LearnerRow, Selection, Target } from "./types";
 
 /**
  * Trình giao thủ công — khoá học HOẶC lộ trình. Mọi action: requireRole -> khoá / lộ trình phải PUBLISHED trong phạm vi ->
- * người học phải trong phạm vi (khoá / lộ trình công ty con: chỉ công ty đó; Admin công ty: chỉ công ty mình).
+ * học viên phải trong phạm vi (khoá / lộ trình công ty con: chỉ công ty đó; Admin công ty: chỉ công ty mình).
  * “Chọn tất cả theo bộ lọc”: trình duyệt gửi BỘ LỌC, server tự tìm danh sách người.
  */
 
@@ -40,7 +40,8 @@ const selectionSchema = z.discriminatedUnion("mode", [
 ]);
 const dueSchema = z.discriminatedUnion("mode", [
   z.object({ mode: z.literal("days"), days: z.number().int().min(1).max(365) }),
-  z.object({ mode: z.literal("date"), date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/) }),
+  // Ngày có thật (2026-02-31 → không hợp lệ) — Việc 29B #14
+  z.object({ mode: z.literal("date"), date: z.string().refine((v) => validIsoDate(v) !== null) }),
 ]);
 
 type Fail = { ok: false; message: string };
@@ -82,16 +83,22 @@ async function learnerWhere(actor: CurrentUser, target: { ownerCompanyId: string
 function dueDateOf(due: z.infer<typeof dueSchema>): Date | string {
   if (due.mode === "days") return dueAfterDays(due.days);
   if (due.date <= vnIsoDate()) return "Hạn phải sau hôm nay.";
+  if (due.date > `${new Date().getUTCFullYear() + 5}-12-31`) return "Hạn quá xa (tối đa 5 năm).";
   return vnDayEnd(due.date);
 }
 
-/** Danh sách id người được chọn — luôn lọc lại theo phạm vi ở server. */
-async function resolveUserIds(actor: CurrentUser, target: { ownerCompanyId: string }, selection: Selection): Promise<string[]> {
-  const parsed = selectionSchema.parse(selection);
+const NO_FILTER: z.infer<typeof filterSchema> = { companyId: "", departmentId: "", positionId: "", q: "" };
+const INVALID_SELECTION: Fail = { ok: false, message: "Danh sách người được chọn không hợp lệ." };
+
+/** Danh sách id người được chọn — luôn lọc lại theo phạm vi ở server. null = dữ liệu gửi lên sai dạng (không ném lỗi 500). */
+async function resolveUserIds(actor: CurrentUser, target: { ownerCompanyId: string }, selection: Selection): Promise<string[] | null> {
+  const s = selectionSchema.safeParse(selection);
+  if (!s.success) return null;
+  const parsed = s.data;
   const where =
     parsed.mode === "filter"
       ? await learnerWhere(actor, target, parsed.filter)
-      : { AND: [await learnerWhere(actor, target, filterSchema.parse({})), { id: { in: parsed.ids } }] };
+      : { AND: [await learnerWhere(actor, target, NO_FILTER), { id: { in: parsed.ids } }] };
   const rows = await prisma.user.findMany({ where, select: { id: true }, take: MAX_IDS + 1 });
   return rows.map((r) => r.id);
 }
@@ -183,7 +190,8 @@ export async function previewManualAction(target: Target, selection: Selection, 
   if (typeof dueDate === "string") return { ok: false, message: dueDate };
 
   const userIds = await resolveUserIds(actor, t, selection);
-  if (userIds.length > MAX_IDS) return { ok: false, message: `Mỗi lần giao tối đa ${MAX_IDS.toLocaleString("vi-VN")} người.` };
+  if (!userIds) return INVALID_SELECTION;
+  if (userIds.length > MAX_IDS) return { ok: false, message: `Mỗi lần giao tối đa ${formatNumber(MAX_IDS)} người.` };
   if (t.kind === "path") {
     return { ok: true, kind: "path", path: await previewPathAssignment({ learningPathId: t.id, userIds }), selected: userIds.length };
   }
@@ -205,8 +213,9 @@ export async function assignManualAction(
   if (typeof dueDate === "string") return { ok: false, message: dueDate };
 
   const userIds = await resolveUserIds(actor, t, selection);
-  if (userIds.length === 0) return { ok: false, message: "Chưa chọn người học nào (hoặc người đã chọn không còn trong phạm vi)." };
-  if (userIds.length > MAX_IDS) return { ok: false, message: `Mỗi lần giao tối đa ${MAX_IDS.toLocaleString("vi-VN")} người.` };
+  if (!userIds) return INVALID_SELECTION;
+  if (userIds.length === 0) return { ok: false, message: "Chưa chọn học viên nào (hoặc người đã chọn không còn trong phạm vi)." };
+  if (userIds.length > MAX_IDS) return { ok: false, message: `Mỗi lần giao tối đa ${formatNumber(MAX_IDS)} người.` };
 
   const common = { userIds, due: dueDate, source: "ASSIGNED" as const, assignedById: actor.id, actorId: actor.id };
   let result: { counts: AssignCounts; newLearners: number };

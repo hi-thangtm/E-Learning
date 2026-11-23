@@ -131,7 +131,7 @@ function GroupForm({ group, keys, values }: { group: SettingGroup; keys: Setting
       <div className="flex justify-end">
         <Button type="submit" disabled={pending}>
           <Save />
-          {pending ? "Đang lưu..." : "Lưu"}
+          {pending ? "Đang lưu..." : "Lưu thay đổi"}
         </Button>
       </div>
     </form>

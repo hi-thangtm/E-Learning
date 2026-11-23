@@ -7,6 +7,7 @@ import { ConfirmDialog } from "@/components/confirm-dialog";
 import { Button } from "@/components/ui/button";
 import { moveCategoryAction, toggleCategoryAction } from "./actions";
 import { CategoryFormDialog, type CategoryFormValue } from "./category-form-dialog";
+import { Tooltip } from "@/components/ui/tooltip";
 
 /** Nút trên mỗi dòng (chỉ Admin tập đoàn): lên / xuống, sửa, ẩn / hiện. */
 export function CategoryRowActions({
@@ -37,44 +38,41 @@ export function CategoryRowActions({
 
   return (
     <div className="flex items-center justify-end gap-1">
-      <Button
+      <Tooltip label="Lên trên"><Button
         variant="ghost"
         size="icon-sm"
         aria-label={`Đưa “${category.name}” lên trên`}
-        title="Lên trên"
         disabled={isFirst || moving}
         onClick={() => move("up")}
       >
         <ArrowUp className="size-[18px]" />
-      </Button>
-      <Button
+      </Button></Tooltip>
+      <Tooltip label="Xuống dưới"><Button
         variant="ghost"
         size="icon-sm"
         aria-label={`Đưa “${category.name}” xuống dưới`}
-        title="Xuống dưới"
         disabled={isLast || moving}
         onClick={() => move("down")}
       >
         <ArrowDown className="size-[18px]" />
-      </Button>
+      </Button></Tooltip>
       <CategoryFormDialog
         category={category}
         trigger={
-          <Button variant="ghost" size="icon-sm" aria-label={`Sửa “${category.name}”`} title="Sửa">
+          <Tooltip label="Sửa"><Button variant="ghost" size="icon-sm" aria-label={`Sửa “${category.name}”`}>
             <Pencil className="size-[18px]" />
-          </Button>
+          </Button></Tooltip>
         }
       />
       <ConfirmDialog
         trigger={
-          <Button
+          <Tooltip label={isActive ? "Ẩn" : "Hiện lại"}><Button
             variant="ghost"
             size="icon-sm"
             aria-label={isActive ? `Ẩn “${category.name}”` : `Hiện “${category.name}”`}
-            title={isActive ? "Ẩn" : "Hiện lại"}
           >
             {isActive ? <EyeOff className="size-[18px]" /> : <Eye className="size-[18px]" />}
-          </Button>
+          </Button></Tooltip>
         }
         title={isActive ? `Ẩn danh mục “${category.name}”?` : `Hiện lại danh mục “${category.name}”?`}
         description={
