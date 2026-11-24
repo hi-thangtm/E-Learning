@@ -36,6 +36,9 @@ import { createUserAction, updateUserAction } from "./actions";
 import type { CreateUserState, UserFormValue } from "./types";
 import { useUserFormOptions } from "./user-form-options";
 import { UserPasswordResult } from "./user-password-result";
+import { DatePicker } from "@/components/date-picker";
+import { addDaysIso, vnIsoDate } from "@/lib/format";
+import { cn } from "@/lib/utils";
 
 const NONE = "__none__";
 
@@ -131,6 +134,9 @@ function UserForm({
   }, [state, onSuccess, onCreated]);
 
   const isSelf = user?.id === options.actorId;
+  /** Liên kết Lark (Việc L1): các trường nguồn Lark chỉ đọc, chỉ sửa vai trò + chức danh */
+  const lark = !!user?.larkLinked;
+  const LARK_HINT = "Đồng bộ từ Lark";
   const err = state.errors ?? {};
 
   // --- Các ô điều khiển (giữ nguyên giá trị khi server trả lỗi) ---
@@ -226,12 +232,17 @@ function UserForm({
 
         <DialogBody>
           <FormGrid cols={2}>
+          {lark && (
+            <p role="note" className="col-span-full rounded-md bg-info/16 px-4 py-2.5 text-[13px] text-info">
+              Tài khoản đồng bộ từ Lark: mã nhân viên, họ tên, email, điện thoại, công ty, phòng ban, ngày vào làm sửa trên Lark. Ở đây chỉ đổi được vai trò và chức danh.
+            </p>
+          )}
           <FormField
             label="Mã nhân viên"
             htmlFor="employeeCode"
             required
             error={err.employeeCode}
-            hint="Là tên đăng nhập, không trùng trong toàn tập đoàn."
+            hint={lark ? LARK_HINT : "Là tên đăng nhập, không trùng trong toàn tập đoàn."}
           >
             <Input
               id="employeeCode"
@@ -241,16 +252,19 @@ function UserForm({
               placeholder="VD: NV00123"
               maxLength={30}
               autoComplete="off"
-              autoFocus
-              className="uppercase placeholder:normal-case"
+              autoFocus={!lark}
+              readOnly={lark}
+              className={cn("uppercase placeholder:normal-case", lark && "bg-muted text-muted-foreground")}
               aria-invalid={!!err.employeeCode}
             />
           </FormField>
 
-          <FormField label="Họ tên" htmlFor="fullName" required error={err.fullName}>
+          <FormField label="Họ tên" htmlFor="fullName" required error={err.fullName} hint={lark ? LARK_HINT : undefined}>
             <Input
               id="fullName"
               name="fullName"
+              readOnly={lark}
+              className={lark ? "bg-muted text-muted-foreground" : undefined}
               defaultValue={state.values?.fullName ?? user?.fullName}
               placeholder="VD: Nguyễn Văn An"
               maxLength={100}
@@ -269,11 +283,13 @@ function UserForm({
             </p>
           )}
 
-          <FormField label="Email" htmlFor="email" error={err.email}>
+          <FormField label="Email" htmlFor="email" error={err.email} hint={lark ? LARK_HINT : undefined}>
             <Input
               id="email"
               name="email"
               type="email"
+              readOnly={lark}
+              className={lark ? "bg-muted text-muted-foreground" : undefined}
               defaultValue={state.values?.email ?? user?.email}
               placeholder="VD: an.nguyen@congty.vn"
               maxLength={150}
@@ -282,11 +298,13 @@ function UserForm({
             />
           </FormField>
 
-          <FormField label="Điện thoại" htmlFor="phone" error={err.phone}>
+          <FormField label="Điện thoại" htmlFor="phone" error={err.phone} hint={lark ? LARK_HINT : undefined}>
             <Input
               id="phone"
               name="phone"
               type="tel"
+              readOnly={lark}
+              className={lark ? "bg-muted text-muted-foreground" : undefined}
               defaultValue={state.values?.phone ?? user?.phone}
               placeholder="VD: 0901 234 567"
               maxLength={20}
@@ -301,14 +319,16 @@ function UserForm({
             required
             error={err.companyId}
             hint={
-              !options.isGroupAdmin
+              lark
+                ? LARK_HINT
+                : !options.isGroupAdmin
                 ? "Bạn chỉ quản lý nhân viên của công ty mình."
                 : isSelf
                   ? "Bạn không thể tự chuyển công ty của chính mình."
                   : undefined
             }
           >
-            {options.isGroupAdmin ? (
+            {options.isGroupAdmin && !lark ? (
               <Select
                 items={companyItems}
                 value={companyId}
@@ -343,18 +363,22 @@ function UserForm({
             )}
           </FormField>
 
-          <FormField label="Ngày vào làm" htmlFor="hireDate" error={err.hireDate}>
-            <Input
+          <FormField label="Ngày vào làm" htmlFor="hireDate" error={err.hireDate} hint={lark ? LARK_HINT : undefined}>
+            <DatePicker
+              disabled={lark}
+              key={state.values?.hireDate ?? user?.hireDate ?? ""}
               id="hireDate"
               name="hireDate"
-              type="date"
-              defaultValue={state.values?.hireDate ?? user?.hireDate}
-              aria-invalid={!!err.hireDate}
+              defaultValue={state.values?.hireDate ?? user?.hireDate ?? ""}
+              min="1950-01-01"
+              max={addDaysIso(vnIsoDate(), 365)}
+              clearable
+              invalid={!!err.hireDate}
             />
           </FormField>
 
-          <FormField label="Phòng ban" htmlFor="department-select" error={err.departmentId}>
-            <Select items={departmentItems} value={departmentId} onValueChange={(v) => setDepartmentId(v ? String(v) : NONE)}>
+          <FormField label="Phòng ban" htmlFor="department-select" error={err.departmentId} hint={lark ? LARK_HINT : undefined}>
+            <Select items={departmentItems} value={departmentId} disabled={lark} onValueChange={(v) => setDepartmentId(v ? String(v) : NONE)}>
               <SelectTrigger id="department-select" className="w-full" aria-invalid={!!err.departmentId}>
                 <SelectValue />
               </SelectTrigger>

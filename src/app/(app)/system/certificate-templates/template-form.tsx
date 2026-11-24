@@ -37,6 +37,21 @@ export function TemplateForm({
   const signature = useImagePick(value.signatureKey);
   const err = state.errors ?? {};
 
+  // Có thay đổi chưa lưu → “Xem trước PDF” (đọc mẫu ĐÃ LƯU) bị khoá kèm lý do (ui-review F10 / #58)
+  const [textDirty, setTextDirty] = useState(false);
+  const snapshot = { lf: logo.file, lr: logo.removed, sf: signature.file, sr: signature.removed };
+  const [saved, setSaved] = useState(snapshot);
+  const [seenState, setSeenState] = useState(state);
+  if (state !== seenState) {
+    setSeenState(state);
+    if (state.ok) {
+      setTextDirty(false);
+      setSaved(snapshot);
+    }
+  }
+  const dirty =
+    textDirty || logo.file !== saved.lf || logo.removed !== saved.lr || signature.file !== saved.sf || signature.removed !== saved.sr;
+
   useEffect(() => {
     if (state.ok) {
       if (state.message) toast.success(state.message);
@@ -54,6 +69,7 @@ export function TemplateForm({
       }}
       noValidate
       className="grid gap-6"
+      onChange={(e) => (e.target as HTMLElement).getAttribute("type") !== "file" && setTextDirty(true)}
     >
       <input type="hidden" name="companyId" value={companyId} />
       <input type="hidden" name="removeLogo" value={logo.removed ? "1" : "0"} />
@@ -111,16 +127,25 @@ export function TemplateForm({
       </FormGrid>
 
       <div className="flex items-center justify-end gap-4 border-t border-border pt-6">
-        <a
-          href={`/system/certificate-templates/preview?company=${encodeURIComponent(companyId)}`}
-          target="_blank"
-          rel="noreferrer"
-          className={buttonVariants({ variant: "outline" })}
-          title="Xem trước bằng mẫu ĐÃ LƯU (lưu trước nếu vừa sửa)"
-        >
-          <Eye />
-          Xem trước PDF
-        </a>
+        {dirty ? (
+          <>
+            <span className="text-[13px] text-muted-foreground">Lưu mẫu để xem trước thay đổi</span>
+            <Button type="button" variant="outline" disabled>
+              <Eye />
+              Xem trước PDF
+            </Button>
+          </>
+        ) : (
+          <a
+            href={`/system/certificate-templates/preview?company=${encodeURIComponent(companyId)}`}
+            target="_blank"
+            rel="noreferrer"
+            className={buttonVariants({ variant: "outline" })}
+          >
+            <Eye />
+            Xem trước PDF
+          </a>
+        )}
         <Button type="submit" disabled={pending}>
           <Save />
           {pending ? "Đang lưu..." : "Lưu mẫu"}
@@ -197,7 +222,7 @@ function ImageField({
           )}
         </div>
         <div className="flex flex-col gap-2">
-          <label className={cn(buttonVariants({ variant: "secondary", size: "sm" }), "cursor-pointer")}>
+          <label className={cn(buttonVariants({ variant: "outline", size: "sm" }), "cursor-pointer")}>
             <ImagePlus />
             {shown ? "Đổi ảnh" : "Chọn ảnh"}
             <input

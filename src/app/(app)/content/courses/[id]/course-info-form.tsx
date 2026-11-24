@@ -13,7 +13,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { initialActionState } from "@/lib/action-state";
 import { fileUrl } from "@/lib/file-url";
 import { updateCourseInfoAction } from "./actions";
-import { setInfoDirty } from "./info-dirty-store";
+import { setInfoDirty, useInfoDirty } from "./info-dirty-store";
+import { useBeforeUnloadWarning } from "@/components/unsaved-changes-dialog";
 
 const NONE = "__none__";
 const MAX_IMAGE_BYTES = 2 * 1024 * 1024;
@@ -60,6 +61,8 @@ export function CourseInfoForm({
 
   // Báo cho hộp Phát hành biết tab này có thay đổi chưa lưu; rời tab (huỷ form) = không còn gì chưa lưu
   useEffect(() => () => setInfoDirty(false), []);
+  // Đóng tab / tải lại trang khi còn thay đổi chưa lưu → trình duyệt hỏi lại (Việc 33 F9)
+  useBeforeUnloadWarning(useInfoDirty());
 
   useEffect(() => {
     if (state.ok) {
@@ -264,7 +267,7 @@ export function CourseInfoForm({
       ) : (
         <div className="mt-6 flex justify-end gap-4 border-t border-border pt-6">
           <Button type="submit" disabled={pending || !!imageError}>
-            {pending ? "Đang lưu..." : "Lưu thông tin"}
+            {pending ? "Đang lưu..." : "Lưu thay đổi"}
           </Button>
         </div>
       )}

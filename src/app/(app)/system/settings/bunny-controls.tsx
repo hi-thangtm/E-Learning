@@ -10,8 +10,8 @@ import { testBunnyConnectionAction } from "./bunny-actions";
 const RESULT_TEXT = {
   ok: "Kết nối Bunny Stream thành công.",
   not_configured: "Chưa cấu hình Bunny Stream.",
-  bad_key: "Bunny từ chối API key — kiểm tra BUNNY_STREAM_API_KEY.",
-  bad_library: "Không tìm thấy thư viện — kiểm tra BUNNY_STREAM_LIBRARY_ID.",
+  bad_key: "Bunny từ chối API key — kiểm tra lại ô API key.",
+  bad_library: "Không tìm thấy thư viện — kiểm tra lại ô Library ID.",
   unreachable: "Không gọi được Bunny (mạng / tường lửa / Bunny đang lỗi). Thử lại sau.",
 } as const;
 

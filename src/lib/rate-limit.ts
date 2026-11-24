@@ -24,6 +24,10 @@ export const LIMITS = {
   bunnyWebhookIp: { limit: 60, windowMs: 60_000 },
   /** Nút "Kiểm tra kết nối" Bunny */
   bunnyTest: { limit: 10, windowMs: 60_000 },
+  /** Nút "Kiểm tra kết nối" Lark */
+  larkTest: { limit: 10, windowMs: 60_000 },
+  /** Tải cây phòng ban / ghép / chạy thử / áp dụng đồng bộ Lark (mỗi lần đọc toàn bộ danh bạ) */
+  larkSync: { limit: 20, windowMs: 60_000 },
 } as const;
 
 /** Lần dùng của 1 khoá + độ dài cửa sổ của khoá đó (để dọn đúng hạn, kể cả cửa sổ 1 giờ) */

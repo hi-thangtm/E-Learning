@@ -73,7 +73,7 @@ test("nhắc nhở: người nhận có thông báo, gửi lần 2 trong ngày b
   const send = async () => {
     await gotoReady(page, `/team/members?q=${learner.employeeCode}`);
     await page.getByRole("checkbox", { name: `Chọn ${learner.fullName}` }).check();
-    await page.getByRole("button", { name: "Nhắc nhở", exact: true }).click();
+    await page.getByRole("button", { name: "Gửi nhắc nhở", exact: true }).click();
     const dialog = page.getByRole("dialog");
     await dialog.getByText("Tất cả khoá chưa hoàn thành").click();
     const button = dialog.getByRole("button", { name: /Gửi nhắc nhở/ });

@@ -20,13 +20,13 @@ const ok = () => new Response("ok", { status: 200, headers: { "Content-Type": "t
 
 export async function POST(request: Request) {
   if (!rateLimit(`bunny-webhook:${getClientIp(request.headers)}`, LIMITS.bunnyWebhookIp).ok) return ok();
-  if (!isBunnyConfigured()) return ok();
+  if (!(await isBunnyConfigured())) return ok();
 
   const declared = Number(request.headers.get("content-length") ?? 0);
   if (declared > MAX_BODY) return ok();
   const raw = await request.text();
   if (raw.length > MAX_BODY) return ok();
-  if (!verifyWebhookSignature(raw, request.headers.get("x-bunnystream-signature"))) return ok();
+  if (!(await verifyWebhookSignature(raw, request.headers.get("x-bunnystream-signature")))) return ok();
 
   let body: unknown;
   try {
@@ -36,7 +36,7 @@ export async function POST(request: Request) {
   }
   const { VideoGuid, VideoLibraryId } = (body ?? {}) as { VideoGuid?: unknown; VideoLibraryId?: unknown };
   if (typeof VideoGuid !== "string" || !isBunnyVideoId(VideoGuid)) return ok();
-  if (String(VideoLibraryId ?? "") !== bunnyLibraryId()) return ok();
+  if (String(VideoLibraryId ?? "") !== (await bunnyLibraryId())) return ok();
 
   const videoId = VideoGuid.toLowerCase();
   after(async () => {

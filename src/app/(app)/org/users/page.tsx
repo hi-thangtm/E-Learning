@@ -18,6 +18,7 @@ import { buildUserFormOptions, loadOrgCatalog, ROLE_ORDER } from "./form-options
 import { UserFormDialog } from "./user-form-dialog";
 import { UserFormOptionsProvider } from "./user-form-options";
 import { UserActions } from "./user-actions";
+import { LarkBadge } from "@/components/lark-badge";
 
 export const metadata: Metadata = { title: "Người dùng" };
 
@@ -89,6 +90,7 @@ export default async function UsersPage({ searchParams }: { searchParams: Promis
         companyId: true,
         departmentId: true,
         positionId: true,
+        larkUserId: true,
         company: { select: { code: true, name: true } },
         department: { select: { code: true, name: true } },
         position: { select: { name: true } },
@@ -115,14 +117,17 @@ export default async function UsersPage({ searchParams }: { searchParams: Promis
             {getInitials(u.fullName)}
           </span>
           <div className="min-w-0">
-            <Link
-              href={`${PATHNAME}/${u.id}`}
-              title={u.fullName}
-              className="block max-w-64 truncate font-medium text-foreground hover:text-primary focus-visible:text-primary focus-visible:outline-none"
-            >
-              {u.fullName}
-            </Link>
-            <p className="max-w-64 truncate text-[13px]" title={u.email ?? undefined}>{u.email ?? "—"}</p>
+            <span className="flex max-w-64 items-center gap-2">
+              <Link
+                href={`${PATHNAME}/${u.id}`}
+                title={u.fullName}
+                className="block min-w-0 truncate rounded-sm font-medium text-foreground hover:text-primary focus-visible:text-primary"
+              >
+                {u.fullName}
+              </Link>
+              {u.larkUserId && <LarkBadge />}
+            </span>
+            <p className="max-w-56 truncate text-[13px]" title={u.email ?? undefined}>{u.email ?? "—"}</p>
           </div>
         </div>
       ),
@@ -130,33 +135,32 @@ export default async function UsersPage({ searchParams }: { searchParams: Promis
     {
       key: "code",
       header: "Mã NV",
-      className: "w-36",
-      cell: (u) => <span className="text-foreground">{u.employeeCode}</span>,
-    },
-    ...(isGroupAdmin
-      ? [
-          {
-            key: "company",
-            header: "Công ty",
-            className: "w-28",
-            cell: (u: Row) => <span title={u.company.name}>{u.company.code}</span>,
-          },
-        ]
-      : []),
-    {
-      key: "department",
-      header: "Phòng ban",
-      cell: (u) =>
-        u.department ? (
-          <span title={u.department.code}>{u.department.name}</span>
-        ) : (
-          <span className="text-foreground/45">—</span>
-        ),
+      className: "w-32",
+      cell: (u) => (
+        <span className="block">
+          <span className="text-foreground">{u.employeeCode}</span>
+          {/* Công ty gộp vào dòng phụ (bảng gọn — ui-review #51) */}
+          {isGroupAdmin && (
+            <span className="block text-[13px]" title={u.company.name}>
+              {u.company.code}
+            </span>
+          )}
+        </span>
+      ),
     },
     {
-      key: "position",
-      header: "Chức danh",
-      cell: (u) => u.position?.name ?? <span className="text-foreground/45">—</span>,
+      key: "org",
+      header: "Phòng ban / Chức danh",
+      cell: (u) => (
+        <span className="block max-w-56">
+          <span className="block truncate text-foreground" title={u.department?.name}>
+            {u.department?.name ?? <span className="text-foreground/45">—</span>}
+          </span>
+          <span className="block truncate text-[13px]" title={u.position?.name}>
+            {u.position?.name ?? "—"}
+          </span>
+        </span>
+      ),
     },
     {
       key: "role",
@@ -198,6 +202,7 @@ export default async function UsersPage({ searchParams }: { searchParams: Promis
       key: "actions",
       header: "Thao tác",
       className: "text-right",
+      sticky: true,
       cell: (u) => (
         <UserActions
           variant="menu"
@@ -219,6 +224,7 @@ export default async function UsersPage({ searchParams }: { searchParams: Promis
             positionId: u.positionId ?? "",
             hireDate: u.hireDate ? u.hireDate.toISOString().slice(0, 10) : "",
             role: u.role,
+            larkLinked: !!u.larkUserId,
             managedDepartments: u.managedDepartments,
           }}
         />
@@ -312,7 +318,7 @@ export default async function UsersPage({ searchParams }: { searchParams: Promis
               className={buttonVariants({ variant: "outline" })}
             >
               <FileSpreadsheet />
-              Import Excel
+              Import nhân viên
             </Link>
             {addButton}
           </>

@@ -11,15 +11,27 @@ import { formatDate } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { buttonVariants } from "@/components/ui/button";
 import { EmptyState } from "@/components/empty-state";
+import { DataTablePagination } from "@/components/data-table/data-table-pagination";
+import { getParam, type SearchParams } from "@/lib/table-params";
 
-export const metadata: Metadata = { title: "Chứng nhận" };
+export const metadata: Metadata = { title: "Chứng nhận của tôi" };
+
+const PATHNAME = "/certificates";
+/** 12 thẻ / trang — chia hết cho lưới 1 / 2 / 3 cột (ui-review #22) */
+const PAGE_SIZE = 12;
 
 /** Chứng nhận của tôi (feature-spec 2.9) — chỉ chứng nhận của chính người đăng nhập. */
-export default async function MyCertificatesPage() {
+export default async function MyCertificatesPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
   const user = await requireUser();
+  const sp = await searchParams;
+  const total = await prisma.certificate.count({ where: { userId: user.id } });
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  const page = Math.min(totalPages, Math.max(1, Math.floor(Number(getParam(sp, "page")) || 1)));
   const certificates = await prisma.certificate.findMany({
     where: { userId: user.id },
-    orderBy: { issuedAt: "desc" },
+    orderBy: [{ issuedAt: "desc" }, { id: "asc" }],
+    skip: (page - 1) * PAGE_SIZE,
+    take: PAGE_SIZE,
     select: {
       id: true,
       code: true,
@@ -35,7 +47,7 @@ export default async function MyCertificatesPage() {
 
   return (
     <>
-      <PageHeader title="Chứng nhận" description="Chứng nhận hoàn thành khoá học của bạn. Mỗi chứng nhận có mã số và link tra cứu công khai." />
+      <PageHeader title="Chứng nhận của tôi" description="Chứng nhận hoàn thành khoá học của bạn. Mỗi chứng nhận có mã số và link tra cứu công khai." />
 
       {certificates.length === 0 ? (
         <EmptyState
@@ -44,12 +56,13 @@ export default async function MyCertificatesPage() {
           description="Hoàn thành các khoá học có cấp chứng nhận để nhận chứng nhận tại đây."
           className="rounded-md bg-card shadow-md"
           action={
-            <Link href="/my-courses" className={buttonVariants({ variant: "secondary" })}>
+            <Link href="/my-courses" className={buttonVariants({ variant: "outline" })}>
               Mở Khoá học của tôi
             </Link>
           }
         />
       ) : (
+        <>
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-6 lg:grid-cols-3">
           {certificates.map((c) => {
             const status = CERTIFICATE_STATUS[certificateStatus(c, now)];
@@ -95,6 +108,12 @@ export default async function MyCertificatesPage() {
             );
           })}
         </div>
+        {total > PAGE_SIZE && (
+          <div className="mt-6 rounded-md bg-card shadow-md [&>div]:border-t-0">
+            <DataTablePagination pathname={PATHNAME} searchParams={sp} page={page} pageSize={PAGE_SIZE} total={total} />
+          </div>
+        )}
+        </>
       )}
     </>
   );

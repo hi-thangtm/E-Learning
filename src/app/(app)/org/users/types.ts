@@ -14,6 +14,8 @@ export type UserFormValue = {
   /** yyyy-MM-dd hoặc "" */
   hireDate: string;
   role: Role;
+  /** Liên kết Lark: họ tên, email, điện thoại, công ty, phòng ban, ngày vào làm chỉ đọc (Việc L1) */
+  larkLinked: boolean;
   /** Phòng ban người này đang làm trưởng — để cảnh báo khi chuyển công ty */
   managedDepartments: { code: string; name: string }[];
 };

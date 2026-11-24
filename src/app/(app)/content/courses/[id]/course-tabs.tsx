@@ -1,6 +1,6 @@
-import Link from "next/link";
 import { BookOpen, Eye, History, Info, Star, type LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { CourseTabLink } from "./course-tab-link";
 
 export const COURSE_TABS = ["info", "content", "preview", "versions", "reviews"] as const;
 export type CourseTab = (typeof COURSE_TABS)[number];
@@ -21,13 +21,13 @@ export function CourseTabs({ courseId, active }: { courseId: string; active: Cou
         const selected = tab.value === active;
         const Icon = tab.icon;
         return (
-          <Link
+          <CourseTabLink
             key={tab.value}
             href={tab.value === "info" ? `/content/courses/${courseId}` : `/content/courses/${courseId}?tab=${tab.value}`}
-            scroll={false}
-            aria-current={selected ? "page" : undefined}
+            selected={selected}
             className={cn(
-              "-mb-px flex items-center gap-2 border-b-2 px-4 py-3 text-[15px] transition-colors outline-none focus-visible:bg-primary/8",
+              // Vòng focus khi dùng bàn phím (ui-review #45)
+              "-mb-px flex items-center gap-2 border-b-2 px-4 py-3 text-[15px] transition-colors outline-none focus-visible:bg-primary/8 focus-visible:ring-3 focus-visible:ring-ring/50",
               selected
                 ? "border-primary font-medium text-primary"
                 : "border-transparent text-muted-foreground hover:text-foreground",
@@ -35,7 +35,7 @@ export function CourseTabs({ courseId, active }: { courseId: string; active: Cou
           >
             <Icon className="size-[18px]" />
             {tab.label}
-          </Link>
+          </CourseTabLink>
         );
       })}
     </nav>

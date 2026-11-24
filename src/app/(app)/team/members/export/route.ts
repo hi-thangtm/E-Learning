@@ -28,7 +28,7 @@ export async function GET(request: Request) {
       { header: "Đã xong", width: 12, value: (r) => r.completed },
       { header: "Đang học", width: 12, value: (r) => r.inProgress },
       { header: "Quá hạn", width: 12, value: (r) => r.overdue },
-      { header: "Chưa nắm cập nhật", width: 18, value: (r) => r.unacknowledged },
+      { header: "Chưa nắm quy trình mới", width: 22, value: (r) => r.unacknowledged },
       { header: "Tỷ lệ hoàn thành (%)", width: 20, value: (r) => r.rate },
     ],
     rows,

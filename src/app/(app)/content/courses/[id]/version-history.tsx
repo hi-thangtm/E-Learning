@@ -16,7 +16,7 @@ import { EmptyState } from "@/components/empty-state";
 function badgeOf(type: ChangeType, status: VersionStatus): { label: string; tone: StatusTone } {
   if (status === "PROPOSED") return { label: "Đề xuất", tone: "warning" };
   if (status === "REJECTED") return { label: "Bị từ chối", tone: "destructive" };
-  if (type === "INITIAL") return { label: "INITIAL", tone: "secondary" };
+  if (type === "INITIAL") return { label: "Lần đầu", tone: "secondary" };
   if (type === "MAJOR") return { label: "MAJOR", tone: "destructive" };
   return { label: "MINOR", tone: "info" };
 }
@@ -89,10 +89,10 @@ export async function VersionHistory({ courseId, canEdit }: { courseId: string; 
   }
 
   return (
-    <div className="-mx-6 -mb-6 overflow-x-auto">
+    <div className="-m-6 overflow-x-auto rounded-b-md">
       <table className="w-full">
         <thead>
-          <tr className="border-y border-border">
+          <tr className="border-b border-border">
             {["Phiên bản", "Loại", "Tóm tắt thay đổi", "Đề xuất / phát hành bởi", "Ngày", "Hạn", "Kết quả"].map((h) => (
               <th
                 key={h}

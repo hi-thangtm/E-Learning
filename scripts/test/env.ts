@@ -11,7 +11,7 @@ import { randomBytes } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import { argOf, withDatabase } from "../perf/common";
-import { MOCK_BUNNY_PORT, ROOT, TEST_DB_NAME, TEST_PORT } from "./common";
+import { MOCK_BUNNY_PORT, MOCK_LARK_PORT, ROOT, TEST_DB_NAME, TEST_PORT } from "./common";
 
 const target = path.join(ROOT, ".env.test");
 const source = path.join(ROOT, ".env");
@@ -31,17 +31,31 @@ function bunnyLines(): string[] {
   ];
 }
 
+/** Lark GIẢ LẬP (e2e/mock-lark, Việc L1): App ID / Secret ngẫu nhiên, LARK_DOMAIN trỏ sang máy giả. Không phải app Lark thật. */
+function larkLines(): string[] {
+  return [
+    "# Lark GIẢ LẬP (e2e/mock-lark) — không phải app thật",
+    `LARK_APP_ID=cli_mock${randomBytes(6).toString("hex")}`,
+    `LARK_APP_SECRET="${randomBytes(18).toString("hex")}"`,
+    `LARK_DOMAIN=http://localhost:${MOCK_LARK_PORT}`,
+  ];
+}
+
 if (fs.existsSync(target) && argOf("force") !== "true") {
   const current = fs.readFileSync(target, "utf8");
-  const missing = bunnyLines().filter((l) => {
+  const isMissing = (l: string) => {
     const key = l.match(/^([A-Z0-9_]+)=/)?.[1];
     return key && !new RegExp(`^\\s*${key}\\s*=`, "m").test(current);
+  };
+  const add = [bunnyLines(), larkLines()].flatMap((group) => {
+    const missing = group.filter(isMissing);
+    return missing.length ? [group[0], ...missing] : [];
   });
-  if (missing.length === 0) {
+  if (add.length === 0) {
     console.log("• .env.test đã có đủ — giữ nguyên (chạy với --force để tạo lại).");
   } else {
-    fs.writeFileSync(target, `${current.replace(/\n*$/, "\n")}${["# Bunny Stream GIẢ LẬP (e2e/mock-bunny) — không phải khoá thật", ...missing].join("\n")}\n`, { mode: 0o600 });
-    console.log(`✔ Đã bổ sung ${missing.length} biến Bunny giả lập vào .env.test.`);
+    fs.writeFileSync(target, `${current.replace(/\n*$/, "\n")}${add.join("\n")}\n`, { mode: 0o600 });
+    console.log(`✔ Đã bổ sung ${add.filter((l) => !l.startsWith("#")).length} biến giả lập vào .env.test.`);
   }
   process.exit(0);
 }
@@ -71,6 +85,7 @@ const lines = [
   "TRUST_PROXY=true",
   "UPLOAD_DIR=./.e2e-uploads",
   ...bunnyLines(),
+  ...larkLines(),
   "",
 ];
 fs.writeFileSync(target, lines.join("\n"), { mode: 0o600 });

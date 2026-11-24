@@ -59,7 +59,7 @@ export const METRICS: Record<MetricKey, MetricDefinition> = {
   },
   avgDaysToComplete: { label: "Số ngày hoàn thành TB", definition: "Trung bình (ngày hoàn thành − ngày được giao) của các lượt đã hoàn thành." },
   avgRating: { label: "Đánh giá TB", definition: "Điểm sao trung bình (1–5) của mọi đánh giá học viên đã gửi cho khoá." },
-  memberCount: { label: "Số NV", definition: "Số nhân viên đang làm việc trong phạm vi (và trong phòng ban, nếu có lọc)." },
+  memberCount: { label: "Số nhân viên", definition: "Số nhân viên đang làm việc trong phạm vi (và trong phòng ban, nếu có lọc)." },
   bestScore: { label: "Điểm cao nhất", definition: "Điểm cao nhất của người này ở các bài kiểm tra của khoá, phiên bản hiện tại." },
   validCertificates: { label: "Chứng nhận còn hạn", definition: "Số chứng nhận chưa bị thu hồi và chưa hết hạn (hoặc không thời hạn)." },
   lastActivity: { label: "Lần học gần nhất", definition: "Thời điểm gần nhất người này có tiến độ ở một bài học bất kỳ." },

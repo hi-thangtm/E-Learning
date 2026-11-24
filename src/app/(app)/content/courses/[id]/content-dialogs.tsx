@@ -136,7 +136,9 @@ export function AddLessonDialog({
     <Dialog open={open} onOpenChange={(next) => !pending && onOpenChange(next)}>
       <DialogContent className="sm:max-w-2xl">
         <DialogHeader>
-          <DialogTitle>Thêm bài vào “{section.title}”</DialogTitle>
+          <DialogTitle className="line-clamp-2 break-words" title={section.title}>
+            Thêm bài vào “{section.title}”
+          </DialogTitle>
           <DialogDescription>Chọn loại bài và đặt tên. Sau đó điền chi tiết bài ở bước tiếp theo.</DialogDescription>
         </DialogHeader>
         <form onSubmit={submit} noValidate className="contents">
@@ -152,7 +154,19 @@ export function AddLessonDialog({
                     type="button"
                     role="radio"
                     aria-checked={selected}
+                    // Roving tabindex: 1 điểm dừng Tab cho cả nhóm, ← → ↑ ↓ đổi lựa chọn (ui-review #46)
+                    tabIndex={selected ? 0 : -1}
                     onClick={() => setType(t.value)}
+                    onKeyDown={(e) => {
+                      const step = e.key === "ArrowRight" || e.key === "ArrowDown" ? 1 : e.key === "ArrowLeft" || e.key === "ArrowUp" ? -1 : 0;
+                      if (!step) return;
+                      e.preventDefault();
+                      const i = TYPES.findIndex((x) => x.value === t.value);
+                      const nextType = TYPES[(i + step + TYPES.length) % TYPES.length];
+                      setType(nextType.value);
+                      const group = e.currentTarget.parentElement;
+                      (group?.querySelectorAll<HTMLButtonElement>('[role="radio"]')[TYPES.indexOf(nextType)])?.focus();
+                    }}
                     className={cn(
                       "flex flex-col items-center gap-2 rounded-md border p-4 text-center transition-colors outline-none focus-visible:ring-3 focus-visible:ring-ring/50",
                       selected ? "border-primary bg-primary/8" : "border-border hover:border-muted-foreground",

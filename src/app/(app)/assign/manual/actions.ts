@@ -86,7 +86,7 @@ export async function cancelEnrollmentAction(enrollmentId: string): Promise<Acti
   if (enrollment.status === "CANCELLED") return { message: "Lượt giao đã bị huỷ từ trước." };
   if (enrollment.status === "COMPLETED") return { message: "Không huỷ được lượt đã hoàn thành." };
   if (enrollment.source === "RULE" && enrollment.assignmentRule?.isActive) {
-    return { message: "Đang giao tự động theo quy tắc — tắt quy tắc ở mục Giao tự động." };
+    return { message: "Đang giao tự động theo quy tắc — tắt quy tắc ở mục Quy tắc giao tự động." };
   }
 
   await prisma.$transaction([

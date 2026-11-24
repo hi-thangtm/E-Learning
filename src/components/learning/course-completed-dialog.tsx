@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { ArrowRight, Award, PartyPopper } from "lucide-react";
 import { buttonVariants } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogBody, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { formatDate } from "@/lib/format";
 import { ReviewForm } from "./review-form";
 import { cn } from "@/lib/utils";
@@ -31,7 +31,7 @@ export function CourseCompletedDialog({
 }) {
   return (
     <Dialog open onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-lg">
+      <DialogContent className="sm:max-w-lg">
         <DialogHeader className="items-center pr-0 text-center">
           <span className="mb-2 flex size-16 items-center justify-center rounded-full bg-success/16 text-success">
             <PartyPopper className="size-8" />
@@ -43,22 +43,25 @@ export function CourseCompletedDialog({
           </DialogDescription>
         </DialogHeader>
 
-        {certificateId && (
-          <div className="flex flex-col items-center gap-2 rounded-md bg-warning/16 p-4 text-center">
-            <p className="flex items-center gap-2 text-[15px] font-medium text-warning">
-              <Award className="size-5" />
-              Bạn đã được cấp chứng nhận hoàn thành
-            </p>
-            <a href={`/api/certificates/${certificateId}/pdf`} className={buttonVariants({ variant: "default" })} download>
-              <Award />
-              Tải chứng nhận
-            </a>
-          </div>
-        )}
-        <section aria-label="Đánh giá khoá học" className="grid gap-2 rounded-md border border-border p-4">
-          <p className="font-medium text-foreground">Đánh giá khoá học</p>
-          <ReviewForm courseId={courseId} initial={myReview} />
-        </section>
+        {/* header – thân cuộn – footer: hàng nút luôn nhìn thấy khi có form đánh giá (ui-review #19) */}
+        <DialogBody className="grid gap-4">
+          {certificateId && (
+            <div className="flex flex-col items-center gap-2 rounded-md bg-warning/16 p-4 text-center">
+              <p className="flex items-center gap-2 text-[15px] font-medium text-warning">
+                <Award className="size-5" />
+                Bạn đã được cấp chứng nhận hoàn thành
+              </p>
+              <a href={`/api/certificates/${certificateId}/pdf`} className={buttonVariants({ variant: "default" })} download>
+                <Award />
+                Tải chứng nhận
+              </a>
+            </div>
+          )}
+          <section aria-label="Đánh giá khoá học" className="grid gap-2 rounded-md border border-border p-4">
+            <p className="font-medium text-foreground">Đánh giá khoá học</p>
+            <ReviewForm courseId={courseId} initial={myReview} />
+          </section>
+        </DialogBody>
 
         <DialogFooter className="sm:justify-center">
           {certificateId && (
@@ -68,7 +71,7 @@ export function CourseCompletedDialog({
           )}
           <Link
             href="/my-courses"
-            className={cn(buttonVariants({ variant: certificateId || nextCourse ? "secondary" : "default" }), "w-full sm:w-auto")}
+            className={cn(buttonVariants({ variant: certificateId || nextCourse ? "outline" : "default" }), "w-full sm:w-auto")}
           >
             Về khoá học của tôi
           </Link>

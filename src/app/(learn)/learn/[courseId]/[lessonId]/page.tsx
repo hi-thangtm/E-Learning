@@ -8,8 +8,18 @@ import { getLessonAccess, getLessonDetail, getLessonProgress, startLearning } fr
 import { autoSubmitExpired, getQuizOverview } from "@/lib/quiz";
 import { getMyReview } from "@/lib/reviews";
 import { syncProcessingLessonsThrottled } from "@/lib/bunny-sync";
+import { pageTitle } from "@/lib/page-title";
 
-export const metadata: Metadata = { title: "Học bài" };
+export async function generateMetadata({ params }: { params: Promise<{ courseId: string; lessonId: string }> }): Promise<Metadata> {
+  const user = await requireUser();
+  const { courseId, lessonId } = await params;
+  // Chỉ lấy tên bài khi mình có lượt học của khoá (quyền mở bài kiểm tra ở page)
+  const enrolled = await prisma.enrollment.findFirst({ where: { userId: user.id, courseId, status: { not: "CANCELLED" } }, select: { id: true } });
+  const lesson = enrolled
+    ? await prisma.lesson.findFirst({ where: { id: lessonId, section: { courseId } }, select: { title: true } })
+    : null;
+  return { title: pageTitle(lesson?.title, "Học bài") };
+}
 
 /**
  * Trang học (feature-spec 2.4). Kiểm tra ở server: có lượt học (khác CANCELLED), bài thuộc khoá + chưa ẩn,
@@ -26,7 +36,8 @@ export default async function LearnLessonPage({ params }: { params: Promise<{ co
         ? "/my-courses"
         : access.reason === "path"
           ? `/learning-paths/${access.pathId}` // Khoá 🔒 theo lộ trình
-          : `/my-courses/${courseId}`,
+          : // Bài chưa mở / không còn → về trang khoá kèm lý do (ui-review F7)
+            `/my-courses/${courseId}?locked=1`,
     );
   }
 

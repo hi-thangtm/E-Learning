@@ -27,6 +27,7 @@ import {
   type QuestionImportSummary,
   type QuestionPreviewRow,
 } from "./types";
+import { FilePicker } from "@/components/file-picker";
 
 type Preview = { summary: QuestionImportSummary; rows: QuestionPreviewRow[] };
 
@@ -141,7 +142,7 @@ export function QuestionImportWizard({ course }: { course: { id: string; label: 
           <Link href={backHref} className={buttonVariants({ variant: "outline" })}>
             Về ngân hàng câu hỏi
           </Link>
-          <Button variant="secondary" onClick={reset}>
+          <Button variant="outline" onClick={reset}>
             <RotateCcw />
             Import file khác
           </Button>
@@ -188,17 +189,18 @@ export function QuestionImportWizard({ course }: { course: { id: string; label: 
             hint={`Tối đa 5MB, ${formatNumber(QUESTION_IMPORT_MAX_ROWS)} câu. Không hỗ trợ ảnh — thêm ảnh sau trong trang.`}
             span="full"
           >
-            <div className="flex items-center gap-4">
-              <Input
-                ref={fileInputRef}
-                id="import-file"
-                type="file"
-                accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-                disabled={busy}
-                onChange={(e) => pickFile(e.target.files?.[0] ?? null)}
-                className="h-auto max-w-md py-1.5 file:mr-3 file:h-7 file:rounded-md file:bg-muted file:px-3"
-                aria-invalid={!!fileError}
-              />
+            <div className="flex flex-wrap items-center gap-4">
+              <div className="min-w-0 max-w-md flex-1">
+                <FilePicker
+                  ref={fileInputRef}
+                  id="import-file"
+                  accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                  file={file}
+                  disabled={busy}
+                  onChange={pickFile}
+                  invalid={!!fileError}
+                />
+              </div>
               <Button onClick={check} disabled={!file || !!fileError || busy}>
                 <Upload />
                 {checking ? "Đang kiểm tra..." : "Kiểm tra file"}
@@ -271,7 +273,7 @@ export function QuestionImportWizard({ course }: { course: { id: string; label: 
           <AlertDialogFooter>
             <AlertDialogCancel disabled={importing}>Huỷ</AlertDialogCancel>
             <Button onClick={confirmImport} disabled={importing}>
-              {importing ? "Đang import..." : "Import"}
+              {importing ? "Đang thêm..." : `Thêm ${formatNumber(importable)} câu hỏi`}
             </Button>
           </AlertDialogFooter>
         </AlertDialogContent>

@@ -47,6 +47,7 @@ test("trang học viên vừa màn hình 375px, menu ☰ mở và chuyển trang
     `/library/${library.id}`,
     "/certificates",
     "/notifications",
+    "/help",
     "/change-password",
     "/verify",
   ]) {

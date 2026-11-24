@@ -1,6 +1,7 @@
 import { expect, test } from "@playwright/test";
 import { gotoReady, pageAs } from "./helpers/auth";
 import { companyByCode, createCourse, daysFromNow, db, uid, userByCode } from "./helpers/db";
+import { pickDate } from "./helpers/date";
 
 /**
  * Kịch bản 10 — Nhật ký thao tác: mỗi thao tác quản trị làm qua giao diện có đúng 1 dòng audit_logs
@@ -69,7 +70,7 @@ test("tổ chức: tạo công ty, phòng ban, người dùng, đặt lại mậ
   await ca.getByRole("dialog").getByRole("button", { name: "Đặt lại mật khẩu" }).click();
   await expectAudit({ actor: "TEST-CA1", action: "USER_PASSWORD_RESET", entityType: "User", entityId: target.id, companyId: cty1.id });
   await gotoReady(ca, `/org/users/${target.id}`);
-  await ca.getByRole("button", { name: "Khoá", exact: true }).click();
+  await ca.getByRole("button", { name: "Khoá tài khoản", exact: true }).click();
   await ca.getByRole("alertdialog").getByRole("button", { name: "Khoá", exact: true }).click();
   await expectAudit({ actor: "TEST-CA1", action: "USER_LOCKED", entityType: "User", entityId: target.id, companyId: cty1.id });
 
@@ -118,7 +119,7 @@ test("khoá học & giao khoá: tạo khoá, giao thủ công, gia hạn, huỷ 
   const menu = ca.getByRole("button", { name: `Thao tác cho lượt giao của ${learner.fullName} (TEST-LN2)` });
   await menu.click();
   await ca.getByRole("menuitem", { name: "Gia hạn" }).click();
-  await ca.getByRole("dialog").locator("#extend-date").fill(daysFromNow(45).toISOString().slice(0, 10));
+  await pickDate(ca, ca.getByRole("dialog").locator("#extend-date"), daysFromNow(45).toISOString().slice(0, 10));
   await ca.getByRole("dialog").getByRole("button", { name: "Gia hạn", exact: true }).click();
   await expectAudit({ actor: "TEST-CA1", action: "ENROLLMENT_EXTENDED", entityType: "Enrollment", entityId: enrollment.id, companyId: cty1.id });
 
@@ -140,7 +141,7 @@ test("trưởng phòng gửi nhắc nhở → nhật ký ghi đúng người là
   const page = await pageAs(browser, "TEST-MG1");
   await gotoReady(page, "/team/members?q=TEST-LN3");
   await page.getByRole("checkbox", { name: `Chọn ${learner.fullName}` }).check();
-  await page.getByRole("button", { name: "Nhắc nhở", exact: true }).click();
+  await page.getByRole("button", { name: "Gửi nhắc nhở", exact: true }).click();
   const dialog = page.getByRole("dialog");
   await dialog.getByText("Tất cả khoá chưa hoàn thành").click();
   await dialog.getByRole("button", { name: /Gửi nhắc nhở/ }).click();

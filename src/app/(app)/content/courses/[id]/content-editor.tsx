@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState, useTransition } from "react";
+import { useId, useRef, useState, useTransition } from "react";
 import {
   closestCorners,
   DndContext,
@@ -83,6 +83,8 @@ export function ContentEditor({
   const [openLessonId, setOpenLessonId] = useState<string | null>(null);
   const [confirm, setConfirm] = useState<Confirm | null>(null);
 
+  // id cố định (useId giống nhau ở server và trình duyệt) — không có thì dnd-kit tự đếm id cho aria-describedby → lệch hydrate
+  const dndId = useId();
   const sensors = useSensors(
     // Kéo 6px mới bắt đầu -> bấm nút trong dòng không bị tính là kéo
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
@@ -190,7 +192,7 @@ export function ContentEditor({
   const totalLessons = sections.reduce((n, s) => n + s.lessons.length, 0);
 
   return (
-    <div className="grid gap-4">
+    <div className="grid min-w-0 grid-cols-1 gap-4">
       <div className="flex items-center justify-between gap-4">
         <p className="text-[15px] text-muted-foreground">
           {sections.length} chương · {totalLessons} bài
@@ -234,6 +236,7 @@ export function ContentEditor({
         />
       ) : (
         <DndContext
+          id={dndId}
           sensors={sensors}
           collisionDetection={closestCorners}
           onDragStart={onDragStart}
@@ -247,7 +250,7 @@ export function ContentEditor({
           }}
         >
           <SortableContext items={sections.map((s) => sectionDndId(s.id))} strategy={verticalListSortingStrategy}>
-            <div className="grid gap-3">
+            <div className="grid min-w-0 grid-cols-1 gap-3">
               {sections.map((section, index) => (
                 <SectionCard
                   key={section.id}

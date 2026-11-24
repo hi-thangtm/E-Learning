@@ -53,7 +53,7 @@ export function EmptyFiltered({ clearHref, size, className }: { clearHref?: stri
       className={className}
       action={
         clearHref && (
-          <Link href={clearHref} className={buttonVariants({ variant: "secondary" })}>
+          <Link href={clearHref} className={buttonVariants({ variant: "outline" })}>
             Xoá bộ lọc
           </Link>
         )

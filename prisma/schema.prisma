@@ -126,6 +126,9 @@ model Company {
   certificateSignerTitle  String? // Chức vụ, VD: Giám đốc nhân sự
   certificateSignatureUrl String? // Ảnh chữ ký
 
+  /// Đồng bộ Lark (Việc L1): phòng ban GỐC trên Lark (open_department_id) ứng với công ty này — mọi phòng / người dưới nhánh đó thuộc công ty này
+  larkDepartmentId String? @unique
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -206,6 +209,10 @@ model User {
   failedLoginCount   Int        @default(0)
   lockedUntil        DateTime? // Khoá tạm sau nhiều lần sai mật khẩu
   sessionsValidAfter DateTime? // Phiên đăng nhập cấp TRƯỚC thời điểm này bị huỷ (đổi / đặt lại mật khẩu, khoá, đổi vai trò, chuyển công ty)
+  /// false = chưa có mật khẩu riêng (tài khoản tạo từ đồng bộ Lark): đăng nhập bằng mật khẩu luôn báo sai, đến khi admin đặt lại mật khẩu
+  passwordSet        Boolean    @default(true)
+  /// Ai đã khoá tài khoản: "LARK" (đồng bộ thấy nghỉ việc / không còn trên Lark — tự mở lại khi Lark báo đang làm) | "ADMIN" (quản trị khoá — không tự mở)
+  inactiveSource     String?
   createdAt          DateTime   @default(now())
   updatedAt          DateTime   @updatedAt
 

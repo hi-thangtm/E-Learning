@@ -181,7 +181,8 @@ Nguồn: `src/configs/themeConfig.ts`, `src/@menu/components/vertical-menu/Verti
 | Chữ mục menu | 15px, màu chữ chính |
 | Hover | nền `bg-muted` |
 | **Mục đang chọn** | nền gradient `from-primary/70 to-primary` (từ phải sang trái), chữ + icon trắng, `shadow-primary-sm` |
-| Tiêu đề nhóm | 13px viết hoa, `tracking-[0.4px]`, màu chữ mờ (`text-foreground/45`), padding 6px 12px, cách nhóm trên 14px |
+| Tiêu đề nhóm | 13px viết hoa, `tracking-[0.4px]`, màu chữ mờ (`text-foreground/45`), padding 6px 12px, cao ≥ 40px, cách nhóm trên 8px. Là nút thu gọn / mở nhóm (chevron, `aria-expanded`); nhóm chứa trang đang mở luôn mở, không có chevron. Nhớ trạng thái trong localStorage `sidebar-collapsed` |
+| Đặt tên | Nhãn mục menu = tiêu đề trang (PageHeader); nhóm đặt theo **việc người dùng làm** (Học tập, Theo dõi học tập, Giao khoá, Soạn nội dung, Tổ chức, Hệ thống) — không dùng từ mơ hồ như “Đội của tôi” |
 
 Gradient mục đang chọn trong Tailwind: `bg-linear-to-l from-primary/70 to-primary text-primary-foreground shadow-primary-sm`.
 
@@ -209,7 +210,7 @@ Gradient mục đang chọn trong Tailwind: `bg-linear-to-l from-primary/70 to-p
 |---|---|---|
 | Sidebar | Ẩn; nút ☰ ở header mở `MobileSidebar` (Sheet trượt từ trái, rộng 280px, tự đóng khi chuyển trang) | `app-sidebar.tsx` |
 | Header | Padding 8–16px; breadcrumb chỉ còn tên trang (< 640px); ô tìm nhanh ẩn (< 768px) | `app-header.tsx` |
-| Trang học viên | Co giãn ≥ 375px: `/dashboard`, `/my-courses…`, `/learning-paths…`, `/library…`, `/certificates`, `/notifications`, `/learn/…`, đăng nhập, đổi mật khẩu, `/verify` | `LEARNER_PATHS` trong `content-frame.tsx` |
+| Trang học viên | Co giãn ≥ 375px: `/dashboard`, `/my-courses…`, `/learning-paths…`, `/library…`, `/certificates`, `/notifications`, `/help`, `/learn/…`, đăng nhập, đổi mật khẩu, `/verify` | `LEARNER_PATHS` trong `content-frame.tsx` |
 | Trang quản trị | Giữ bố cục máy tính: nội dung rộng tối thiểu 900px, cuộn ngang trong khung (không vỡ trang) | `ContentFrame` |
 | Trang học | Mục lục thành Sheet trượt từ phải; nút “Bài trước / Bài tiếp theo” chia đôi chiều ngang, cao 44px; đáp án bài kiểm tra ≥ 44px | `lesson-shell.tsx`, `quiz-player.tsx` |
 
@@ -280,6 +281,12 @@ Cả bảng nằm trong **một card**:
   trang hiện tại `bg-primary text-primary-foreground shadow-primary-sm`, trang khác `bg-muted`.
 - **Đang tải**: `loading.tsx` dùng `Skeleton` cho 5–10 dòng.
 - **Rỗng**: một dòng `colSpan` đầy đủ, dùng mẫu trạng thái rỗng (5.6). Vuexy chỉ ghi "No data available"; mình làm rõ hơn.
+  Phân biệt **có lọc** (“Không có … khớp bộ lọc” + gợi ý bỏ lọc) và **chưa có dữ liệu** (“Chưa có …”).
+- **Bảng phải vừa 1440px** (Việc 33): cột phụ gộp thành dòng phụ 13px dưới cột chính (VD công ty dưới mã NV, lộ trình dưới tên khoá);
+  tên / phòng ban / chức danh dài: `block max-w-* truncate` + `title`; cột chỉ dành cho Admin tập đoàn (Công ty) chỉ thêm khi `GROUP_ADMIN`.
+  Bảng vẫn rộng → cột thao tác dính phải: `DataTableColumn.sticky = true` (nền `bg-card` + bóng trái).
+- **Bảng lượt học của 1 người** (/org/users/[id], /team/members/[id]): dùng chung `src/components/enrollment-table.tsx`
+  (dữ liệu `getMemberEnrollments` — `src/lib/member-detail.ts`). Chưa học hiện “Chưa học / vN” thay vì “v0 / vN”.
 
 ### 5.3 Form trong dialog
 
@@ -402,6 +409,20 @@ Vuexy không có mẫu riêng, mình quy định:
 - Có bộ lọc mà không ra kết quả: "Không tìm thấy kết quả phù hợp" + nút "Xoá bộ lọc".
 - Có thể dùng ảnh minh hoạ của Vuexy (`public/images/illustrations/`) sau khi copy sang `public/`.
 
+### 5.6b Ô chọn ngày, ô chọn file, thay đổi chưa lưu (Việc 33)
+
+- **Ô chọn ngày** — `src/components/date-picker.tsx` (`DatePicker`): KHÔNG dùng `<input type="date">` (hiện theo ngôn ngữ trình duyệt).
+  Nút outline + lịch `Popover` (shadcn `calendar`, react-day-picker, `locale vi`), hiện `dd/MM/yyyy`, giá trị trao đổi `yyyy-MM-dd`.
+  Có `min` / `max`, `label` (VD “Từ”, “Đến” — nhãn nhìn thấy được), `clearable` cho trường không bắt buộc, `name` + `defaultValue` cho form gửi thẳng.
+  Lọc khoảng ngày: `DateRangeFilter`. Kiểm thử e2e: `pickDate()` ở `e2e/helpers/date.ts`.
+- **Ô chọn file** — `src/components/file-picker.tsx` (`FilePicker`): nút “Chọn file” + tên file · dung lượng / “Chưa chọn file”;
+  input file thật nằm trong nút (`sr-only`), `<label htmlFor>` của `FormField` vẫn trỏ đúng.
+- **Thay đổi chưa lưu** — `src/components/unsaved-changes-dialog.tsx`: `UnsavedChangesDialog` (“Bỏ thay đổi chưa lưu?” — “Ở lại” / “Bỏ thay đổi”)
+  khi chuyển tab / Esc / bấm ra ngoài dialog lúc form có thay đổi; `useBeforeUnloadWarning(dirty)` cho tải lại / đóng tab.
+- **Nút `secondary`** (nền xám) trông như bị khoá → nút phụ dùng `outline`. Chỉ giữ `secondary` cho nút bật / tắt đang bật và nút đè trên ảnh.
+- **Trang “Không tìm thấy” của 1 mục** (`notFound()` khi ngoài phạm vi): `not-found.tsx` cạnh `page.tsx`, dùng `ErrorView`
+  với tiêu đề “Không tìm thấy <đối tượng>” + `homeHref` / `homeLabel` về danh sách.
+
 ### 5.7 Card khoá học
 
 Theo `views/apps/academy/my-courses/Courses.tsx`.
@@ -433,7 +454,7 @@ Theo `views/apps/academy/my-courses/Courses.tsx`.
 | `apps/invoice/list` (bảng) | Chứng nhận (2.9) | `/certificates` |
 | `components/layout/shared/NotificationsDropdown.tsx` | Chuông thông báo (2.10) | header |
 | `pages/account-settings` | Hồ sơ cá nhân (2.1) | `/profile` |
-| `dashboards/crm` (thẻ số liệu, biểu đồ, ProjectStatus) | Tổng quan đội (3.1) | `/team` |
+| `dashboards/crm` (thẻ số liệu, biểu đồ, ProjectStatus) | Tình hình học tập (3.1) | `/team` |
 | `apps/user/list` | Nhân viên của đội (3.2) | `/team/members` |
 | `apps/user/view` (cột trái thông tin + cột phải tabs) | Chi tiết nhân viên (3.2) | `/team/members/[id]` |
 | `apps/user/list` | Danh sách khoá học (4.2) | `/content/courses` |
@@ -562,7 +583,7 @@ skeleton, sonner**. Thành phần khác thêm khi cần:
 | Từ | Dùng khi | Ví dụ |
 |---|---|---|
 | **học viên** | Người học khoá: học, giao khoá, tiến độ, báo cáo theo khoá, thông báo nhắc học | “Chọn học viên”, “Học viên hoạt động 30 ngày” |
-| **nhân viên** | Người trong tổ chức: Đội của tôi, phòng ban, import Excel, mã NV | “Import nhân viên”, “Số nhân viên” |
+| **nhân viên** | Người trong tổ chức: Tiến độ từng người, phòng ban, import Excel, mã NV | “Import nhân viên”, “Số nhân viên” |
 | **người dùng** | Tài khoản đăng nhập: trang Người dùng, khoá / mở khoá, đặt lại mật khẩu, vai trò | “Thêm người dùng”, “Khoá tài khoản” |
 | **bạn** | Nói với chính người đang xem | “Bạn đã đọc xong bài này.” |
 
@@ -605,3 +626,6 @@ Không gọi trực tiếp `toLocaleString`, `toFixed`, `Intl.*` trong component
 
 ### 9.6 Tiêu đề tab trình duyệt
 `<Tên trang> · <Tên hệ thống trong Cài đặt>` — template ở `src/app/layout.tsx` (`getBranding`); mỗi `page.tsx` khai báo `metadata.title`.
+Trang chi tiết (khoá, lộ trình, người, bài học): `generateMetadata` + `pageTitle(tên, "Loại trang")` (`src/lib/page-title.ts`) → “Tên · Soạn khoá học · …”;
+tên PHẢI lấy từ truy vấn đã lọc phạm vi (gọi `requireUser` / `requireRole` như page), ngoài phạm vi thì chỉ hiện loại trang.
+Breadcrumb trên header (`src/components/header-breadcrumb.tsx`): trang con thêm cấp 3 (`SUBPAGES`), trang ngoài menu ở `STANDALONE`.

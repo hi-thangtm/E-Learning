@@ -402,6 +402,7 @@ export async function disableRuleAction(ruleId: string, mode: "keep" | "cancelNo
   });
 
   revalidatePath("/assign/rules");
+  revalidatePath(`/assign/rules/${rule.id}`);
   revalidatePath("/assign/manual");
   return {
     ok: true,
@@ -437,6 +438,7 @@ export async function enableRuleAction(ruleId: string): Promise<ActionState> {
   });
 
   revalidatePath("/assign/rules");
+  revalidatePath(`/assign/rules/${rule.id}`);
   revalidatePath("/assign/manual");
   return { ok: true, message: `Đã bật quy tắc.${assignedMessage(result, rule.subject)}` };
 }

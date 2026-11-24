@@ -173,7 +173,7 @@ function LogoField({ logoUrl }: { logoUrl: string | null }) {
           )}
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <label className={cn(buttonVariants({ variant: "secondary", size: "sm" }), "cursor-pointer")}>
+          <label className={cn(buttonVariants({ variant: "outline", size: "sm" }), "cursor-pointer")}>
             <ImagePlus />
             Chọn ảnh
             <input

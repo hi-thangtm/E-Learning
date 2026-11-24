@@ -78,7 +78,8 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         });
 
         // LUÔN so mật khẩu (mã không tồn tại → hash giả) để thời gian phản hồi như nhau
-        const passwordOk = await bcrypt.compare(parsed.data.password, user?.passwordHash ?? DUMMY_HASH);
+        // passwordSet = false (tài khoản tạo từ đồng bộ Lark, chưa có mật khẩu riêng) → luôn sai; vẫn chạy compare để thời gian như nhau
+        const passwordOk = (await bcrypt.compare(parsed.data.password, user?.passwordHash ?? DUMMY_HASH)) && user?.passwordSet !== false;
         const now = new Date();
         const lockedNow = !!user?.lockedUntil && user.lockedUntil > now;
 

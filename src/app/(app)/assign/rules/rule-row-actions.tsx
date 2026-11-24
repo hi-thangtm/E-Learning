@@ -78,6 +78,37 @@ export function RuleRowActions({ rule }: { rule: { id: string; name: string; isA
   );
 }
 
+/** Nút Bật lại / Tắt quy tắc trên trang chi tiết quy tắc (Việc 33 F2) — cùng hộp xác nhận với menu ⋮. */
+export function RuleStatusButton({ rule }: { rule: { id: string; name: string; isActive: boolean; notStarted: number } }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <>
+      {rule.isActive ? (
+        <Button variant="outline" className="text-destructive" onClick={() => setOpen(true)}>
+          <Power />
+          Tắt quy tắc
+        </Button>
+      ) : (
+        <Button onClick={() => setOpen(true)}>
+          <Play />
+          Bật lại quy tắc
+        </Button>
+      )}
+      {open && rule.isActive && <DisableRuleDialog rule={rule} onClose={() => setOpen(false)} />}
+      {open && !rule.isActive && (
+        <ConfirmDialog
+          open
+          onOpenChange={(o) => !o && setOpen(false)}
+          title={`Bật lại quy tắc “${rule.name}”?`}
+          description="Quy tắc sẽ giao ngay cho mọi người đang khớp nhóm áp dụng, và tự giao cho người vào nhóm sau này."
+          confirmLabel="Bật lại"
+          action={() => enableRuleAction(rule.id)}
+        />
+      )}
+    </>
+  );
+}
+
 function DisableRuleDialog({ rule, onClose }: { rule: { id: string; name: string; notStarted: number }; onClose: () => void }) {
   const [mode, setMode] = useState<"keep" | "cancelNotStarted">("keep");
   const [pending, startTransition] = useTransition();

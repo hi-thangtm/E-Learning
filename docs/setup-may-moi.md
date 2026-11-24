@@ -2,7 +2,7 @@
 
 ## 1. Chuẩn bị
 
-Cài Git, Node.js 22 và Docker Desktop. Mở Docker Desktop và chờ Docker Engine chạy. Các lệnh dưới đây dùng PowerShell. Trên macOS, dùng `cp` thay cho `Copy-Item`, `npm` thay cho `npm.cmd` và `npx` thay cho `npx.cmd`.
+Cài Git, Node.js 22 và Docker Desktop. Mở Docker Desktop và chờ Docker Engine chạy. Quy trình bên dưới chạy PostgreSQL và pgAdmin bằng Docker, còn E-Learning chạy bằng Node.js trên máy. Các lệnh dùng PowerShell. Trên macOS, dùng `cp` thay cho `Copy-Item`, `npm` thay cho `npm.cmd` và `npx` thay cho `npx.cmd`.
 
 ```powershell
 git clone https://github.com/hi-thangtm/E-Learning.git
@@ -18,7 +18,7 @@ Mở `.env` và điền các giá trị sau.
 | `POSTGRES_PASSWORD` | Đặt mật khẩu mới. Có thể dùng chuỗi chữ và số để dễ đưa vào URL. |
 | `DATABASE_URL` | Giữ cấu trúc trong file mẫu và thay mật khẩu cho khớp `POSTGRES_PASSWORD`. Nếu đổi cổng, sửa cả `POSTGRES_PORT` và URL. |
 | `PGADMIN_PASSWORD` | Đặt mật khẩu đăng nhập pgAdmin. |
-| `AUTH_SECRET` | Dán chuỗi ngẫu nhiên vừa tạo. |
+| `AUTH_SECRET` | Dán chuỗi ngẫu nhiên vừa tạo khi cài mới. Khi chuyển dữ liệu từ máy cũ, dùng lại giá trị cũ để đọc các bí mật tích hợp đã mã hóa trong database. Nếu dùng khóa mới, nhập lại các bí mật đó trên giao diện. |
 | `SEED_ADMIN_PASSWORD` | Thêm dòng `SEED_ADMIN_PASSWORD=<mật khẩu mới>` nếu dùng dữ liệu mẫu. Mật khẩu có ít nhất 8 ký tự. |
 
 ```powershell
@@ -68,3 +68,11 @@ npm.cmd run dev
 Mở [E-Learning](http://localhost:3000) và [pgAdmin](http://localhost:5050). Đăng nhập pgAdmin bằng `PGADMIN_EMAIL` và `PGADMIN_PASSWORD`. Khi kết nối đến server `E-Learning (Docker)`, nhập `POSTGRES_PASSWORD`. Nếu đổi cổng pgAdmin, dùng cổng đã đặt trong `PGADMIN_PORT`.
 
 Những lần sau, mở Docker Desktop rồi chạy `docker compose up -d --wait db pgadmin` và `npm.cmd run dev`. Sau khi kéo phiên bản code mới, chạy lại `npm.cmd ci`, `npx.cmd prisma generate` và `npx.cmd prisma migrate deploy` trước khi khởi động ứng dụng.
+
+## 4. Đồng bộ danh bạ Lark
+
+1. Đăng nhập bằng tài khoản Admin tập đoàn và mở **Hệ thống › Kết nối Lark**.
+2. Lưu cấu hình ứng dụng Lark, kiểm tra kết nối và ghép từng công ty với phòng ban gốc tương ứng.
+3. Chạy thử, kiểm tra danh sách tài khoản thay đổi, rồi áp dụng. Với tài khoản mới tạo từ Lark, dùng **Đặt lại mật khẩu** trong trang chi tiết nhân viên để cấp mật khẩu tạm.
+
+Nếu máy cũ đọc cấu hình Lark từ `.env`, chuyển riêng các biến `LARK_APP_ID`, `LARK_APP_SECRET` và `LARK_DOMAIN`. Nếu cấu hình được lưu trên giao diện, kiểm tra lại kết nối sau khi khôi phục database. Xem danh sách quyền và quy trình vận hành trong [hướng dẫn cấu hình Lark](lark-setup.md).

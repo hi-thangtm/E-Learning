@@ -48,9 +48,18 @@ export function NotificationList({ items }: { items: NotificationView[] }) {
             className="px-4 py-4 sm:px-6"
             actions={
               !n.read ? (
-                <Button variant="ghost" size="sm" onClick={() => markOne(n.id)} disabled={pending} className="shrink-0">
+                // Điện thoại: chỉ icon (40px) để nội dung thông báo không bị ép thành cột hẹp (ui-review #2)
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => markOne(n.id)}
+                  disabled={pending}
+                  aria-label="Đánh dấu đã đọc"
+                  title="Đánh dấu đã đọc"
+                  className="size-10 shrink-0 px-0 sm:size-auto sm:px-2.5"
+                >
                   <Check />
-                  Đánh dấu đã đọc
+                  <span className="hidden sm:inline">Đánh dấu đã đọc</span>
                 </Button>
               ) : null
             }

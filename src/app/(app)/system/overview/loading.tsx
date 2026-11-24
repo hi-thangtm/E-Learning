@@ -4,7 +4,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 export default function Loading() {
   return (
     <div className="space-y-6">
-      <PageHeader title="Dashboard tập đoàn" description="Đang tính số liệu..." />
+      <PageHeader title="Tổng quan tập đoàn" description="Đang tính số liệu..." />
       <div className="grid grid-cols-4 gap-6">
         {Array.from({ length: 7 }, (_, i) => (
           <Skeleton key={i} className="h-[118px] rounded-md" />

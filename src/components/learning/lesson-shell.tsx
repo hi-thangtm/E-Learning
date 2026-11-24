@@ -174,7 +174,7 @@ export function LessonShell({
               <div className="flex flex-col gap-3 rounded-md bg-card p-4 shadow-sm sm:flex-row sm:items-center sm:gap-4">
                 <div className="min-w-0 flex-1">
                   <p className="text-[13px] text-muted-foreground">Bài {index + 1}</p>
-                  <h2 className="truncate text-lg font-medium text-foreground">{current?.title}</h2>
+                  <h2 className="line-clamp-2 text-lg leading-normal font-medium break-words text-foreground sm:truncate" title={current?.title}>{current?.title}</h2>
                 </div>
                 {/* Điện thoại: 2 nút chia đôi chiều ngang, cao 44px */}
                 <div className="grid grid-cols-2 gap-3 sm:flex sm:gap-4">
@@ -204,7 +204,7 @@ export function LessonShell({
                     </span>
                   )
                 ) : (
-                  <Link href={backHref} prefetch={false} className={cn(buttonVariants({ variant: currentDone ? "default" : "secondary" }), NAV_BUTTON)}>
+                  <Link href={backHref} prefetch={false} className={cn(buttonVariants({ variant: currentDone ? "default" : "outline" }), NAV_BUTTON)}>
                     {preview ? "Xong xem trước" : "Về trang khoá học"}
                   </Link>
                 )}

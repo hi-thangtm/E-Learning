@@ -30,9 +30,10 @@ test("Khoá của tôi + học tuần tự: bài sau khoá đến khi xong bài 
 
   await page.goto(`/my-courses/${course.id}`);
   await expect(page.locator('[title="Hoàn thành bài trước để mở"]').filter({ hasText: "Bài đọc 2" })).toBeVisible();
-  // Gõ thẳng URL bài 2 → về trang giới thiệu khoá
+  // Gõ thẳng URL bài 2 → về trang giới thiệu khoá, kèm thông báo “Bài này chưa mở” (Việc 33 F7)
   await page.goto(`/learn/${course.id}/${lessons[1].id}`);
-  await expect(page).toHaveURL(new RegExp(`/my-courses/${course.id}$`));
+  await expect(page).toHaveURL(new RegExp(`/my-courses/${course.id}\\?locked=1$`));
+  await expect(page.getByRole("status").filter({ hasText: "Bài này chưa mở" })).toBeVisible();
 
   await gotoReady(page, `/learn/${course.id}/${lessons[0].id}`);
   const read = page.getByRole("button", { name: /Đã đọc xong/ });

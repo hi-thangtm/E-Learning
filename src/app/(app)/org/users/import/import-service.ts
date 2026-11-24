@@ -498,6 +498,7 @@ export async function analyzeImportFile(
           departmentId: true,
           positionId: true,
           hireDate: true,
+          larkUserId: true,
         },
       })
     : [];
@@ -513,6 +514,9 @@ export async function analyzeImportFile(
         row.errors.employeeCode = "Mã NV đã được dùng trong tập đoàn.";
       } else if (actor.role !== "GROUP_ADMIN" && current.role === "GROUP_ADMIN") {
         row.errors.employeeCode = "Không được sửa tài khoản Admin tập đoàn.";
+      } else if (current.larkUserId) {
+        // Việc L1: thông tin người liên kết Lark lấy từ Lark — không sửa bằng file Excel
+        row.errors.employeeCode = "Người này đồng bộ từ Lark — sửa thông tin trên Lark, bỏ dòng này khỏi file.";
       }
     }
 

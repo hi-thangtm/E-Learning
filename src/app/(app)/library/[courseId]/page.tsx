@@ -18,8 +18,13 @@ import { cn } from "@/lib/utils";
 import { getRatingSummaries } from "@/lib/reviews";
 import { RatingText } from "../library-card";
 import { EnrollButton } from "./enroll-button";
+import { pageTitle } from "@/lib/page-title";
 
-export const metadata: Metadata = { title: "Giới thiệu khoá học" };
+export async function generateMetadata({ params }: { params: Promise<{ courseId: string }> }): Promise<Metadata> {
+  const user = await requireUser();
+  const course = await findLibraryCourse(user, (await params).courseId, { title: true });
+  return { title: pageTitle(course?.title, "Thư viện") };
+}
 
 const LESSON_ICON = { VIDEO: PlayCircle, DOCUMENT: FileText, QUIZ: ListChecks } as const;
 const LESSON_TYPE_LABEL = { VIDEO: "Video", DOCUMENT: "Tài liệu", QUIZ: "Bài kiểm tra" } as const;
@@ -63,14 +68,14 @@ export default async function LibraryCoursePage({ params }: { params: Promise<{ 
     main = <EnrollButton courseId={course.id} courseTitle={course.title} />;
   } else if (enrollment.status === "COMPLETED") {
     main = (
-      <Link href={myHref} className={cn(buttonVariants({ variant: "secondary" }), "w-full")}>
+      <Link href={myHref} className={cn(buttonVariants({ variant: "outline" }), "w-full")}>
         <RotateCcw />
         Xem lại khoá học
       </Link>
     );
   } else if (pathLock) {
     main = (
-      <Link href={`/learning-paths/${pathLock.pathId}`} className={cn(buttonVariants({ variant: "secondary" }), "w-full")} title={pathLock.pathTitle}>
+      <Link href={`/learning-paths/${pathLock.pathId}`} className={cn(buttonVariants({ variant: "outline" }), "w-full")} title={pathLock.pathTitle}>
         <Route />
         <span className="truncate">Thuộc lộ trình {pathLock.pathTitle}</span>
       </Link>
@@ -118,7 +123,7 @@ export default async function LibraryCoursePage({ params }: { params: Promise<{ 
             <p className="text-[15px] text-muted-foreground italic">Khoá học chưa có mô tả.</p>
           )}
 
-          <dl className="grid grid-cols-3 gap-4 border-t border-border pt-4 text-[13px]">
+          <dl className="grid grid-cols-2 gap-4 border-t border-border pt-4 sm:grid-cols-3 text-[13px]">
             <Fact icon={<Building2 className="size-4" />} label="Công ty sở hữu" value={course.ownerCompany.name} />
             <Fact icon={<Tag className="size-4" />} label="Phiên bản" value={courseVersionLabel(course.currentVersion)} />
             <Fact icon={<BookOpen className="size-4" />} label="Số bài học" value={`${formatNumber(outline.totalLessons)} bài`} />
@@ -141,7 +146,7 @@ export default async function LibraryCoursePage({ params }: { params: Promise<{ 
             />
           </dl>
 
-          <div className="mt-auto flex items-center gap-4 pt-2">
+          <div className="mt-auto flex flex-col gap-2 pt-2 sm:flex-row sm:items-center sm:gap-4">
             <div className="w-full sm:w-64">{main}</div>
             {!enrollment && <p className="text-[13px] text-muted-foreground">Không có hạn hoàn thành — học theo nhịp của bạn.</p>}
             {pathLock && (
@@ -157,7 +162,7 @@ export default async function LibraryCoursePage({ params }: { params: Promise<{ 
         <header className="p-6 pb-4">
           <h2 className="text-lg font-medium text-foreground">Nội dung khoá học</h2>
           <p className="text-[13px] text-muted-foreground">
-            {outline.sections.length} chương · {outline.totalLessons} bài — đăng ký để bắt đầu học.
+            {formatNumber(outline.sections.length)} chương · {formatNumber(outline.totalLessons)} bài{!enrollment && " — đăng ký để bắt đầu học"}.
           </p>
         </header>
         {outline.totalLessons === 0 ? (
@@ -202,11 +207,10 @@ function Fact({ icon, label, value }: { icon: ReactNode; label: string; value: s
   return (
     <div className="min-w-0">
       <dt className="text-muted-foreground">{label}</dt>
-      <dd className="mt-1 flex items-center gap-1.5 font-medium text-foreground">
-        <span className="shrink-0">{icon}</span>
-        <span className="truncate" title={value}>
-          {value}
-        </span>
+      {/* Giá trị xuống dòng thay vì cắt — title không xem được trên cảm ứng (ui-review #9) */}
+      <dd className="mt-1 flex items-start gap-1.5 font-medium text-foreground">
+        <span className="mt-px shrink-0">{icon}</span>
+        <span className="min-w-0 break-words">{value}</span>
       </dd>
     </div>
   );

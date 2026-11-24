@@ -4,7 +4,7 @@ import { PageHeader } from "@/components/page-header";
 export default function Loading() {
   return (
     <>
-      <PageHeader title="Giao tự động" description="Đang tải danh sách..." />
+      <PageHeader title="Quy tắc giao tự động" description="Đang tải danh sách..." />
       <DataTableSkeleton columns={7} />
     </>
   );

@@ -11,6 +11,8 @@ export const TEST_DB_NAME = "elearning_test";
 export const TEST_PORT = 3200;
 /** Cổng máy chủ Bunny Stream GIẢ LẬP (e2e/mock-bunny) — Việc 31B */
 export const MOCK_BUNNY_PORT = 3201;
+/** Lark giả lập (e2e/mock-lark, Việc L1) */
+export const MOCK_LARK_PORT = 3202;
 export const TEST_PASSWORD = "Test12345";
 export const ROOT = path.resolve(__dirname, "..", "..");
 

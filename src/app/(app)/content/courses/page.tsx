@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button";
 import { canEditCourse, courseVisibleWhere } from "@/lib/course-scope";
 import { requireRole } from "@/lib/current-user";
 import { prisma } from "@/lib/db";
-import { formatDateTime, formatNumber } from "@/lib/format";
+import { formatDate, formatDateTime, formatNumber } from "@/lib/format";
 import { formatRating, getRatingSummaries } from "@/lib/reviews";
 import { getEnumParam, getParam, parseTableParams, type SearchParams } from "@/lib/table-params";
 import { CourseCreateDialog } from "./course-create-dialog";
@@ -93,15 +93,16 @@ export default async function CoursesPage({ searchParams }: { searchParams: Prom
 
   type Row = (typeof courses)[number];
 
+  // Bảng vừa 1440px (ui-review #29): Công ty chỉ cho GA, tên khoá cắt 240px, Cập nhật chỉ ngày (giờ ở title)
   const columns: DataTableColumn<Row>[] = [
     {
       key: "course",
       header: "Khoá học",
       cell: (c) => (
         <div className="flex items-center gap-3">
-          <CourseThumbnail thumbnailKey={c.thumbnailUrl} alt="" className="w-16" />
+          <CourseThumbnail thumbnailKey={c.thumbnailUrl} alt="" className="w-14 shrink-0" />
           <div className="min-w-0">
-            <p className="max-w-80 truncate font-medium text-foreground" title={c.title}>
+            <p className="max-w-56 truncate font-medium text-foreground" title={c.title}>
               {c.title}
             </p>
             <p className="flex items-center gap-2 text-[13px]">
@@ -120,7 +121,7 @@ export default async function CoursesPage({ searchParams }: { searchParams: Prom
       header: "Danh mục",
       cell: (c) =>
         c.category ? (
-          <span>
+          <span className="block max-w-36 truncate" title={c.category.name}>
             {c.category.name}
             {!c.category.isActive && <span className="text-foreground/45"> (đã ẩn)</span>}
           </span>
@@ -128,29 +129,38 @@ export default async function CoursesPage({ searchParams }: { searchParams: Prom
           <span className="text-foreground/45">—</span>
         ),
     },
+    ...(isGroupAdmin
+      ? [
+          {
+            key: "owner",
+            header: "Công ty",
+            className: "w-24",
+            cell: (c: Row) => <span title={c.ownerCompany.name}>{c.ownerCompany.code}</span>,
+          },
+        ]
+      : []),
+    // Phiên bản gộp dưới trạng thái để bảng vừa 1440px (khoá nháp: chưa có phiên bản)
     {
-      key: "owner",
-      header: "Công ty sở hữu",
-      className: "w-32",
-      cell: (c) => <span title={c.ownerCompany.name}>{c.ownerCompany.code}</span>,
-    },
-    { key: "status", header: "Trạng thái", className: "w-36", cell: (c) => <CourseStatusBadge status={c.status} /> },
-    {
-      key: "version",
-      header: "Phiên bản",
-      className: "w-40",
-      cell: (c) => <span className={c.currentVersion === 0 ? "text-foreground/45" : ""}>{courseVersionLabel(c.currentVersion)}</span>,
+      key: "status",
+      header: "Trạng thái",
+      className: "w-36",
+      cell: (c) => (
+        <span className="flex flex-col items-start gap-0.5">
+          <CourseStatusBadge status={c.status} />
+          {c.currentVersion > 0 && <span className="text-[13px] whitespace-nowrap text-muted-foreground">{courseVersionLabel(c.currentVersion)}</span>}
+        </span>
+      ),
     },
     {
       key: "learners",
       header: "Học viên",
-      className: "w-28 text-right",
+      className: "w-24 text-right",
       cell: (c) => formatNumber(c._count.enrollments),
     },
     {
       key: "rating",
       header: "Đánh giá",
-      className: "w-32",
+      className: "w-28 whitespace-nowrap",
       cell: (c) => {
         const r = ratings.get(c.id);
         return r ? (
@@ -164,7 +174,12 @@ export default async function CoursesPage({ searchParams }: { searchParams: Prom
         );
       },
     },
-    { key: "updated", header: "Cập nhật", className: "w-40", cell: (c) => formatDateTime(c.updatedAt) },
+    {
+      key: "updated",
+      header: "Cập nhật",
+      className: "w-28 whitespace-nowrap",
+      cell: (c) => <span title={formatDateTime(c.updatedAt)}>{formatDate(c.updatedAt)}</span>,
+    },
   ];
 
   const filters: DataTableFilterConfig[] = [];

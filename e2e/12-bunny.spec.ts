@@ -316,6 +316,54 @@ test.describe("Bunny Stream (giả lập)", () => {
     await expect(page.getByText(/\/api\/bunny\/webhook/)).toBeVisible();
     expect(await db.auditLog.count({ where: { action: "BUNNY_CONNECTION_TESTED" } })).toBeGreaterThanOrEqual(4);
   });
+
+  test("Cài đặt: nhập khoá trên giao diện — mã hoá khi lưu, ưu tiên hơn .env; xoá → quay về .env", async ({ browser }) => {
+    const page = await pageAs(browser, "TEST-GA");
+    const card = page.getByRole("region", { name: "Video Bunny Stream" });
+    const save = async () => {
+      await card.getByRole("button", { name: "Lưu cấu hình" }).click();
+      await expect(page.getByText("Đã lưu cấu hình Bunny Stream")).toBeVisible();
+    };
+    const check = async (expected: RegExp) => {
+      await gotoReady(page, "/system/settings");
+      await card.getByRole("button", { name: "Kiểm tra kết nối" }).click();
+      await expect(page.getByTestId("bunny-status")).toHaveText(expected);
+    };
+    const keys = [testEnv.BUNNY_STREAM_API_KEY, testEnv.BUNNY_STREAM_TOKEN_KEY, testEnv.BUNNY_STREAM_READONLY_KEY];
+    try {
+      await gotoReady(page, "/system/settings");
+      await expect(card.getByText("Đang dùng BUNNY_STREAM_* trong file .env")).toBeVisible();
+      await card.getByLabel(/^Library ID/).fill(LIBRARY_ID);
+      await card.getByLabel(/^API key/).fill(testEnv.BUNNY_STREAM_API_KEY);
+      await card.getByLabel(/^Token key/).fill(testEnv.BUNNY_STREAM_TOKEN_KEY);
+      await card.getByLabel(/^Read-Only key/).fill(testEnv.BUNNY_STREAM_READONLY_KEY);
+      await save();
+
+      // Lưu dạng mã hoá — database không có khoá thật
+      const stored = JSON.stringify((await db.systemSetting.findUniqueOrThrow({ where: { key: "BUNNY_CREDENTIALS" } })).value);
+      for (const k of keys) expect(stored).not.toContain(k);
+      expect(stored).toContain('"libraryId":"' + LIBRARY_ID + '"');
+
+      await check(/Đã kết nối/);
+      const html = await page.content();
+      for (const k of keys) expect(html).not.toContain(k);
+      await expect(card.getByText(`Đã lưu (••••${testEnv.BUNNY_STREAM_API_KEY.slice(-4)})`)).toBeVisible();
+
+      // Giao diện ưu tiên hơn .env: đổi API key trên giao diện (để trống ô khác = giữ) → Bunny báo sai khoá
+      await card.getByLabel(/^API key/).fill("khoa-sai-tren-giao-dien");
+      await save();
+      await check(/Lỗi: sai API key/);
+
+      // Xoá cấu hình → quay về .env
+      await card.getByRole("button", { name: "Xoá cấu hình" }).click();
+      await page.getByRole("alertdialog").getByRole("button", { name: "Xoá" }).click();
+      await expect(page.getByText("Đã xoá cấu hình Bunny Stream trên giao diện")).toBeVisible();
+      await check(/Đã kết nối/);
+      expect(await db.auditLog.count({ where: { action: "BUNNY_CREDENTIALS_UPDATED" } })).toBeGreaterThanOrEqual(3);
+    } finally {
+      await db.systemSetting.deleteMany({ where: { key: "BUNNY_CREDENTIALS" } });
+    }
+  });
 });
 
 test.describe("Chưa cấu hình Bunny", () => {

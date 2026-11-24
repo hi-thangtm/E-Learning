@@ -89,7 +89,7 @@ test("Admin công ty import nhân viên từ file Excel", async ({ browser }) =>
   await page.locator('input[type="file"]').setInputFiles({ name: "nhan-vien.xlsx", mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", buffer: file });
   await page.getByRole("button", { name: "Kiểm tra file" }).click();
   await page.getByRole("button", { name: "Xác nhận import" }).click();
-  await page.getByRole("alertdialog").getByRole("button", { name: "Import", exact: true }).click();
+  await page.getByRole("alertdialog").getByRole("button", { name: /^Import [\d.]+ người$/ }).click();
   await expect(page.getByText("Đã import xong")).toBeVisible();
 
   const users = await db.user.findMany({ where: { employeeCode: { in: codes } }, include: { department: true } });

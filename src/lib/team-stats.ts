@@ -21,6 +21,8 @@ export type TeamMember = {
   departmentId: string | null;
   departmentName: string | null;
   positionName: string | null;
+  /** Mã công ty — phân biệt phòng trùng tên khi Admin tập đoàn xem cả tập đoàn */
+  companyCode: string;
 };
 
 export type MemberStats = {
@@ -64,6 +66,7 @@ export async function loadTeamMembers(scope: TeamScope, extra: Prisma.UserWhereI
       departmentId: true,
       department: { select: { name: true } },
       position: { select: { name: true } },
+      company: { select: { code: true } },
     },
   });
   return users.map((u) => ({
@@ -75,6 +78,7 @@ export async function loadTeamMembers(scope: TeamScope, extra: Prisma.UserWhereI
     departmentId: u.departmentId,
     departmentName: u.department?.name ?? null,
     positionName: u.position?.name ?? null,
+    companyCode: u.company.code,
   }));
 }
 
@@ -162,14 +166,23 @@ export async function getCourseProgress(userIds: string[], top = 10, now = new D
     LIMIT ${top}`;
 }
 
-export type DepartmentRate = { departmentId: string | null; name: string; members: number; assigned: number; completed: number; rate: number };
+export type DepartmentRate = { departmentId: string | null; name: string; companyCode: string; members: number; assigned: number; completed: number; rate: number };
 
 /** Tỷ lệ hoàn thành theo phòng ban (gộp từ số liệu theo người). */
 export function getDepartmentRates(rows: MemberRow[]): DepartmentRate[] {
   const map = new Map<string, DepartmentRate>();
   for (const r of rows) {
-    const key = r.departmentId ?? "";
-    const d = map.get(key) ?? { departmentId: r.departmentId, name: r.departmentName ?? "Chưa có phòng ban", members: 0, assigned: 0, completed: 0, rate: 0 };
+    // “Chưa có phòng ban” tách theo công ty
+    const key = r.departmentId ?? `none:${r.companyCode}`;
+    const d = map.get(key) ?? {
+      departmentId: r.departmentId,
+      name: r.departmentName ?? "Chưa có phòng ban",
+      companyCode: r.companyCode,
+      members: 0,
+      assigned: 0,
+      completed: 0,
+      rate: 0,
+    };
     d.members++;
     d.assigned += r.assigned;
     d.completed += r.completed;

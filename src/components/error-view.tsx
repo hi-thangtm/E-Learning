@@ -24,6 +24,7 @@ export function ErrorView({
   digest,
   onRetry,
   homeHref = "/dashboard",
+  homeLabel = "Về Tổng quan",
   className,
 }: {
   icon: ReactNode;
@@ -33,6 +34,8 @@ export function ErrorView({
   digest?: string | null;
   onRetry?: () => void;
   homeHref?: string;
+  /** Chữ nút quay về — VD “Về danh sách quy tắc” cho trang “Không tìm thấy” của 1 mục */
+  homeLabel?: string;
   className?: string;
 }) {
   return (
@@ -59,9 +62,9 @@ export function ErrorView({
             </Button>
           )}
           {/* <a> thay vì <Link>: rời hẳn trang đang lỗi, tải lại toàn bộ */}
-          <a href={homeHref} className={buttonVariants({ variant: onRetry ? "secondary" : "default" })}>
+          <a href={homeHref} className={buttonVariants({ variant: onRetry ? "outline" : "default" })}>
             <Home />
-            Về Tổng quan
+            {homeLabel}
           </a>
         </div>
       </section>

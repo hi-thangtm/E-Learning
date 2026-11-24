@@ -151,20 +151,21 @@ export function UserActions({
           </DropdownMenu>
         </div>
       ) : (
-        <div className="flex flex-wrap items-center justify-center gap-4">
+        // Các nút xếp dọc, đủ chiều rộng thẻ — không còn nút lẻ xuống dòng (ui-review #64)
+        <div className="grid w-full grid-cols-1 gap-3">
           <Button onClick={openEdit}>
             <Pencil />
-            Sửa
+            Sửa thông tin
           </Button>
           {canLockAndReset && (
             <>
-              <Button variant="secondary" onClick={openReset}>
+              <Button variant="outline" onClick={openReset}>
                 <KeyRound />
                 Đặt lại mật khẩu
               </Button>
-              <Button variant={isActive ? "soft-destructive" : "secondary"} onClick={() => setLockOpen(true)}>
+              <Button variant={isActive ? "soft-destructive" : "outline"} onClick={() => setLockOpen(true)}>
                 {isActive ? <Lock /> : <LockOpen />}
-                {isActive ? "Khoá" : "Mở khoá"}
+                {isActive ? "Khoá tài khoản" : "Mở khoá tài khoản"}
               </Button>
             </>
           )}

@@ -28,6 +28,7 @@ import { removeLessonFileAction, updateLessonAction } from "./content-actions";
 import type { ContentLesson } from "./content-types";
 import { DocumentEditor } from "./document-editor";
 import { VideoFields } from "./video-fields";
+import { UnsavedChangesDialog, useBeforeUnloadWarning } from "@/components/unsaved-changes-dialog";
 
 const TYPE_META = {
   VIDEO: { label: "Bài video", icon: PlayCircle },
@@ -57,9 +58,30 @@ export function LessonDialog({
 }) {
   const meta = TYPE_META[lesson.type];
   const Icon = meta.icon;
+  // Có thay đổi chưa lưu → Esc / bấm ra ngoài / Huỷ phải hỏi lại trước khi đóng (Việc 33 F9)
+  const [dirty, setDirty] = useState(false);
+  const [confirmClose, setConfirmClose] = useState(false);
+  useBeforeUnloadWarning(open && dirty);
+
+  function requestOpenChange(next: boolean) {
+    if (!next && dirty && !readOnly) return setConfirmClose(true);
+    if (!next) setDirty(false);
+    onOpenChange(next);
+  }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <>
+    <UnsavedChangesDialog
+      open={confirmClose}
+      description="Bài học có thay đổi chưa lưu. Đóng bây giờ thì các thay đổi này sẽ mất."
+      onStay={() => setConfirmClose(false)}
+      onDiscard={() => {
+        setConfirmClose(false);
+        setDirty(false);
+        onOpenChange(false);
+      }}
+    />
+    <Dialog open={open} onOpenChange={requestOpenChange}>
       <DialogContent className="sm:max-w-3xl">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
@@ -68,7 +90,7 @@ export function LessonDialog({
             {lesson.isArchived && <span className="text-[13px] font-normal text-muted-foreground">(đã ẩn khỏi học viên)</span>}
           </DialogTitle>
           <DialogDescription>
-            {readOnly ? "Bạn chỉ được xem bài này." : "Thay đổi được lưu khi bấm “Lưu bài học”."}
+            {readOnly ? "Bạn chỉ được xem bài này." : "Thay đổi được lưu khi bấm “Lưu thay đổi”."}
           </DialogDescription>
         </DialogHeader>
         <LessonForm
@@ -77,10 +99,15 @@ export function LessonDialog({
           bunnyEnabled={bunnyEnabled}
           courseId={courseId}
           questionBank={questionBank}
-          onDone={() => onOpenChange(false)}
+          onDirty={() => !dirty && setDirty(true)}
+          onDone={() => {
+            setDirty(false);
+            onOpenChange(false);
+          }}
         />
       </DialogContent>
     </Dialog>
+    </>
   );
 }
 
@@ -90,6 +117,7 @@ function LessonForm({
   bunnyEnabled,
   courseId,
   questionBank,
+  onDirty,
   onDone,
 }: {
   lesson: ContentLesson;
@@ -97,6 +125,7 @@ function LessonForm({
   bunnyEnabled: boolean;
   courseId: string;
   questionBank: TopicStats;
+  onDirty: () => void;
   onDone: () => void;
 }) {
   const [state, formAction, pending] = useActionState(updateLessonAction, initialActionState);
@@ -115,7 +144,15 @@ function LessonForm({
   }, [state]);
 
   return (
-    <form action={formAction} noValidate className="contents">
+    <form
+      action={formAction}
+      noValidate
+      className="contents"
+      // onInput bắt cả trình soạn tài liệu (contenteditable) — onChange không bắt được
+      // Vùng tự lưu riêng (chọn / tải video) không tính là “chưa lưu”
+      onChange={(e) => !readOnly && !(e.target as HTMLElement).closest("[data-autosave]") && onDirty()}
+      onInput={(e) => !readOnly && !(e.target as HTMLElement).closest("[data-autosave]") && onDirty()}
+    >
       <input type="hidden" name="id" value={lesson.id} />
       <DialogBody>
         <fieldset disabled={readOnly || pending} className="min-w-0">
@@ -139,7 +176,7 @@ function LessonForm({
                 htmlFor="minWatchPercent"
                 required
                 error={err.minWatchPercent}
-                hint="Học viên phải xem thật (không tua) đủ % này mới tính xong bài. Lưu bằng nút “Lưu bài học”."
+                hint="Học viên phải xem thật (không tua) đủ % này mới tính xong bài. Lưu bằng nút “Lưu thay đổi”."
               >
                 <Input
                   id="minWatchPercent"
@@ -152,7 +189,9 @@ function LessonForm({
                   aria-invalid={!!err.minWatchPercent}
                 />
               </FormField>
-              <VideoFields lesson={lesson} bunnyEnabled={bunnyEnabled} readOnly={readOnly} />
+              <div data-autosave className="contents">
+                <VideoFields lesson={lesson} bunnyEnabled={bunnyEnabled} readOnly={readOnly} />
+              </div>
             </>
           )}
           {lesson.type === "QUIZ" && (
@@ -162,11 +201,16 @@ function LessonForm({
         </fieldset>
       </DialogBody>
 
-      {!readOnly && (
+      {readOnly ? (
+        // Chế độ chỉ xem: footer chỉ có “Đóng” (ui-review #47)
+        <DialogFooter>
+          <DialogClose render={<Button type="button" variant="outline" />}>Đóng</DialogClose>
+        </DialogFooter>
+      ) : (
         <DialogFooter>
           <DialogClose render={<Button type="button" variant="outline" disabled={pending} />}>Huỷ</DialogClose>
           <Button type="submit" disabled={pending}>
-            {pending ? "Đang lưu..." : "Lưu bài học"}
+            {pending ? "Đang lưu..." : "Lưu thay đổi"}
           </Button>
         </DialogFooter>
       )}

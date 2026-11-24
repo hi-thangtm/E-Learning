@@ -1,6 +1,7 @@
 import { expect, test } from "@playwright/test";
 import { gotoReady, pageAs } from "./helpers/auth";
 import { companyByCode, createCourse, daysFromNow, db, departmentByCode, uid, userByCode } from "./helpers/db";
+import { pickDate } from "./helpers/date";
 
 /** Kịch bản 3 — Giao khoá: quy tắc theo phòng ban (gồm / không gồm phòng con), người mới / chuyển phòng tự được giao, giao thủ công, gia hạn, huỷ. */
 
@@ -64,7 +65,7 @@ test("người mới vào phòng và người chuyển phòng tự được giao
   const mover = await db.user.create({ data: { employeeCode: moveCode, fullName: "Người chuyển phòng", passwordHash: "x", mustChangePassword: false, companyId: cty1.id, departmentId: kt.id } });
   expect(await enrolledCodes(course.id)).not.toContain(moveCode);
   await gotoReady(page, `/org/users/${mover.id}`);
-  await page.getByRole("button", { name: "Sửa", exact: true }).click();
+  await page.getByRole("button", { name: "Sửa thông tin", exact: true }).click();
   const edit = page.getByRole("dialog");
   await edit.locator("#department-select").click();
   await page.getByRole("option", { name: /Phòng Kinh doanh/ }).first().click();
@@ -98,7 +99,7 @@ test("giao thủ công cho 1 người, gia hạn rồi huỷ giao", async ({ bro
   await menu.click();
   await page.getByRole("menuitem", { name: "Gia hạn" }).click();
   const newDue = daysFromNow(60).toISOString().slice(0, 10);
-  await page.getByRole("dialog").locator("#extend-date").fill(newDue);
+  await pickDate(page, page.getByRole("dialog").locator("#extend-date"), newDue);
   await page.getByRole("dialog").getByRole("button", { name: "Gia hạn", exact: true }).click();
   await expect.poll(async () => (await db.enrollment.findUniqueOrThrow({ where: { id: enrollment.id } })).dueDate?.toISOString().slice(0, 10)).toBe(newDue);
 

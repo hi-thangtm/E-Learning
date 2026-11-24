@@ -6,7 +6,7 @@ export type CertificateStatusKey = "valid" | "expiring" | "expired" | "revoked";
 export const CERTIFICATE_STATUS: Record<CertificateStatusKey, { label: string; tone: StatusTone }> = {
   valid: { label: "Còn hiệu lực", tone: "success" },
   expiring: { label: "Sắp hết hạn", tone: "warning" },
-  expired: { label: "Hết hạn", tone: "secondary" },
+  expired: { label: "Hết hạn", tone: "destructive" },
   revoked: { label: "Đã thu hồi", tone: "destructive" },
 };
 

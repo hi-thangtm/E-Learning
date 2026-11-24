@@ -316,7 +316,7 @@ function QuestionForm({
         <div className="flex items-center justify-between gap-4">
           <Button
             type="button"
-            variant="secondary"
+            variant="outline"
             size="sm"
             disabled={rows.length >= QUESTION_LIMITS.maxOptions}
             onClick={() => setRows((prev) => [...prev, { key: nextKey(), text: "", isCorrect: false }])}

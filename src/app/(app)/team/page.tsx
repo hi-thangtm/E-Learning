@@ -1,12 +1,13 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
 import Link from "next/link";
-import { AlarmClockOff, ChevronRight, FileDiff, Gauge, Users } from "lucide-react";
+import { AlarmClockOff, ChartBar, ChevronRight, FileDiff, Gauge, Users } from "lucide-react";
+import { EmptyState } from "@/components/empty-state";
 import { DataTableFilter } from "@/components/data-table/data-table-filter";
 import { PageHeader } from "@/components/page-header";
 import { requireRole } from "@/lib/current-user";
 import { prisma } from "@/lib/db";
-import { formatNumber } from "@/lib/format";
+import { formatNumber, formatPercent } from "@/lib/format";
 import { getTeamScope } from "@/lib/scope";
 import { getParam, type SearchParams } from "@/lib/table-params";
 import { getCourseProgress, getTeamOverview, type MemberRow } from "@/lib/team-stats";
@@ -14,7 +15,9 @@ import { cn } from "@/lib/utils";
 import { EmptyTeam } from "./empty-team";
 import { CourseProgressChart, DepartmentRateChart } from "./team-charts";
 
-export const metadata: Metadata = { title: "Tổng quan đội" };
+export const metadata: Metadata = { title: "Tình hình học tập" };
+
+const DEPT_CHART_LIMIT = 15;
 
 const TONES = {
   primary: "bg-primary/16 text-primary",
@@ -24,7 +27,7 @@ const TONES = {
   secondary: "bg-secondary text-secondary-foreground",
 } as const;
 
-/** Tổng quan đội (Việc 26 — feature-spec 3.1): MANAGER (phòng mình + phòng con), Admin công ty (cả công ty), Admin tập đoàn. */
+/** Tình hình học tập — trước gọi “Tổng quan đội” (Việc 26 — feature-spec 3.1): MANAGER (phòng mình + phòng con), Admin công ty (cả công ty), Admin tập đoàn. */
 export default async function TeamOverviewPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
   const actor = await requireRole(["MANAGER", "COMPANY_ADMIN", "GROUP_ADMIN"]);
   const sp = await searchParams;
@@ -42,13 +45,13 @@ export default async function TeamOverviewPage({ searchParams }: { searchParams:
 
   const description =
     actor.role === "MANAGER"
-      ? "Tiến độ học của các phòng bạn làm trưởng (gồm phòng con)."
+      ? "Bức tranh chung về việc học của các phòng bạn làm trưởng (gồm phòng con): tỷ lệ hoàn thành, ai đang quá hạn, khoá nào chậm."
       : actor.role === "COMPANY_ADMIN"
-        ? `Tiến độ học của nhân viên ${actor.company.name}.`
-        : "Tiến độ học của nhân viên toàn tập đoàn hoặc theo công ty.";
+        ? `Bức tranh chung về việc học của nhân viên ${actor.company.name}: tỷ lệ hoàn thành, ai đang quá hạn, khoá nào chậm.`
+        : "Bức tranh chung về việc học của nhân viên toàn tập đoàn hoặc theo công ty: tỷ lệ hoàn thành, ai đang quá hạn, khoá nào chậm.";
   const header = (
     <PageHeader
-      title="Tổng quan đội"
+      title="Tình hình học tập"
       description={description}
       actions={
         isGroupAdmin && (
@@ -75,6 +78,13 @@ export default async function TeamOverviewPage({ searchParams }: { searchParams:
 
   const memberIds = (await prisma.user.findMany({ where: scope.where, select: { id: true } })).map((u) => u.id);
   const [overview, courses] = await Promise.all([getTeamOverview(scope), getCourseProgress(memberIds, 10)]);
+  // Biểu đồ phòng ban: tối đa 15 phòng nhiều lượt học nhất (vẫn xếp theo tỷ lệ); xem cả tập đoàn → kèm mã công ty (ui-review #55)
+  const showCompany = isGroupAdmin && !companyId;
+  const deptChart = [...overview.departments]
+    .sort((a, b) => b.assigned - a.assigned)
+    .slice(0, DEPT_CHART_LIMIT)
+    .sort((a, b) => b.rate - a.rate || a.name.localeCompare(b.name, "vi"))
+    .map((d) => ({ name: showCompany ? `${d.companyCode} · ${d.name}` : d.name, rate: d.rate, completed: d.completed, assigned: d.assigned }));
   const membersHref = (extra: string) => `/team/members${companyId ? `?company=${companyId}${extra ? `&${extra}` : ""}` : extra ? `?${extra}` : ""}`;
 
   return (
@@ -86,8 +96,8 @@ export default async function TeamOverviewPage({ searchParams }: { searchParams:
         <StatCard
           href={membersHref("sort=rate&dir=asc")}
           label="Tỷ lệ hoàn thành"
-          value={overview.rate === null ? "—" : `${overview.rate}%`}
-          hint={`${formatNumber(overview.completed)}/${formatNumber(overview.assigned)} lượt khoá được giao`}
+          value={overview.rate === null ? "—" : formatPercent(overview.rate, 0)}
+          hint={`${formatNumber(overview.completed)}/${formatNumber(overview.assigned)} lượt học`}
           icon={<Gauge />}
           tone="success"
         />
@@ -116,18 +126,28 @@ export default async function TeamOverviewPage({ searchParams }: { searchParams:
           <h2 className="text-lg font-medium text-foreground">Tiến độ theo khoá</h2>
           <p className="mb-4 text-[13px] text-muted-foreground">10 khoá được giao cho nhiều người nhất</p>
           {courses.length === 0 ? (
-            <p className="py-16 text-center text-[15px] text-muted-foreground">Chưa có khoá nào được giao cho đội.</p>
+            <EmptyState size="sm" icon={ChartBar} title="Chưa có khoá nào được giao" description="Khi nhân viên được giao khoá học, tiến độ từng khoá sẽ hiện ở đây." />
           ) : (
             <CourseProgressChart data={courses.map((c) => ({ code: c.code, title: c.title, completed: c.completed, inProgress: c.inProgress, notStarted: c.notStarted, overdue: c.overdue }))} />
           )}
         </section>
         <section className="col-span-5 rounded-md bg-card p-6 shadow-md">
           <h2 className="text-lg font-medium text-foreground">Tỷ lệ hoàn thành theo phòng ban</h2>
-          <p className="mb-4 text-[13px] text-muted-foreground">Đã xong ÷ khoá được giao</p>
+          <p className="mb-4 text-[13px] text-muted-foreground">
+            Hoàn thành ÷ lượt học{overview.departments.length > DEPT_CHART_LIMIT && ` · ${DEPT_CHART_LIMIT} phòng có nhiều lượt học nhất`}
+          </p>
           {overview.departments.length === 0 ? (
-            <p className="py-16 text-center text-[15px] text-muted-foreground">Chưa có số liệu.</p>
+            <EmptyState size="sm" icon={ChartBar} title="Chưa có số liệu" description="Khi nhân viên được giao khoá học, tỷ lệ hoàn thành theo phòng ban sẽ hiện ở đây." />
           ) : (
-            <DepartmentRateChart data={overview.departments.map((d) => ({ name: d.name, rate: d.rate, completed: d.completed, assigned: d.assigned }))} />
+            <>
+              <DepartmentRateChart data={deptChart} />
+              {overview.departments.length > DEPT_CHART_LIMIT && (
+                <Link href="/reports?tab=departments" className="mt-3 inline-flex items-center gap-1 text-[15px] text-primary hover:underline">
+                  Xem tất cả {formatNumber(overview.departments.length)} phòng ban
+                  <ChevronRight className="size-4" />
+                </Link>
+              )}
+            </>
           )}
         </section>
       </div>

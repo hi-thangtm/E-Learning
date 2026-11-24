@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { redirect } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { ChevronLeft } from "lucide-react";
 import { requireRole } from "@/lib/current-user";
 import { getParam, type SearchParams } from "@/lib/table-params";
@@ -8,6 +8,7 @@ import { findCourseForEdit } from "../scope";
 import { QuestionImportWizard } from "./import-wizard";
 import { QUESTION_IMPORT_MAX_ROWS } from "./types";
 import { formatNumber } from "@/lib/format";
+import { findCourseInScope } from "@/lib/course-scope";
 
 export const metadata: Metadata = { title: "Import câu hỏi" };
 
@@ -15,9 +16,14 @@ export default async function ImportQuestionsPage({ searchParams }: { searchPara
   const actor = await requireRole(["GROUP_ADMIN", "COMPANY_ADMIN", "CONTENT_EDITOR"]);
   const courseId = getParam(await searchParams, "course");
 
-  // Chỉ người được sửa khoá mới import được; không thì quay lại trang ngân hàng
+  // Chỉ người được sửa khoá mới import được: chưa chọn khoá → về ngân hàng; khoá xem được nhưng không sửa được → về ngân hàng (chế độ chỉ xem);
+  // khoá ngoài phạm vi / không tồn tại → “Không tìm thấy” (ui-review #31)
+  if (!courseId) redirect("/content/questions");
   const course = await findCourseForEdit(actor, courseId);
-  if (!course) redirect(courseId ? `/content/questions?course=${encodeURIComponent(courseId)}` : "/content/questions");
+  if (!course) {
+    if (await findCourseInScope(actor, courseId, { id: true })) redirect(`/content/questions?course=${encodeURIComponent(courseId)}`);
+    notFound();
+  }
 
   return (
     <>

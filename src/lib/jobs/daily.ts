@@ -2,6 +2,8 @@ import "server-only";
 import { ackDueDate, knownVersion } from "@/lib/acknowledgements";
 import { deleteBunnyVideo, isBunnyConfigured } from "@/lib/bunny";
 import { syncBunnyLesson } from "@/lib/bunny-sync";
+import { isLarkConfigured } from "@/lib/lark/client";
+import { hasManualLarkApply, runLarkSyncAuto } from "@/lib/lark/sync";
 import { logAudit } from "@/lib/audit";
 import { prisma } from "@/lib/db";
 import { addDaysIso, dueAfterDays, formatDate, vnDayEnd, vnIsoDate } from "@/lib/format";
@@ -29,6 +31,7 @@ const DAY_MS = 86_400_000;
 export type DailyJobTrigger = "manual" | "cron" | "script";
 
 export type DailyJobCounts = {
+  larkSync: number;
   dueSoon: number;
   overdue: number;
   quizGraded: number;
@@ -40,16 +43,18 @@ export type DailyJobCounts = {
   bunnyPendingCleaned: number;
 };
 
-export const DAILY_JOB_PARTS: { key: keyof DailyJobCounts; label: string }[] = [
-  { key: "dueSoon", label: "Nhắc sắp đến hạn" },
-  { key: "overdue", label: "Nhắc quá hạn" },
-  { key: "quizGraded", label: "Chấm bài kiểm tra bỏ dở" },
-  { key: "certExpiring", label: "Chứng nhận sắp hết hạn" },
-  { key: "certExpiredReset", label: "Chứng nhận hết hạn → học lại" },
-  { key: "notificationsDeleted", label: "Dọn thông báo cũ" },
-  { key: "ackOverdue", label: "Nhắc xác nhận cập nhật quá hạn" },
-  { key: "bunnyStatusSynced", label: "Cập nhật video đang xử lý" },
-  { key: "bunnyPendingCleaned", label: "Dọn video tải dở" },
+/** `short` = tiêu đề cột ở bảng lịch sử chạy (tên đầy đủ ở tooltip ⓘ). */
+export const DAILY_JOB_PARTS: { key: keyof DailyJobCounts; label: string; short: string }[] = [
+  { key: "larkSync", label: "Đồng bộ Lark (số thay đổi)", short: "Lark" },
+  { key: "dueSoon", label: "Nhắc sắp đến hạn", short: "Sắp hạn" },
+  { key: "overdue", label: "Nhắc quá hạn", short: "Quá hạn" },
+  { key: "quizGraded", label: "Chấm bài kiểm tra bỏ dở", short: "Chấm bài" },
+  { key: "certExpiring", label: "Chứng nhận sắp hết hạn", short: "Sắp hết hạn" },
+  { key: "certExpiredReset", label: "Chứng nhận hết hạn → học lại", short: "Học lại" },
+  { key: "notificationsDeleted", label: "Dọn thông báo cũ", short: "Dọn thông báo" },
+  { key: "ackOverdue", label: "Nhắc xác nhận cập nhật quá hạn", short: "Nhắc xác nhận" },
+  { key: "bunnyStatusSynced", label: "Cập nhật video đang xử lý", short: "Video xử lý" },
+  { key: "bunnyPendingCleaned", label: "Dọn video tải dở", short: "Dọn video" },
 ];
 
 export type DailyJobResult =
@@ -341,7 +346,7 @@ async function cleanupNotifications(now: Date): Promise<number> {
 
 /** h. Video Bunny còn “đang xử lý” (webhook bị lỡ, đóng dialog sớm) → hỏi lại Bunny. Trả số bài đã đổi trạng thái. */
 async function syncProcessingVideos(): Promise<number> {
-  if (!isBunnyConfigured()) return 0;
+  if (!(await isBunnyConfigured())) return 0;
   let changed = 0;
   await forEachBatch(
     (cursor) =>
@@ -388,6 +393,18 @@ async function cleanupPendingVideos(now: Date): Promise<number> {
   return cleaned;
 }
 
+/**
+ * Đồng bộ Lark trong tác vụ hằng ngày (Việc L1): chỉ khi đã cấu hình Lark VÀ đã từng áp dụng thủ công ít nhất 1 lần.
+ * Chạm chốt chặn / lỗi → ném lỗi (ghi vào errors.larkSync), không áp dụng. Trả về tổng số thay đổi đã ghi.
+ */
+async function syncLarkDirectory(trigger: "cron" | "script", actorId: string | null): Promise<number> {
+  if (!(await isLarkConfigured()) || !(await hasManualLarkApply())) return 0;
+  const result = await runLarkSyncAuto(trigger, actorId);
+  if (!result.ok) throw new Error(result.message);
+  const c = result.counts;
+  return c.create + c.update + c.transfer + c.lock + c.reopen + c.departments + c.managers;
+}
+
 export async function runDailyJob(options: { triggeredBy: string | null; trigger: DailyJobTrigger }): Promise<DailyJobResult> {
   const started = Date.now();
 
@@ -401,6 +418,7 @@ export async function runDailyJob(options: { triggeredBy: string | null; trigger
 
       const now = new Date();
       const counts: DailyJobCounts = {
+        larkSync: 0,
         dueSoon: 0,
         overdue: 0,
         quizGraded: 0,
@@ -413,6 +431,8 @@ export async function runDailyJob(options: { triggeredBy: string | null; trigger
       };
       const errors: Partial<Record<keyof DailyJobCounts, string>> = {};
       const parts: [keyof DailyJobCounts, (now: Date) => Promise<number>][] = [
+        // Đồng bộ Lark chạy ĐẦU TIÊN (người mới / nghỉ việc cập nhật trước khi nhắc học)
+        ["larkSync", () => syncLarkDirectory(options.trigger === "script" ? "script" : "cron", options.triggeredBy)],
         ["dueSoon", remindDueSoon],
         ["overdue", remindOverdue],
         ["quizGraded", gradeAbandonedQuizzes],

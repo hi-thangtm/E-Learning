@@ -39,7 +39,7 @@ export function CompanyRateChart({ data }: { data: CompanyRatePoint[] }) {
           {rows.map((r) => (
             <Cell key={r.code} fill={rateColor(r.rate)} />
           ))}
-          <LabelList dataKey="value" position="top" formatter={(v) => `${v}%`} className="fill-foreground text-[12px]" />
+          <LabelList dataKey="value" position="top" formatter={(v) => formatPercent(Number(v))} className="fill-foreground text-[12px]" />
         </Bar>
       </BarChart>
     </ChartContainer>

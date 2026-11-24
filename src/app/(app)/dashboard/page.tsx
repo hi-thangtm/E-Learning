@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import type { ReactNode } from "react";
-import { Award, BookOpen, CheckCircle2, ChevronRight, Clock, FileText, Inbox, ListChecks, PlayCircle, TriangleAlert } from "lucide-react";
+import { Award, BookOpen, CheckCircle2, ChevronRight, CirclePlay, Clock, FileText, Inbox, ListChecks, PlayCircle, TriangleAlert } from "lucide-react";
 import { CourseThumbnail } from "@/components/course-thumbnail";
 import { VersionUpdateBanner } from "@/components/learning/version-update-banner";
 import { getPendingAcknowledgements } from "@/lib/acknowledgements";
@@ -9,7 +9,7 @@ import { ProgressBar } from "@/components/progress";
 import { StatusBadge } from "@/components/status-badge";
 import { defaultCoverUrl } from "@/lib/course-cover";
 import { requireUser } from "@/lib/current-user";
-import { formatDate, formatNumber, formatPercent } from "@/lib/format";
+import { formatDate, formatPercent } from "@/lib/format";
 import { dueHint, getContinueLearning, getMyStats, getTodoEnrollments } from "@/lib/learning";
 import { ROLE_LABELS } from "@/lib/roles";
 import { cn } from "@/lib/utils";
@@ -29,7 +29,7 @@ export default async function DashboardPage() {
     getContinueLearning(user.id, 3),
     getPendingAcknowledgements(user.id),
   ]);
-  const hasAnything = stats.inProgress + stats.completed > 0 || todo.length > 0;
+  const hasAnything = stats.inProgress + stats.notStarted + stats.completed > 0 || todo.length > 0;
 
   return (
     <div className="space-y-6">
@@ -43,15 +43,17 @@ export default async function DashboardPage() {
       {/* Quy trình có cập nhật (bản MINOR chưa xác nhận) */}
       <VersionUpdateBanner items={pendingUpdates} />
 
-      <div className="grid grid-cols-2 gap-4 sm:gap-6 lg:grid-cols-4">
+      {/* 5 thẻ, mỗi thẻ đúng 1 trạng thái (Việc 33 F4); bấm → tab tương ứng ở Khoá học của tôi */}
+      <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 sm:gap-6 lg:grid-cols-5">
         <StatCard
-          href="/my-courses?tab=inProgress"
-          label="Đang học"
-          value={stats.inProgress}
-          hint={stats.notStarted > 0 ? `+ ${formatNumber(stats.notStarted)} khoá chưa bắt đầu` : "Khoá học đã bắt đầu học"}
-          icon={<BookOpen />}
-          tone="primary"
+          href="/my-courses?tab=notStarted"
+          label="Chưa bắt đầu"
+          value={stats.notStarted}
+          hint={stats.notStarted > 0 ? "Khoá được giao chưa mở bài nào" : "Không có khoá chờ bắt đầu"}
+          icon={<CirclePlay />}
+          tone="info"
         />
+        <StatCard href="/my-courses?tab=inProgress" label="Đang học" value={stats.inProgress} hint="Khoá học đã bắt đầu học" icon={<BookOpen />} tone="primary" />
         <StatCard href="/my-courses?tab=completed" label="Đã hoàn thành" value={stats.completed} hint="Khoá học đã học xong" icon={<CheckCircle2 />} tone="success" />
         <StatCard
           href="/my-courses?tab=overdue"
@@ -181,6 +183,7 @@ export default async function DashboardPage() {
 
 const TONES = {
   primary: "bg-primary/16 text-primary",
+  info: "bg-info/16 text-info",
   success: "bg-success/16 text-success",
   warning: "bg-warning/16 text-warning",
   destructive: "bg-destructive/16 text-destructive",

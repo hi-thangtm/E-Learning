@@ -14,6 +14,7 @@ import { cn } from "@/lib/utils";
 import { assignManualAction, previewManualAction, type ManualPreview } from "./actions";
 import { LearnerPicker } from "./learner-picker";
 import type { DepartmentOption, DueChoice, Option, Selection, Target, TargetKind, WizardCourse } from "./types";
+import { DatePicker } from "@/components/date-picker";
 
 const STEPS = ["Chọn khoá / lộ trình", "Cách giao", "Chọn người", "Đặt hạn"] as const;
 
@@ -258,7 +259,7 @@ function CourseStep({
             : "Chưa có khoá học nào đã phát hành trong phạm vi của bạn. Khoá phải được phát hành trước khi giao."}
         </p>
       )}
-      <ul className="grid max-h-[50vh] gap-2 overflow-y-auto">
+      <ul className="grid max-h-[50vh] gap-2 overflow-y-auto p-px pr-1">
         {list.map((c) => (
           <li key={c.id}>
             <button
@@ -404,14 +405,13 @@ function DueStep({
               onChange={() => onDueChange({ mode: "date", date: addDaysIso(vnIsoDate(), defaultDays) })}
             />
             <span className="text-[15px]">Đến ngày</span>
-            <Input
-              type="date"
+            <DatePicker
               className="w-44"
               aria-label="Ngày hạn"
               disabled={due.mode !== "date"}
               min={addDaysIso(vnIsoDate(), 1)}
               value={due.mode === "date" ? due.date : ""}
-              onChange={(e) => onDueChange({ mode: "date", date: e.target.value })}
+              onChange={(v) => v && onDueChange({ mode: "date", date: v })}
             />
           </label>
           <p className="text-[13px] text-muted-foreground">Hạn: hết ngày {dueText} (giờ Việt Nam).</p>

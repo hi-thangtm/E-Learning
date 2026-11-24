@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useEffect, useState, useTransition } from "react";
+import { useActionState, useEffect, useId, useState, useTransition } from "react";
 import Link from "next/link";
 import type { CourseStatus } from "@prisma/client";
 import { closestCenter, DndContext, KeyboardSensor, PointerSensor, useSensor, useSensors, type DragEndEvent } from "@dnd-kit/core";
@@ -38,6 +38,7 @@ import {
   updatePathInfoAction,
 } from "../actions";
 import { Tooltip } from "@/components/ui/tooltip";
+import type { ActionState } from "@/lib/action-state";
 
 export type PathCourseRow = {
   id: string;
@@ -156,13 +157,13 @@ function PathHeader({
         Lộ trình học
       </Link>
 
-      <div className="flex items-center justify-between gap-6 rounded-md bg-card p-6 shadow-md">
-        <div className="flex min-w-0 items-center gap-4">
+      <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-4 rounded-md bg-card p-6 shadow-md">
+        <div className="flex min-w-[min(100%,28rem)] flex-1 items-center gap-4">
           <span className="flex size-14 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">
             <Route className="size-7" />
           </span>
           <div className="min-w-0 space-y-1.5">
-            <h1 className="truncate text-2xl font-medium text-foreground" title={path.title}>
+            <h1 className="line-clamp-2 text-2xl leading-snug font-medium break-words text-foreground" title={path.title}>
               {path.title}
             </h1>
             <div className="flex flex-wrap items-center gap-3 text-[13px] text-muted-foreground">
@@ -241,6 +242,8 @@ function PathHeader({
 function CourseList({ pathId, courses, editable }: { pathId: string; courses: PathCourseRow[]; editable: boolean }) {
   const [items, setItems] = useState(courses);
   const [pending, startTransition] = useTransition();
+  // id cố định (useId giống nhau ở server và trình duyệt) — không có thì dnd-kit tự đếm id cho aria-describedby → lệch hydrate
+  const dndId = useId();
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
@@ -264,23 +267,26 @@ function CourseList({ pathId, courses, editable }: { pathId: string; courses: Pa
     const next = arrayMove(items, from, to);
     setItems(next);
     startTransition(async () => {
-      const r = await reorderCoursesAction(
-        pathId,
-        next.map((c) => c.id),
-      );
-      if (!r.ok) {
+      // Lỗi mạng / server → trả lại thứ tự cũ + báo (ui-review F8)
+      try {
+        const r = await reorderCoursesAction(
+          pathId,
+          next.map((c) => c.id),
+        );
+        if (!r.ok) {
+          setItems(before);
+          toast.error(r.message ?? "Không lưu được thứ tự.");
+        }
+      } catch {
         setItems(before);
-        toast.error(r.message ?? "Không lưu được thứ tự.");
+        toast.error("Không lưu được thứ tự, vui lòng thử lại.");
       }
     });
   }
 
+  /** Bỏ khoá — chạy sau hộp xác nhận (ConfirmDialog tự báo kết quả / lỗi). */
   function remove(course: PathCourseRow) {
-    startTransition(async () => {
-      const r = await removeCourseAction(pathId, course.id);
-      if (r.ok) toast.success(r.message);
-      else toast.error(r.message ?? "Không bỏ được khoá.");
-    });
+    return removeCourseAction(pathId, course.id);
   }
 
   const list = (
@@ -294,6 +300,7 @@ function CourseList({ pathId, courses, editable }: { pathId: string; courses: Pa
   if (!editable) return list;
   return (
     <DndContext
+      id={dndId}
       sensors={sensors}
       collisionDetection={closestCenter}
       onDragEnd={onDragEnd}
@@ -321,7 +328,7 @@ function CourseItem({
   course: PathCourseRow;
   editable: boolean;
   disabled: boolean;
-  onRemove: () => void;
+  onRemove: () => Promise<ActionState>;
 }) {
   const { attributes, listeners, setNodeRef, setActivatorNodeRef, transform, transition, isDragging } = useSortable({
     id: course.id,
@@ -362,16 +369,20 @@ function CourseItem({
         </p>
       </div>
       {editable && (
-        <Tooltip label="Bỏ khỏi lộ trình"><Button
-          type="button"
-          variant="ghost"
-          size="icon"
-          disabled={disabled}
-          onClick={onRemove}
-          aria-label={`Bỏ khoá ${course.code} khỏi lộ trình`}
-        >
-          <X />
-        </Button></Tooltip>
+        <ConfirmDialog
+          trigger={
+            <Tooltip label="Bỏ khỏi lộ trình">
+              <Button type="button" variant="ghost" size="icon" disabled={disabled} aria-label={`Bỏ khoá ${course.code} khỏi lộ trình`}>
+                <X />
+              </Button>
+            </Tooltip>
+          }
+          title={`Bỏ khoá ${course.code} khỏi lộ trình?`}
+          description="Lộ trình đang ở trạng thái Nháp nên chưa ai được giao — có thể thêm lại khoá này bất cứ lúc nào."
+          confirmLabel="Bỏ khỏi lộ trình"
+          tone="destructive"
+          action={onRemove}
+        />
       )}
     </li>
   );
@@ -445,7 +456,7 @@ function AddCourse({
 
       {published ? (
         <>
-          <Button type="button" variant="secondary" disabled={!selected} onClick={() => setConfirmOpen(true)}>
+          <Button type="button" variant="outline" disabled={!selected} onClick={() => setConfirmOpen(true)}>
             <Plus />
             Thêm khoá vào cuối
           </Button>
@@ -465,7 +476,7 @@ function AddCourse({
           )}
         </>
       ) : (
-        <Button type="button" variant="secondary" disabled={!selected || pending} onClick={addDraft}>
+        <Button type="button" variant="outline" disabled={!selected || pending} onClick={addDraft}>
           <Plus />
           {pending ? "Đang thêm..." : "Thêm khoá"}
         </Button>
@@ -518,7 +529,7 @@ function InfoForm({ path, readOnly }: { path: PathInfo; readOnly: boolean }) {
       {!readOnly && (
         <div className="mt-4 flex justify-end">
           <Button type="submit" disabled={pending}>
-            {pending ? "Đang lưu..." : "Lưu thông tin"}
+            {pending ? "Đang lưu..." : "Lưu thay đổi"}
           </Button>
         </div>
       )}

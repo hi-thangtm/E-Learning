@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { redirect } from "next/navigation";
+import { notFound } from "next/navigation";
 import { Eye, TriangleAlert } from "lucide-react";
 import { LessonBody } from "@/components/learning/lesson-body";
 import { LessonShell } from "@/components/learning/lesson-shell";
@@ -24,8 +24,13 @@ import { COURSE_TABS, CourseTabs, type CourseTab } from "./course-tabs";
 import { ProposalBanner } from "./proposal-banner";
 import { VersionHistory } from "./version-history";
 import { EmptyState } from "@/components/empty-state";
+import { pageTitle } from "@/lib/page-title";
 
-export const metadata: Metadata = { title: "Soạn khoá học" };
+export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
+  const actor = await requireRole(["GROUP_ADMIN", "COMPANY_ADMIN", "CONTENT_EDITOR"]);
+  const course = await findCourseInScope(actor, (await params).id, { title: true });
+  return { title: pageTitle(course?.title, "Soạn khoá học") };
+}
 
 
 export default async function CourseEditorPage({
@@ -55,7 +60,8 @@ export default async function CourseEditorPage({
     ownerCompanyId: true,
     ownerCompany: { select: { code: true, name: true } },
   });
-  if (!course) redirect("/content/courses");
+  // Ngoài phạm vi / không tồn tại → trang “Không tìm thấy” như /assign/rules/[id] (ui-review #31)
+  if (!course) notFound();
 
   // Bài video Bunny còn "đang xử lý" (webhook bị lỡ / đóng dialog sớm) → hỏi lại Bunny, tối đa 1 lần / phút / bài
   await syncProcessingLessonsThrottled(
@@ -216,7 +222,7 @@ export default async function CourseEditorPage({
               }}
             />
           ) : tab === "content" ? (
-            <div className="grid gap-4">
+            <div className="grid min-w-0 grid-cols-1 gap-4">
               {published && (
                 <p role="status" className="flex items-start gap-2 rounded-md bg-warning/16 px-4 py-3 text-[15px] text-warning">
                   <TriangleAlert className="mt-0.5 size-5 shrink-0" />
@@ -249,7 +255,7 @@ export default async function CourseEditorPage({
                 sections={sections}
                 readOnly={!canEdit}
                 published={published}
-                bunnyEnabled={isBunnyConfigured()}
+                bunnyEnabled={await isBunnyConfigured()}
                 questionBank={questionBank ?? { total: 0, topics: [] }}
               />
             </div>

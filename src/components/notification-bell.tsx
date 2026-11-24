@@ -122,7 +122,8 @@ export function NotificationBell({ initialCount }: { initialCount: number }) {
           >
             <Bell className="size-[22px]" strokeWidth={1.75} />
             {count > 0 && (
-              <span className="absolute top-1 right-0.5 flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-destructive px-1 text-[11px] leading-none font-medium whitespace-nowrap text-white tabular-nums ring-2 ring-card">
+              // Góc trên phải, không che icon chuông (ui-review #68)
+              <span className="absolute -top-1 -right-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-destructive px-1 text-[10px] leading-none font-medium whitespace-nowrap text-white tabular-nums ring-2 ring-card">
                 {badge}
               </span>
             )}

@@ -50,7 +50,7 @@ test("biên soạn tạo khoá đủ 3 loại bài, import câu hỏi và phát 
   await page.keyboard.type("Đọc kỹ nội quy trước khi vào xưởng.");
   await dialog.locator("#lesson-pdf").setInputFiles({ name: "noi-quy.pdf", mimeType: "application/pdf", buffer: tinyPdf() });
   await expect.poll(async () => (await db.lesson.findFirst({ where: { title: "Nội quy an toàn", section: { courseId: course.id } } }))?.fileUrl ?? null).not.toBeNull();
-  await dialog.getByRole("button", { name: "Lưu bài học" }).click();
+  await dialog.getByRole("button", { name: "Lưu thay đổi" }).click();
   await expect(page.getByRole("dialog")).toBeHidden();
 
   // 4) Bài video YouTube — thời lượng đo bằng trình phát YouTube (cần mạng); không đo được thì điền qua DB và ghi chú
@@ -78,7 +78,7 @@ test("biên soạn tạo khoá đủ 3 loại bài, import câu hỏi và phát 
   await dialog.locator("#questionCount").fill("2");
   await dialog.locator("#passingScore").fill("80");
   await dialog.locator("#maxAttempts").fill("3");
-  await dialog.getByRole("button", { name: "Lưu bài học" }).click();
+  await dialog.getByRole("button", { name: "Lưu thay đổi" }).click();
   await expect(page.getByRole("dialog")).toBeHidden();
 
   // 6) Phát hành khi ngân hàng chưa có câu hỏi → bị chặn
@@ -103,7 +103,7 @@ test("biên soạn tạo khoá đủ 3 loại bài, import câu hỏi và phát 
   await page.locator('input[type="file"]').setInputFiles({ name: "cau-hoi.xlsx", mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", buffer: xlsx });
   await page.getByRole("button", { name: "Kiểm tra file" }).click();
   await page.getByRole("button", { name: "Xác nhận import" }).click();
-  await page.getByRole("alertdialog").getByRole("button", { name: "Import", exact: true }).click();
+  await page.getByRole("alertdialog").getByRole("button", { name: /^Thêm [\d.]+ câu hỏi$/ }).click();
   await expect.poll(async () => db.question.count({ where: { courseId: course.id } })).toBe(3);
   const multi = await db.question.findFirstOrThrow({ where: { courseId: course.id, type: "MULTIPLE" } });
   expect((multi.options as { isCorrect: boolean }[]).filter((o) => o.isCorrect)).toHaveLength(2);

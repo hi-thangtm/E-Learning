@@ -31,9 +31,9 @@ export function CourseCard({
   const source = LEARNER_SOURCE_LABELS[e.source];
 
   const action = pathLock
-    ? { label: "Xem lộ trình", href: `/learning-paths/${pathLock.pathId}`, icon: Route, variant: "secondary" as const }
+    ? { label: "Xem lộ trình", href: `/learning-paths/${pathLock.pathId}`, icon: Route, variant: "outline" as const }
     : e.status === "COMPLETED"
-      ? { label: "Xem lại", href: detailHref, icon: RotateCcw, variant: "secondary" as const }
+      ? { label: "Xem lại", href: detailHref, icon: RotateCcw, variant: "outline" as const }
       : e.status === "IN_PROGRESS"
         ? { label: "Tiếp tục", href: nextLessonId ? `/learn/${e.course.id}/${nextLessonId}` : detailHref, icon: Play, variant: "default" as const }
         : { label: "Bắt đầu", href: nextLessonId ? `/learn/${e.course.id}/${nextLessonId}` : detailHref, icon: Play, variant: "default" as const };

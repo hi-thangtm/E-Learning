@@ -34,18 +34,29 @@ export function VideoLesson({
     );
   }
 
-  if (mode === "preview") {
-    return (
-      <div className="space-y-3">
-        <VideoPlayer provider={lesson.provider} videoId={lesson.videoId} embedUrl={lesson.embedUrl} title={lesson.title} />
-        <p className="text-[13px] text-muted-foreground">
-          Xem trước: tua tự do, không ghi tiến độ. Học viên cần xem {lesson.minWatchPercent}% để hoàn thành bài.
-        </p>
-      </div>
-    );
-  }
+  if (mode === "preview") return <PreviewVideo lesson={lesson} provider={lesson.provider} videoId={lesson.videoId} />;
 
   return <TrackedVideo lesson={lesson} provider={lesson.provider} videoId={lesson.videoId} initial={initial} />;
+}
+
+/** Học viên không sửa được video → chỉ báo chung; câu kỹ thuật (chế độ nhúng…) chỉ hiện ở chế độ xem trước (ui-review #11). */
+const LEARNER_VIDEO_ERROR = "Video tạm thời không phát được. Vui lòng báo quản trị đào tạo.";
+
+function PreviewVideo({ lesson, provider, videoId }: { lesson: VideoDetail; provider: "YOUTUBE" | "BUNNY"; videoId: string }) {
+  const [error, setError] = useState<string | null>(null);
+  return (
+    <div className="space-y-3">
+      <VideoPlayer provider={provider} videoId={videoId} embedUrl={lesson.embedUrl} title={lesson.title} onError={setError} onPlay={() => setError(null)} />
+      {error && (
+        <p role="alert" className="rounded-md bg-destructive/16 px-4 py-2.5 text-[13px] text-destructive">
+          {error}
+        </p>
+      )}
+      <p className="text-[13px] text-muted-foreground">
+        Xem trước: tua tự do, không ghi tiến độ. Học viên cần xem {lesson.minWatchPercent}% để hoàn thành bài.
+      </p>
+    </div>
+  );
 }
 
 function TrackedVideo({
@@ -184,7 +195,7 @@ function TrackedVideo({
           playingRef.current = false;
           void send();
         }}
-        onError={setError}
+        onError={() => setError(LEARNER_VIDEO_ERROR)}
       />
       {error && (
         <p role="alert" className="rounded-md bg-destructive/16 px-4 py-2.5 text-[13px] text-destructive">

@@ -20,7 +20,7 @@ export default async function MyPathsPage() {
 
   return (
     <>
-      <PageHeader title="Lộ trình" description="Chuỗi khoá học theo thứ tự — hoàn thành khoá trước để mở khoá sau." />
+      <PageHeader title="Lộ trình của tôi" description="Chuỗi khoá học theo thứ tự — hoàn thành khoá trước để mở khoá sau." />
       {paths.length === 0 ? (
         <EmptyState
           icon={Route}
@@ -28,7 +28,7 @@ export default async function MyPathsPage() {
           description="Khi quản trị đào tạo giao lộ trình, các khoá trong lộ trình sẽ hiện ở đây theo thứ tự."
           className="rounded-md bg-card shadow-md"
           action={
-            <Link href="/my-courses" className={buttonVariants({ variant: "secondary" })}>
+            <Link href="/my-courses" className={buttonVariants({ variant: "outline" })}>
               Xem khoá học của tôi
             </Link>
           }

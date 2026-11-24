@@ -14,7 +14,7 @@ import { describeRuleTarget } from "@/lib/rule-describe";
 import { getEnumParam, getParam, parseTableParams, type SearchParams } from "@/lib/table-params";
 import { RuleRowActions } from "./rule-row-actions";
 
-export const metadata: Metadata = { title: "Giao tự động" };
+export const metadata: Metadata = { title: "Quy tắc giao tự động" };
 
 const PATHNAME = "/assign/rules";
 const STATUS_VALUES = ["active", "inactive"] as const;
@@ -147,17 +147,21 @@ export default async function RulesPage({ searchParams }: { searchParams: Promis
     {
       key: "target",
       header: "Nhóm áp dụng",
-      className: "whitespace-normal",
-      cell: (r) => (
-        <span className="block max-w-80 text-[13px] text-foreground">
-          {describeRuleTarget({
-            companyName: r.targetCompany?.name ?? null,
-            departmentName: r.department?.name ?? null,
-            includeSubDepartments: r.includeSubDepartments,
-            positionName: r.position?.name ?? null,
-          })}
-        </span>
-      ),
+      className: "min-w-56 whitespace-normal",
+      cell: (r) => {
+        const target = describeRuleTarget({
+          companyName: r.targetCompany?.name ?? null,
+          departmentName: r.department?.name ?? null,
+          includeSubDepartments: r.includeSubDepartments,
+          positionName: r.position?.name ?? null,
+        });
+        // ui-review #36: cột không bị ép hẹp; tối đa 2 dòng, đủ nội dung ở title
+        return (
+          <span className="line-clamp-2 block max-w-80 text-[13px] leading-normal text-foreground" title={target}>
+            {target}
+          </span>
+        );
+      },
     },
     { key: "due", header: "Hạn", className: "w-24", cell: (r) => (r.dueInDays ? `${r.dueInDays} ngày` : "—") },
     { key: "count", header: "Đang được giao", className: "w-32 text-right", cell: (r) => formatNumber(r._count.enrollments) },
@@ -195,7 +199,7 @@ export default async function RulesPage({ searchParams }: { searchParams: Promis
   return (
     <>
       <PageHeader
-        title="Giao tự động"
+        title="Quy tắc giao tự động"
         description="Quy tắc giao khoá học / lộ trình theo công ty / phòng ban / chức danh. Người vào nhóm sau này cũng tự được giao."
       />
       <DataTable

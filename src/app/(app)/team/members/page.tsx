@@ -15,7 +15,7 @@ import { MembersTable } from "./members-table";
 import { loadMembers, parseMemberQuery } from "./query";
 import { EmptyFiltered, EmptyState } from "@/components/empty-state";
 
-export const metadata: Metadata = { title: "Nhân viên" };
+export const metadata: Metadata = { title: "Tiến độ từng người" };
 
 const PATHNAME = "/team/members";
 
@@ -36,15 +36,15 @@ export default async function TeamMembersPage({ searchParams }: { searchParams: 
 
   const description =
     actor.role === "MANAGER"
-      ? "Nhân viên các phòng bạn làm trưởng (gồm phòng con). Khoá được giao không tính khoá tự đăng ký."
+      ? "Từng nhân viên các phòng bạn làm trưởng (gồm phòng con) học tới đâu — lọc người quá hạn, xuất Excel, gửi nhắc nhở. Chỉ tính khoá được giao (không tính khoá tự đăng ký)."
       : actor.role === "COMPANY_ADMIN"
-        ? `Nhân viên ${actor.company.name}. Khoá được giao không tính khoá tự đăng ký.`
-        : "Nhân viên toàn tập đoàn hoặc theo công ty. Khoá được giao không tính khoá tự đăng ký.";
+        ? `Từng nhân viên ${actor.company.name} học tới đâu — lọc người quá hạn, xuất Excel, gửi nhắc nhở. Chỉ tính khoá được giao (không tính khoá tự đăng ký).`
+        : "Từng nhân viên toàn tập đoàn hoặc theo công ty học tới đâu — lọc người quá hạn, xuất Excel, gửi nhắc nhở. Chỉ tính khoá được giao (không tính khoá tự đăng ký).";
 
   if (scope.empty) {
     return (
       <>
-        <PageHeader title="Nhân viên" description={description} />
+        <PageHeader title="Tiến độ từng người" description={description} />
         <EmptyTeam />
       </>
     );
@@ -79,7 +79,7 @@ export default async function TeamMembersPage({ searchParams }: { searchParams: 
   return (
     <>
       <PageHeader
-        title="Nhân viên"
+        title="Tiến độ từng người"
         description={description}
         actions={
           <a href={`${PATHNAME}/export${exportQuery ? `?${exportQuery}` : ""}`} className={buttonVariants({ variant: "outline" })} download>

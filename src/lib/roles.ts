@@ -20,6 +20,7 @@ const ADMINS: Role[] = ["COMPANY_ADMIN", "GROUP_ADMIN"];
 const GROUP_ONLY: Role[] = ["GROUP_ADMIN"];
 
 export type IconName =
+  | "lark"
   | "dashboard"
   | "courses"
   | "paths"
@@ -44,63 +45,73 @@ export type IconName =
   | "overview";
 
 export type MenuItem = { label: string; href: string; icon: IconName; roles: Role[] };
-export type MenuGroup = { label: string; items: MenuItem[] };
+/** `id` ổn định (không đổi khi đổi nhãn) — dùng để nhớ nhóm nào đang thu gọn. */
+export type MenuGroup = { id: string; label: string; items: MenuItem[] };
 
+/**
+ * Nhãn mục menu = tiêu đề trang (PageHeader). URL giữ nguyên khi đổi nhãn / chuyển nhóm.
+ * Thứ tự nhóm: việc của bản thân → theo dõi → giao khoá → soạn nội dung → tổ chức → hệ thống.
+ */
 export const MENU: MenuGroup[] = [
   {
+    id: "hoc-tap",
     label: "Học tập",
     items: [
       { label: "Tổng quan", href: "/dashboard", icon: "dashboard", roles: ALL },
       { label: "Khoá học của tôi", href: "/my-courses", icon: "courses", roles: ALL },
-      { label: "Lộ trình", href: "/learning-paths", icon: "paths", roles: ALL },
-      { label: "Thư viện", href: "/library", icon: "library", roles: ALL },
-      { label: "Chứng nhận", href: "/certificates", icon: "certificate", roles: ALL },
+      { label: "Lộ trình của tôi", href: "/learning-paths", icon: "paths", roles: ALL },
+      { label: "Thư viện khoá học", href: "/library", icon: "library", roles: ALL },
+      { label: "Chứng nhận của tôi", href: "/certificates", icon: "certificate", roles: ALL },
     ],
   },
   {
-    label: "Đội của tôi",
+    // Trưởng phòng: các phòng mình phụ trách; Admin công ty: cả công ty; Admin tập đoàn: cả tập đoàn
+    id: "theo-doi",
+    label: "Theo dõi học tập",
     items: [
-      { label: "Tổng quan đội", href: "/team", icon: "team", roles: TEAM },
-      { label: "Nhân viên", href: "/team/members", icon: "members", roles: TEAM },
+      { label: "Tổng quan tập đoàn", href: "/system/overview", icon: "overview", roles: GROUP_ONLY },
+      { label: "Tình hình học tập", href: "/team", icon: "team", roles: TEAM },
+      { label: "Tiến độ từng người", href: "/team/members", icon: "members", roles: TEAM },
+      { label: "Báo cáo", href: "/reports", icon: "reports", roles: TEAM },
     ],
   },
   {
-    label: "Nội dung",
+    id: "giao-khoa",
+    label: "Giao khoá",
+    items: [
+      { label: "Giao khoá học", href: "/assign/manual", icon: "assign", roles: ADMINS },
+      { label: "Quy tắc giao tự động", href: "/assign/rules", icon: "rules", roles: ADMINS },
+    ],
+  },
+  {
+    id: "noi-dung",
+    label: "Soạn nội dung",
     items: [
       { label: "Khoá học", href: "/content/courses", icon: "content", roles: CONTENT },
       { label: "Ngân hàng câu hỏi", href: "/content/questions", icon: "questions", roles: CONTENT },
-      { label: "Lộ trình", href: "/content/paths", icon: "paths", roles: CONTENT },
-      { label: "Danh mục", href: "/content/categories", icon: "categories", roles: CONTENT },
+      { label: "Lộ trình học", href: "/content/paths", icon: "paths", roles: CONTENT },
+      { label: "Danh mục khoá học", href: "/content/categories", icon: "categories", roles: CONTENT },
     ],
   },
   {
-    label: "Giao khoá",
-    items: [
-      { label: "Danh sách giao khoá", href: "/assign/manual", icon: "assign", roles: ADMINS },
-      { label: "Giao tự động", href: "/assign/rules", icon: "rules", roles: ADMINS },
-    ],
-  },
-  {
+    id: "to-chuc",
     label: "Tổ chức",
     items: [
+      { label: "Công ty con", href: "/system/companies", icon: "companies", roles: GROUP_ONLY },
       { label: "Người dùng", href: "/org/users", icon: "users", roles: ADMINS },
       { label: "Phòng ban", href: "/org/departments", icon: "departments", roles: ADMINS },
       { label: "Chức danh", href: "/org/positions", icon: "positions", roles: ADMINS },
     ],
   },
   {
-    label: "Báo cáo",
-    items: [{ label: "Báo cáo", href: "/reports", icon: "reports", roles: TEAM }],
-  },
-  {
+    id: "he-thong",
     label: "Hệ thống",
     items: [
-      { label: "Dashboard tập đoàn", href: "/system/overview", icon: "overview", roles: GROUP_ONLY },
-      { label: "Công ty con", href: "/system/companies", icon: "companies", roles: GROUP_ONLY },
       { label: "Mẫu chứng nhận", href: "/system/certificate-templates", icon: "template", roles: ADMINS },
-      { label: "Nhật ký", href: "/system/audit-logs", icon: "audit", roles: ADMINS },
+      { label: "Nhật ký thao tác", href: "/system/audit-logs", icon: "audit", roles: ADMINS },
       { label: "Tác vụ hằng ngày", href: "/system/jobs", icon: "jobs", roles: GROUP_ONLY },
-      { label: "Cài đặt", href: "/system/settings", icon: "settings", roles: GROUP_ONLY },
+      { label: "Kết nối Lark", href: "/system/lark", icon: "lark", roles: GROUP_ONLY },
+      { label: "Cài đặt hệ thống", href: "/system/settings", icon: "settings", roles: GROUP_ONLY },
     ],
   },
 ];

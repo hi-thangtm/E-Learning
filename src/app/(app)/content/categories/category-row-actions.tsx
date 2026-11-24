@@ -16,12 +16,15 @@ export function CategoryRowActions({
   courseCount,
   isFirst,
   isLast,
+  reorderLocked = false,
 }: {
   category: CategoryFormValue;
   isActive: boolean;
   courseCount: number;
   isFirst: boolean;
   isLast: boolean;
+  /** Đang tìm / lọc → không đổi thứ tự được */
+  reorderLocked?: boolean;
 }) {
   const [moving, startMoving] = useTransition();
 
@@ -38,20 +41,20 @@ export function CategoryRowActions({
 
   return (
     <div className="flex items-center justify-end gap-1">
-      <Tooltip label="Lên trên"><Button
+      <Tooltip label={reorderLocked ? "Bỏ lọc để đổi thứ tự" : "Lên trên"}><Button
         variant="ghost"
         size="icon-sm"
         aria-label={`Đưa “${category.name}” lên trên`}
-        disabled={isFirst || moving}
+        disabled={isFirst || moving || reorderLocked}
         onClick={() => move("up")}
       >
         <ArrowUp className="size-[18px]" />
       </Button></Tooltip>
-      <Tooltip label="Xuống dưới"><Button
+      <Tooltip label={reorderLocked ? "Bỏ lọc để đổi thứ tự" : "Xuống dưới"}><Button
         variant="ghost"
         size="icon-sm"
         aria-label={`Đưa “${category.name}” xuống dưới`}
-        disabled={isLast || moving}
+        disabled={isLast || moving || reorderLocked}
         onClick={() => move("down")}
       >
         <ArrowDown className="size-[18px]" />

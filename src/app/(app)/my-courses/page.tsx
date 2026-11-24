@@ -77,37 +77,41 @@ export default async function MyCoursesPage({ searchParams }: { searchParams: Pr
       <PageHeader title="Khoá học của tôi" description="Các khoá học bạn được giao hoặc tự đăng ký, kèm tiến độ và hạn hoàn thành." />
 
       <section className="rounded-md bg-card shadow-md">
-        <nav aria-label="Lọc theo trạng thái" className="flex gap-1 overflow-x-auto border-b border-border px-4 sm:px-6">
-          {MY_TABS.map((t) => {
-            const active = t === tab;
-            return (
-              <Link
-                key={t}
-                href={buildHref(PATHNAME, sp, { tab: t === "all" ? null : t, page: null })}
-                scroll={false}
-                aria-current={active ? "page" : undefined}
-                className={cn(
-                  "-mb-px flex shrink-0 items-center gap-2 border-b-2 px-4 py-3 text-[15px] transition-colors",
-                  active ? "border-primary font-medium text-primary" : "border-transparent text-muted-foreground hover:text-foreground",
-                )}
-              >
-                {TAB_LABELS[t]}
-                <span
+        {/* Điện thoại: thanh tab cuộn ngang — mờ mép phải báo còn tab (ui-review #23) */}
+        <div className="relative">
+          <nav aria-label="Lọc theo trạng thái" className="flex gap-1 overflow-x-auto border-b border-border px-4 pr-10 sm:px-6">
+            {MY_TABS.map((t) => {
+              const active = t === tab;
+              return (
+                <Link
+                  key={t}
+                  href={buildHref(PATHNAME, sp, { tab: t === "all" ? null : t, page: null })}
+                  scroll={false}
+                  aria-current={active ? "page" : undefined}
                   className={cn(
-                    "inline-flex shrink-0 items-center rounded-full px-2 text-[12px] whitespace-nowrap tabular-nums",
-                    t === "overdue" && counts.overdue > 0
-                      ? "bg-destructive/16 text-destructive"
-                      : active
-                        ? "bg-primary/16 text-primary"
-                        : "bg-muted text-muted-foreground",
+                    "-mb-px flex shrink-0 items-center gap-2 border-b-2 px-4 py-3 text-[15px] transition-colors",
+                    active ? "border-primary font-medium text-primary" : "border-transparent text-muted-foreground hover:text-foreground",
                   )}
                 >
-                  {counts[t]}
-                </span>
-              </Link>
-            );
-          })}
-        </nav>
+                  {TAB_LABELS[t]}
+                  <span
+                    className={cn(
+                      "inline-flex shrink-0 items-center rounded-full px-2 text-[12px] whitespace-nowrap tabular-nums",
+                      t === "overdue" && counts.overdue > 0
+                        ? "bg-destructive/16 text-destructive"
+                        : active
+                          ? "bg-primary/16 text-primary"
+                          : "bg-muted text-muted-foreground",
+                    )}
+                  >
+                    {counts[t]}
+                  </span>
+                </Link>
+              );
+            })}
+          </nav>
+          <span aria-hidden className="pointer-events-none absolute inset-y-0 right-0 w-10 rounded-tr-md bg-linear-to-l from-card to-transparent sm:hidden" />
+        </div>
 
         <div className="flex flex-col-reverse items-stretch justify-end gap-3 px-4 py-4 sm:flex-row sm:items-center sm:gap-4 sm:px-6">
           <div className="w-full sm:w-64">

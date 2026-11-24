@@ -71,13 +71,10 @@ export default async function CategoriesPage({ searchParams }: { searchParams: P
 
   type Row = (typeof categories)[number];
 
+  // Không hiện cột “Thứ tự” (số khoá sắp xếp bắt đầu từ 0, dễ hiểu nhầm là hạng — ui-review #42): thứ tự = thứ tự dòng.
+  // Đang lọc → khoá nút mũi tên (lên / xuống theo danh sách đầy đủ, không theo danh sách đang lọc).
+  const reorderLocked = !!q || !!status;
   const columns: DataTableColumn<Row>[] = [
-    {
-      key: "sortOrder",
-      header: "Thứ tự",
-      className: "w-24 text-right tabular-nums",
-      cell: (c) => c.sortOrder,
-    },
     { key: "name", header: "Tên danh mục", truncate: true, truncateText: (c) => c.name, cell: (c) => <span className="font-medium text-foreground">{c.name}</span> },
     {
       key: "courses",
@@ -100,6 +97,7 @@ export default async function CategoriesPage({ searchParams }: { searchParams: P
           courseCount={c._count.courses}
           isFirst={c.id === first?.id}
           isLast={c.id === last?.id}
+          reorderLocked={reorderLocked}
         />
       ),
     });

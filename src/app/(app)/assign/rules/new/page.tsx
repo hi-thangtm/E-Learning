@@ -22,7 +22,7 @@ export default async function NewRulePage({ searchParams }: { searchParams: Prom
       <div className="mb-6 space-y-2">
         <Link href="/assign/rules" className="inline-flex items-center gap-1 text-[15px] text-muted-foreground hover:text-primary">
           <ChevronLeft className="size-4" />
-          Giao tự động
+          Quy tắc giao tự động
         </Link>
         <h1 className="text-2xl font-medium text-foreground">Tạo quy tắc giao tự động</h1>
         <p className="text-[15px] text-muted-foreground">

@@ -96,7 +96,7 @@ export async function sendReminderAction(selection: MemberSelection, mode: Remin
         notify(prisma, {
           userIds: [e.userId],
           type: "REMINDER",
-          title: `${actor.fullName} nhắc bạn hoàn thành khoá ${e.course.title}${e.dueDate ? ` (hạn ${formatDate(e.dueDate).slice(0, 5)})` : ""}${
+          title: `${actor.fullName} nhắc bạn hoàn thành khoá “${e.course.title}”${e.dueDate ? ` (hạn ${formatDate(e.dueDate).slice(0, 5)})` : ""}${
             n.data ? ` — ${n.data}` : ""
           }`,
           link: `/my-courses/${e.courseId}`,

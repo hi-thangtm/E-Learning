@@ -7,7 +7,7 @@ import { ArrowDown, ArrowUp, ArrowUpDown, BellRing } from "lucide-react";
 import { ProgressBar } from "@/components/progress";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
-import { formatNumber } from "@/lib/format";
+import { formatNumber, formatPercent } from "@/lib/format";
 import { getInitials } from "@/lib/initials";
 import { cn } from "@/lib/utils";
 import type { SortKey } from "./query";
@@ -34,7 +34,7 @@ const NUM_COLUMNS: { key: Exclude<SortKey, "name" | "rate">; label: string; tone
   { key: "completed", label: "Đã xong" },
   { key: "inProgress", label: "Đang học" },
   { key: "overdue", label: "Quá hạn", tone: (v) => (v > 0 ? "font-medium text-destructive" : "") },
-  { key: "unacknowledged", label: "Chưa nắm cập nhật", tone: (v) => (v > 0 ? "font-medium text-warning" : "") },
+  { key: "unacknowledged", label: "Chưa nắm quy trình mới", tone: (v) => (v > 0 ? "font-medium text-warning" : "") },
 ];
 
 /** Bảng Nhân viên: tích chọn từng người / cả trang / tất cả theo bộ lọc → “Nhắc nhở”. Sắp xếp bằng link (searchParams). */
@@ -129,7 +129,7 @@ export function MembersTable({ rows, total }: { rows: MemberTableRow[]; total: n
           trigger={
             <Button size="sm" disabled={count === 0}>
               <BellRing />
-              Nhắc nhở
+              Gửi nhắc nhở
             </Button>
           }
         />
@@ -163,7 +163,7 @@ export function MembersTable({ rows, total }: { rows: MemberTableRow[]; total: n
                   </Link>
                 </th>
               ))}
-              <th className="w-40 px-6 py-3">
+              <th className="w-40 min-w-40 px-6 py-3">
                 <Link href={sortHref("rate")} scroll={false} className="inline-flex items-center gap-1 whitespace-nowrap hover:text-primary">
                   Tỷ lệ {sortIcon("rate")}
                 </Link>
@@ -190,13 +190,24 @@ export function MembersTable({ rows, total }: { rows: MemberTableRow[]; total: n
                       <AvatarFallback className="bg-primary/16 text-[13px] font-medium text-primary">{getInitials(r.fullName)}</AvatarFallback>
                     </Avatar>
                     <span className="min-w-0">
-                      <span className="block truncate font-medium text-foreground group-hover:text-primary">{r.fullName}</span>
+                      <span className="block max-w-48 truncate font-medium text-foreground group-hover:text-primary" title={r.fullName}>
+                        {r.fullName}
+                      </span>
                       <span className="text-[13px] text-muted-foreground">{r.employeeCode}</span>
                     </span>
                   </Link>
                 </td>
-                <td className="px-3 py-3 text-muted-foreground">{r.departmentName ?? "—"}</td>
-                <td className="px-3 py-3 text-muted-foreground">{r.positionName ?? "—"}</td>
+                {/* Tên phòng / chức danh dài: cắt 1 dòng + title (ui-review #52) */}
+                <td className="px-3 py-3 text-muted-foreground">
+                  <span className="block max-w-48 truncate" title={r.departmentName ?? undefined}>
+                    {r.departmentName ?? "—"}
+                  </span>
+                </td>
+                <td className="px-3 py-3 text-muted-foreground">
+                  <span className="block max-w-40 truncate" title={r.positionName ?? undefined}>
+                    {r.positionName ?? "—"}
+                  </span>
+                </td>
                 {NUM_COLUMNS.map((c) => (
                   <td key={c.key} className={cn("px-3 py-3 text-right tabular-nums", c.tone?.(r[c.key]))}>
                     {formatNumber(r[c.key])}
@@ -208,7 +219,7 @@ export function MembersTable({ rows, total }: { rows: MemberTableRow[]; total: n
                   ) : (
                     <div className="flex items-center gap-2">
                       <ProgressBar value={r.rate} className="w-20" label={`Tỷ lệ hoàn thành của ${r.fullName}`} />
-                      <span className="text-[13px] tabular-nums">{r.rate}%</span>
+                      <span className="text-[13px] tabular-nums">{formatPercent(r.rate, 0)}</span>
                     </div>
                   )}
                 </td>

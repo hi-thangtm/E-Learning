@@ -19,6 +19,8 @@ export function CertificateActions({
   showCopy?: boolean;
 }) {
   const [copied, setCopied] = useState(false);
+  // Điện thoại: vùng bấm ≥ 40px (ui-review #20)
+  const touch = size === "sm" ? "max-sm:h-10" : undefined;
 
   async function copy() {
     const link = `${window.location.origin}/verify/${encodeURIComponent(code)}`;
@@ -34,12 +36,12 @@ export function CertificateActions({
 
   return (
     <div className="flex flex-wrap items-center gap-2">
-      <a href={`/api/certificates/${certificateId}/pdf`} download className={cn(buttonVariants({ size }))}>
+      <a href={`/api/certificates/${certificateId}/pdf`} download className={cn(buttonVariants({ size }), touch)}>
         <Download />
         Tải PDF
       </a>
       {showCopy && (
-        <Button type="button" variant="outline" size={size} onClick={copy}>
+        <Button type="button" variant="outline" size={size} onClick={copy} className={touch}>
           {copied ? <Check /> : <Copy />}
           Sao chép link tra cứu
         </Button>

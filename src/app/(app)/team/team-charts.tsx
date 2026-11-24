@@ -1,6 +1,7 @@
 "use client";
 
 import { Bar, BarChart, CartesianGrid, LabelList, XAxis, YAxis } from "recharts";
+import { formatNumber, formatPercent } from "@/lib/format";
 import { ChartContainer, ChartLegend, ChartLegendContent, ChartTooltip, ChartTooltipContent, type ChartConfig } from "@/components/ui/chart";
 
 /** Màu theo docs/design-system.md: --chart-1 primary, -2 info, -3 success, -4 warning, -5 error. */
@@ -11,6 +12,9 @@ const COURSE_CONFIG = {
   overdue: { label: "Quá hạn", color: "var(--chart-5)" },
 } satisfies ChartConfig;
 
+/** Cắt ngắn nhãn trục (tên đầy đủ ở tooltip) */
+const clip = (v: string, max: number) => (v.length > max ? `${v.slice(0, max - 1)}…` : v);
+
 export type CourseChartRow = { code: string; title: string; completed: number; inProgress: number; notStarted: number; overdue: number };
 
 /** Cột chồng theo khoá: Hoàn thành / Đang học / Chưa bắt đầu / Quá hạn. */
@@ -19,7 +23,18 @@ export function CourseProgressChart({ data }: { data: CourseChartRow[] }) {
     <ChartContainer config={COURSE_CONFIG} className="aspect-auto h-80 w-full">
       <BarChart data={data} margin={{ left: -16, right: 8, top: 8 }}>
         <CartesianGrid vertical={false} />
-        <XAxis dataKey="code" tickLine={false} axisLine={false} tickMargin={8} interval={0} />
+        {/* Mã khoá xoay −30° để không đè nhau (ui-review #56) */}
+        <XAxis
+          dataKey="code"
+          tickLine={false}
+          axisLine={false}
+          tickMargin={4}
+          interval={0}
+          angle={-30}
+          textAnchor="end"
+          height={56}
+          tickFormatter={(v: string) => clip(v, 12)}
+        />
         <YAxis allowDecimals={false} tickLine={false} axisLine={false} />
         <ChartTooltip
           content={
@@ -49,19 +64,20 @@ export function DepartmentRateChart({ data }: { data: DepartmentChartRow[] }) {
       <BarChart data={data} layout="vertical" margin={{ left: 8, right: 40 }}>
         <CartesianGrid horizontal={false} />
         <XAxis type="number" domain={[0, 100]} tickLine={false} axisLine={false} tickFormatter={(v) => `${v}%`} />
-        <YAxis type="category" dataKey="name" width={150} tickLine={false} axisLine={false} />
+        <YAxis type="category" dataKey="name" width={160} tickLine={false} axisLine={false} tickFormatter={(v: string) => clip(v, 24)} />
         <ChartTooltip
           content={
             <ChartTooltipContent
+              labelFormatter={(_, payload) => (payload?.[0]?.payload as DepartmentChartRow | undefined)?.name ?? ""}
               formatter={(value, _name, item) => {
                 const row = item.payload as DepartmentChartRow;
-                return `${value}% (${row.completed}/${row.assigned} lượt)`;
+                return `${formatPercent(Number(value), 0)} (${formatNumber(row.completed)}/${formatNumber(row.assigned)} lượt học)`;
               }}
             />
           }
         />
         <Bar dataKey="rate" fill="var(--color-rate)" radius={4} barSize={20}>
-          <LabelList dataKey="rate" position="right" formatter={(v) => `${v}%`} className="fill-foreground text-[12px]" />
+          <LabelList dataKey="rate" position="right" formatter={(v) => formatPercent(Number(v), 0)} className="fill-foreground text-[12px]" />
         </Bar>
       </BarChart>
     </ChartContainer>

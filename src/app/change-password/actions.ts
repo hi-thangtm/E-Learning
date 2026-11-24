@@ -9,7 +9,9 @@ import { prisma } from "@/lib/db";
 import { requireUser } from "@/lib/current-user";
 import { logAudit } from "@/lib/audit";
 
-export type ChangePasswordState = { error?: string };
+type Field = "currentPassword" | "newPassword" | "confirmPassword";
+/** Lỗi gắn theo từng ô (ui-review #24); `error` = lỗi chung không thuộc ô nào. */
+export type ChangePasswordState = { error?: string; fieldErrors?: Partial<Record<Field, string>> };
 
 const schema = z
   .object({
@@ -42,14 +44,21 @@ export async function changePasswordAction(
     newPassword: formData.get("newPassword") ?? "",
     confirmPassword: formData.get("confirmPassword") ?? "",
   });
-  if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Dữ liệu không hợp lệ." };
+  if (!parsed.success) {
+    const fieldErrors: Partial<Record<Field, string>> = {};
+    for (const issue of parsed.error.issues) {
+      const key = issue.path[0] as Field;
+      fieldErrors[key] ??= issue.message;
+    }
+    return { fieldErrors };
+  }
 
   const record = await prisma.user.findUnique({
     where: { id: user.id },
     select: { passwordHash: true },
   });
   const currentOk = record && (await bcrypt.compare(parsed.data.currentPassword, record.passwordHash));
-  if (!currentOk) return { error: "Mật khẩu hiện tại không đúng." };
+  if (!currentOk) return { fieldErrors: { currentPassword: "Mật khẩu hiện tại không đúng." } };
 
   const passwordHash = await bcrypt.hash(parsed.data.newPassword, 12);
 
@@ -58,7 +67,7 @@ export async function changePasswordAction(
     prisma.user.update({
       where: { id: user.id },
       // Huỷ mọi phiên đang mở (kể cả phiên này) — ngay sau đó cấp phiên mới cho chính người đổi (Việc 29A)
-      data: { passwordHash, mustChangePassword: false, sessionsValidAfter: new Date() },
+      data: { passwordHash, passwordSet: true, mustChangePassword: false, sessionsValidAfter: new Date() },
     }),
     logAudit(prisma, {
         actorId: user.id,

@@ -52,10 +52,6 @@ export default async function LoginPage() {
           </div>
 
           <LoginForm />
-
-          <p className="text-center text-[15px] text-muted-foreground">
-            Quên mật khẩu? Liên hệ quản trị đào tạo của công ty để được đặt lại.
-          </p>
         </div>
       </div>
     </main>

@@ -35,14 +35,31 @@ import { canReview, getMyReview } from "@/lib/reviews";
 import { CancelEnrollmentButton } from "./cancel-enrollment-button";
 import { MyReview } from "./my-review";
 import { cn } from "@/lib/utils";
+import { pageTitle } from "@/lib/page-title";
+import { prisma } from "@/lib/db";
 
-export const metadata: Metadata = { title: "Giới thiệu khoá học" };
+export async function generateMetadata({ params }: { params: Promise<{ courseId: string }> }): Promise<Metadata> {
+  const user = await requireUser();
+  const { courseId } = await params;
+  // Chỉ khoá mình đang có lượt học
+  const enrollment = await prisma.enrollment.findFirst({
+    where: { userId: user.id, courseId, status: { not: "CANCELLED" } },
+    select: { course: { select: { title: true } } },
+  });
+  return { title: pageTitle(enrollment?.course.title, "Khoá học của tôi") };
+}
 
 const LESSON_ICON = { VIDEO: PlayCircle, DOCUMENT: FileText, QUIZ: ListChecks } as const;
 const LESSON_TYPE_LABEL = { VIDEO: "Video", DOCUMENT: "Tài liệu", QUIZ: "Bài kiểm tra" } as const;
 
 /** Giới thiệu khoá (mục 2.3) — chỉ mở được khi chính mình có lượt học (khác CANCELLED). */
-export default async function MyCourseDetailPage({ params }: { params: Promise<{ courseId: string }> }) {
+export default async function MyCourseDetailPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ courseId: string }>;
+  searchParams: Promise<{ locked?: string }>;
+}) {
   const user = await requireUser();
   const { courseId } = await params;
 
@@ -152,7 +169,7 @@ export default async function MyCourseDetailPage({ params }: { params: Promise<{
             )}
           </p>
           {pathLock ? (
-            <Link href={`/learning-paths/${pathLock.pathId}`} className={cn(buttonVariants({ variant: "secondary" }), "w-full")}>
+            <Link href={`/learning-paths/${pathLock.pathId}`} className={cn(buttonVariants({ variant: "outline" }), "w-full")}>
               <Route />
               Xem lộ trình
             </Link>
@@ -160,7 +177,7 @@ export default async function MyCourseDetailPage({ params }: { params: Promise<{
             <Link
               href={`/learn/${course.id}/${main.lessonId}`}
               prefetch={false}
-              className={cn(buttonVariants({ variant: main.label === "Xem lại khoá học" ? "secondary" : "default" }), "w-full")}
+              className={cn(buttonVariants({ variant: main.label === "Xem lại khoá học" ? "outline" : "default" }), "w-full")}
             >
               <MainIcon />
               {main.label}
@@ -169,6 +186,17 @@ export default async function MyCourseDetailPage({ params }: { params: Promise<{
           {cancellable && <CancelEnrollmentButton courseId={course.id} courseTitle={course.title} />}
         </div>
       </section>
+
+      {/* Mở link bài chưa mở (thông báo / dấu trang) → trang học chuyển về đây kèm ?locked=1 (ui-review F7) */}
+      {!pathLock && (await searchParams).locked === "1" && (
+        <section role="status" className="flex items-start gap-3 rounded-md border border-warning/40 bg-warning/16 px-5 py-4">
+          <Lock className="mt-0.5 size-5 shrink-0 text-warning" />
+          <div className="space-y-1">
+            <p className="text-[15px] font-medium text-foreground">Bài này chưa mở</p>
+            <p className="text-[15px] text-muted-foreground">Học lần lượt từng bài: hoàn thành bài trước để mở bài tiếp theo (bài đang mở có nhãn “Bài tiếp theo” bên dưới).</p>
+          </div>
+        </section>
+      )}
 
       {pathLock && (
         <section role="status" className="flex items-start gap-3 rounded-md border border-border bg-muted px-5 py-4">

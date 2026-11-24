@@ -20,6 +20,8 @@ const PATHNAME = "/reports";
 const num = (v: number) => <span className="tabular-nums">{formatNumber(v)}</span>;
 const dash = <span className="text-foreground/45">—</span>;
 const one = (v: number | null) => (v === null ? dash : <span className="tabular-nums">{formatDecimal(v)}</span>);
+/** Điểm: luôn 1 chữ số thập phân (87,0 · 91,5) để cột thẳng hàng (ui-review #62) */
+const score = (v: number | null) => (v === null ? dash : <span className="tabular-nums">{formatDecimal(v, 1, true)}</span>);
 const rate = (v: number | null) =>
   v === null ? (
     dash
@@ -29,11 +31,22 @@ const rate = (v: number | null) =>
       <span className="text-[13px] tabular-nums">{formatPercent(v)}</span>
     </div>
   );
+/** Tên phòng / chức danh dài: 1 dòng + title, không đẩy cột cuối khỏi mép phải (ui-review #53) */
+const clip = (v: string | null, w = "max-w-44") =>
+  v === null ? (
+    dash
+  ) : (
+    <span className={cn("block truncate", w)} title={v}>
+      {v}
+    </span>
+  );
 const pctText = (v: number | null) => (v === null ? dash : <span className="tabular-nums">{formatPercent(v)}</span>);
 
 type Common = { sp: SearchParams; page: number; pageSize: number; toolbar: ReactNode; filterParams: Record<string, string>; isGroupAdmin: boolean };
 
 export function ReportTable({ data, ...c }: { data: TabData } & Common) {
+  // Có lọc / tìm không — để trạng thái rỗng không nói “khớp bộ lọc” khi chưa lọc gì (ui-review #60)
+  const hasFilter = Object.keys(c.filterParams).length > 0 || !!c.sp.q;
   const slice = <T,>(rows: T[]) => rows.slice((c.page - 1) * c.pageSize, c.page * c.pageSize);
   const tableProps = { pathname: PATHNAME, searchParams: c.sp, page: c.page, pageSize: c.pageSize, toolbar: c.toolbar };
   const back = (label: string) => (
@@ -51,11 +64,11 @@ export function ReportTable({ data, ...c }: { data: TabData } & Common) {
           key: "title",
           header: <SortHeader field="title" label="Khoá học" text />,
           cell: (r) => (
-            <span className="block max-w-72">
+            <span className="block max-w-56">
               <span className="block truncate font-medium text-foreground" title={r.title}>
                 {r.title}
               </span>
-              <span className="text-[13px] text-muted-foreground">
+              <span className="block truncate text-[13px] text-muted-foreground">
                 {r.code}
                 {r.categoryName ? ` · ${r.categoryName}` : ""}
               </span>
@@ -72,8 +85,8 @@ export function ReportTable({ data, ...c }: { data: TabData } & Common) {
           className: "text-right",
           cell: (r) => <span className={cn("tabular-nums", r.overdue > 0 && "font-medium text-destructive")}>{formatNumber(r.overdue)}</span>,
         },
-        { key: "completionRate", header: <SortHeader field="completionRate" metric="completionRate" label="Tỷ lệ" />, cell: (r) => rate(r.completionRate) },
-        { key: "avgScore", header: <SortHeader field="avgScore" metric="avgScore" />, className: "text-right", cell: (r) => one(r.avgScore) },
+        { key: "completionRate", header: <SortHeader field="completionRate" metric="completionRate" label="Tỷ lệ" />, className: "min-w-36", cell: (r) => rate(r.completionRate) },
+        { key: "avgScore", header: <SortHeader field="avgScore" metric="avgScore" />, className: "text-right", cell: (r) => score(r.avgScore) },
         { key: "firstPassRate", header: <SortHeader field="firstPassRate" metric="firstPassRate" />, className: "text-right", cell: (r) => pctText(r.firstPassRate) },
         { key: "avgDays", header: <SortHeader field="avgDaysToComplete" metric="avgDaysToComplete" label="Ngày HT TB" />, className: "text-right", cell: (r) => one(r.avgDaysToComplete) },
         {
@@ -101,7 +114,11 @@ export function ReportTable({ data, ...c }: { data: TabData } & Common) {
           rowHref={(r) => buildHref(PATHNAME, c.sp, { course: r.courseId, q: null, sort: null, dir: null, page: null })}
           total={data.rows.length}
           searchPlaceholder="Tìm khoá học..."
-          empty={{ title: "Chưa có lượt học nào khớp bộ lọc", description: "Thử bỏ bớt bộ lọc hoặc bật “Gồm khoá tự đăng ký”." }}
+          empty={
+            hasFilter
+              ? { title: "Chưa có lượt học nào khớp bộ lọc", description: "Thử bỏ bớt bộ lọc hoặc bật “Gồm khoá tự đăng ký”." }
+              : { title: "Chưa có lượt học nào", description: "Khi nhân viên trong phạm vi được giao khoá học, số liệu sẽ hiện ở đây. Khoá tự đăng ký chỉ tính khi bật “Gồm khoá tự đăng ký”." }
+          }
         />
       );
     }
@@ -121,7 +138,7 @@ export function ReportTable({ data, ...c }: { data: TabData } & Common) {
             </Link>
           ),
         },
-        { key: "dept", header: <SortHeader field="departmentName" label="Phòng ban" text />, cell: (r) => r.departmentName ?? dash },
+        { key: "dept", header: <SortHeader field="departmentName" label="Phòng ban" text />, cell: (r) => clip(r.departmentName) },
         {
           key: "status",
           header: "Trạng thái",
@@ -175,7 +192,7 @@ export function ReportTable({ data, ...c }: { data: TabData } & Common) {
             rowKey={(r) => r.userId}
             total={data.rows.length}
             searchPlaceholder="Tìm người..."
-            empty={{ title: isVersion ? "Mọi người đã nắm phiên bản mới nhất" : "Không có người nào khớp bộ lọc" }}
+            empty={{ title: isVersion ? "Mọi người đã nắm phiên bản mới nhất" : hasFilter ? "Không có người nào khớp bộ lọc" : "Chưa có ai được giao khoá này" }}
           />
         </div>
       );
@@ -238,18 +255,18 @@ export function ReportTable({ data, ...c }: { data: TabData } & Common) {
           ),
         },
         ...(c.isGroupAdmin ? [{ key: "company", header: <SortHeader field="companyCode" label="Công ty" text />, cell: (r: R) => r.companyCode }] : []),
-        { key: "dept", header: <SortHeader field="departmentName" label="Phòng ban" text />, cell: (r) => r.departmentName ?? dash },
-        { key: "pos", header: "Chức danh", cell: (r) => r.positionName ?? dash },
+        { key: "dept", header: <SortHeader field="departmentName" label="Phòng ban" text />, cell: (r) => clip(r.departmentName) },
+        { key: "pos", header: "Chức danh", cell: (r) => clip(r.positionName, "max-w-36") },
         { key: "assigned", header: <SortHeader field="assigned" metric="assigned" />, className: "text-right", cell: (r) => num(r.assigned) },
-        { key: "completed", header: <SortHeader field="completed" metric="completed" label="Xong" />, className: "text-right", cell: (r) => num(r.completed) },
+        { key: "completed", header: <SortHeader field="completed" metric="completed" label="Hoàn thành" />, className: "text-right", cell: (r) => num(r.completed) },
         {
           key: "overdue",
           header: <SortHeader field="overdue" metric="overdue" />,
           className: "text-right",
           cell: (r) => <span className={cn("tabular-nums", r.overdue > 0 && "font-medium text-destructive")}>{formatNumber(r.overdue)}</span>,
         },
-        { key: "avgScore", header: <SortHeader field="avgScore" metric="avgScore" />, className: "text-right", cell: (r) => one(r.avgScore) },
-        { key: "certs", header: <SortHeader field="validCertificates" metric="validCertificates" label="CN còn hạn" />, className: "text-right", cell: (r) => num(r.validCertificates) },
+        { key: "avgScore", header: <SortHeader field="avgScore" metric="avgScore" />, className: "text-right", cell: (r) => score(r.avgScore) },
+        { key: "certs", header: <SortHeader field="validCertificates" metric="validCertificates" label="Chứng nhận còn hạn" />, className: "text-right", cell: (r) => num(r.validCertificates) },
         {
           key: "last",
           header: <SortHeader field="lastActivity" metric="lastActivity" />,
@@ -265,7 +282,7 @@ export function ReportTable({ data, ...c }: { data: TabData } & Common) {
           rowHref={(r) => `/team/members/${r.id}`}
           total={data.rows.length}
           searchPlaceholder="Tìm theo tên, mã NV..."
-          empty={{ title: "Không có nhân viên nào khớp bộ lọc" }}
+          empty={{ title: hasFilter ? "Không có nhân viên nào khớp bộ lọc" : "Chưa có nhân viên nào trong phạm vi" }}
         />
       );
     }
@@ -305,7 +322,7 @@ export function ReportTable({ data, ...c }: { data: TabData } & Common) {
           cell: (r) => <span className={cn("tabular-nums", r.unconfirmed > 0 && "font-medium text-warning")}>{formatNumber(r.unconfirmed)}</span>,
         },
         { key: "relearning", header: <SortHeader field="relearning" metric="relearning" />, className: "text-right", cell: (r) => num(r.relearning) },
-        { key: "rate", header: <SortHeader field="ackRate" metric="ackRate" />, cell: (r) => rate(r.ackRate) },
+        { key: "rate", header: <SortHeader field="ackRate" metric="ackRate" />, className: "min-w-36", cell: (r) => rate(r.ackRate) },
       ];
       return (
         <DataTable
@@ -335,12 +352,12 @@ export function ReportTable({ data, ...c }: { data: TabData } & Common) {
             </Link>
           ),
         },
-        { key: "dept", header: <SortHeader field="departmentName" label="Phòng ban" text />, cell: (r) => r.departmentName ?? dash },
+        { key: "dept", header: <SortHeader field="departmentName" label="Phòng ban" text />, cell: (r) => clip(r.departmentName) },
         {
           key: "course",
           header: <SortHeader field="courseTitle" label="Khoá học" text />,
           cell: (r) => (
-            <span className="block max-w-64 truncate" title={r.courseTitle}>
+            <span className="block max-w-48 truncate" title={r.courseTitle}>
               {r.courseTitle}
             </span>
           ),

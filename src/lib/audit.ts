@@ -86,6 +86,10 @@ export const AUDIT_ACTION_LABELS = {
   REPORT_EXPORTED: "Xuất báo cáo",
   SETTINGS_UPDATED: "Sửa cài đặt hệ thống",
   BUNNY_CONNECTION_TESTED: "Kiểm tra kết nối Bunny Stream",
+  LARK_SYNC_RUN: "Đồng bộ Lark",
+  LARK_MAPPING_UPDATED: "Ghép công ty với phòng ban Lark",
+  LARK_CREDENTIALS_UPDATED: "Cấu hình kết nối Lark",
+  BUNNY_CREDENTIALS_UPDATED: "Cấu hình Bunny Stream",
 } as const;
 
 export type AuditAction = keyof typeof AUDIT_ACTION_LABELS;
@@ -207,6 +211,10 @@ const GROUP_ACTIONS: Record<AuditGroup, AuditAction[]> = {
   update: [
     "SETTINGS_UPDATED",
     "BUNNY_CONNECTION_TESTED",
+    "LARK_SYNC_RUN",
+    "LARK_MAPPING_UPDATED",
+    "LARK_CREDENTIALS_UPDATED",
+    "BUNNY_CREDENTIALS_UPDATED",
     "LESSON_VIDEO_UPLOAD_STARTED",
     "USER_UPDATED",
     "USER_ROLE_CHANGED",
@@ -634,6 +642,7 @@ export function describeAuditEntry(action: string, metadata: unknown): string | 
       const c = asMeta(m.counts);
       const errors = Object.keys(asMeta(m.errors)).length;
       return [
+        c.larkSync ? `Lark ${c.larkSync}` : null,
         `sắp hạn ${c.dueSoon ?? 0}`,
         `quá hạn ${c.overdue ?? 0}`,
         `chấm bài ${c.quizGraded ?? 0}`,
@@ -648,6 +657,21 @@ export function describeAuditEntry(action: string, metadata: unknown): string | 
         .filter(Boolean)
         .join(" · ");
     }
+    case "LARK_SYNC_RUN": {
+      const c = asMeta(m.counts);
+      const how = m.trigger === "manual" ? "Chạy tay" : m.trigger === "script" ? "Script" : "Tự động";
+      if (m.applied !== true) return `${how} — không áp dụng: ${m.error ?? "?"}`;
+      return `${how} — tạo ${c.create ?? 0} · cập nhật ${c.update ?? 0} · chuyển công ty ${c.transfer ?? 0} · khoá ${c.lock ?? 0} · mở lại ${c.reopen ?? 0} · phòng ban ${c.departments ?? 0} · bỏ qua ${c.skipped ?? 0}`;
+    }
+    case "LARK_CREDENTIALS_UPDATED":
+      return m.cleared ? "Xoá cấu hình trên giao diện" : `App ID ${m.appId ?? "?"} · ${m.domain === "feishu" ? "Feishu" : "Lark quốc tế"}${m.secretChanged ? " · đổi App Secret" : ""}`;
+    case "BUNNY_CREDENTIALS_UPDATED": {
+      if (m.cleared) return "Xoá cấu hình trên giao diện";
+      const changed = [m.apiKeyChanged && "API key", m.tokenKeyChanged && "Token key", m.readonlyKeyChanged && "Read-Only key"].filter(Boolean);
+      return `Library ID ${m.libraryId ?? "?"}${changed.length ? ` · đổi ${changed.join(", ")}` : ""}${m.readonlyKeyRemoved ? " · gỡ Read-Only key" : ""}`;
+    }
+    case "LARK_MAPPING_UPDATED":
+      return `${m.companyCode ?? "?"}: ${m.fromName ?? "chưa ghép"} → ${m.toName ?? "bỏ ghép"}`;
     case "BUNNY_CONNECTION_TESTED":
       return (
         {

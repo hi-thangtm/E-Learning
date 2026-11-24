@@ -12,12 +12,12 @@ import { pathVisibleWhere } from "@/lib/path-scope";
 import { requireRole } from "@/lib/current-user";
 import { prisma } from "@/lib/db";
 import { ENROLLMENT_STATUS_LABELS, isOverdue, SOURCE_LABELS } from "@/lib/enrollment-labels";
-import { formatDate, vnIsoDate } from "@/lib/format";
+import { formatDate, formatPercent, vnIsoDate } from "@/lib/format";
 import { getEnumParam, getParam, parseTableParams, type SearchParams } from "@/lib/table-params";
 import { buildChildrenMap, flattenTree, getDescendantIds } from "@/lib/tree";
 import { EnrollmentRowActions } from "./enrollment-row-actions";
 
-export const metadata: Metadata = { title: "Danh sách giao khoá" };
+export const metadata: Metadata = { title: "Giao khoá học" };
 
 const PATHNAME = "/assign/manual";
 const SOURCES = ["RULE", "ASSIGNED", "SELF"] as const satisfies readonly EnrollmentSource[];
@@ -136,53 +136,61 @@ export default async function EnrollmentsPage({ searchParams }: { searchParams: 
           <Link href={`/org/users/${e.user.id}`} className="block max-w-56 truncate font-medium text-foreground hover:text-primary" title={e.user.fullName}>
             {e.user.fullName}
           </Link>
-          <p className="text-[13px]">{e.user.employeeCode}</p>
+          {/* Công ty gộp vào dòng phụ (bảng gọn hơn — ui-review #27) */}
+          <p className="text-[13px]">
+            {e.user.employeeCode}
+            {isGroupAdmin && <span title={e.user.company.name}> · {e.user.company.code}</span>}
+          </p>
         </div>
       ),
     },
-    ...(isGroupAdmin
-      ? [{ key: "company", header: "Công ty", className: "w-24", cell: (e: Row) => <span title={e.user.company.name}>{e.user.company.code}</span> }]
-      : []),
     {
       key: "department",
       header: "Phòng ban",
-      cell: (e) => e.user.department?.name ?? <span className="text-foreground/45">—</span>,
+      cell: (e) =>
+        e.user.department ? (
+          <span className="block max-w-44 truncate" title={e.user.department.name}>
+            {e.user.department.name}
+          </span>
+        ) : (
+          <span className="text-foreground/45">—</span>
+        ),
     },
     {
       key: "course",
       header: "Khoá học",
       cell: (e) => (
-        <Link href={`/content/courses/${e.course.id}`} className="block max-w-64 truncate text-foreground hover:text-primary" title={e.course.title}>
-          {e.course.title}
-          <span className="block text-[13px] text-muted-foreground">{e.course.code}</span>
-        </Link>
-      ),
-    },
-    {
-      key: "path",
-      header: "Lộ trình",
-      className: "w-32",
-      cell: (e) =>
-        e.learningPath ? (
-          <Link
-            href={`/content/paths/${e.learningPath.id}`}
-            className="block max-w-32 truncate text-foreground hover:text-primary"
-            title={e.learningPath.title}
-          >
-            {e.learningPath.code}
+        <div className="min-w-0">
+          <Link href={`/content/courses/${e.course.id}`} className="block max-w-64 truncate text-foreground hover:text-primary" title={e.course.title}>
+            {e.course.title}
           </Link>
-        ) : (
-          <span className="text-foreground/45">—</span>
-        ),
+          {/* Lộ trình gộp vào dòng phụ (ui-review #27) */}
+          <p className="max-w-64 truncate text-[13px] text-muted-foreground">
+            {e.course.code}
+            {e.learningPath && (
+              <>
+                {" · "}
+                <Link href={`/content/paths/${e.learningPath.id}`} className="hover:text-primary" title={e.learningPath.title}>
+                  Lộ trình {e.learningPath.code}
+                </Link>
+              </>
+            )}
+          </p>
+        </div>
+      ),
     },
     {
       key: "source",
       header: "Cách giao",
       className: "w-32",
       cell: (e) => (
-        <span title={e.assignmentRule ? `Quy tắc: ${e.assignmentRule.name}` : undefined}>
+        <div title={e.assignmentRule ? `Quy tắc: ${e.assignmentRule.name}` : undefined}>
           <StatusBadge tone={SOURCE_LABELS[e.source].tone}>{SOURCE_LABELS[e.source].label}</StatusBadge>
-        </span>
+          {/* Người giao + ngày giao gộp vào đây (ui-review #27) */}
+          <p className="mt-0.5 max-w-40 truncate text-[12px] text-muted-foreground">
+            {formatDate(e.createdAt)} · {e.assignedBy?.fullName ?? (e.source === "RULE" ? "Hệ thống" : "—")}
+          </p>
+        </div>
       ),
     },
     {
@@ -200,7 +208,7 @@ export default async function EnrollmentsPage({ searchParams }: { searchParams: 
           <div className="h-1.5 w-16 overflow-hidden rounded-full bg-muted" aria-hidden>
             <div className="h-full rounded-full bg-primary" style={{ width: `${e.progressPercent}%` }} />
           </div>
-          <span className="text-[13px] tabular-nums">{e.progressPercent}%</span>
+          <span className="text-[13px] tabular-nums">{formatPercent(e.progressPercent, 0)}</span>
         </div>
       ),
     },
@@ -221,16 +229,10 @@ export default async function EnrollmentsPage({ searchParams }: { searchParams: 
         ),
     },
     {
-      key: "assignedBy",
-      header: "Người giao",
-      cell: (e) =>
-        e.assignedBy?.fullName ?? <span className="text-foreground/45 italic">{e.source === "RULE" ? "Hệ thống" : "—"}</span>,
-    },
-    { key: "createdAt", header: "Ngày giao", className: "w-28", cell: (e) => formatDate(e.createdAt) },
-    {
       key: "actions",
       header: "",
       className: "w-12 text-right",
+      sticky: true,
       cell: (e) => {
         const open = e.status !== "COMPLETED" && e.status !== "CANCELLED";
         const lockedByRule = open && e.source === "RULE" && !!e.assignmentRule?.isActive;
@@ -320,7 +322,7 @@ export default async function EnrollmentsPage({ searchParams }: { searchParams: 
   return (
     <>
       <PageHeader
-        title="Danh sách giao khoá"
+        title="Giao khoá học"
         description={
           isGroupAdmin
             ? "Các lượt giao khoá học cho nhân viên toàn tập đoàn: thủ công, tự động theo quy tắc và tự đăng ký."
@@ -336,7 +338,7 @@ export default async function EnrollmentsPage({ searchParams }: { searchParams: 
         total={total}
         page={page}
         pageSize={pageSize}
-        searchPlaceholder="Tìm học viên (tên, mã NV)..."
+        searchPlaceholder="Tên, mã NV..."
         filters={filters}
         toolbar={assignButton}
         empty={{

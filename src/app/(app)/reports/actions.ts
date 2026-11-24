@@ -37,7 +37,7 @@ export async function remindAcknowledgeAction(courseId: string, filterParams: Re
   if (enrollments.length === 0) return { message: "Không còn ai cần xác nhận bản cập nhật của khoá này." };
 
   const today = vnIsoDate();
-  const title = `${actor.fullName} nhắc bạn xác nhận bản cập nhật khoá ${course.title} (v${course.currentVersion})`;
+  const title = `${actor.fullName} nhắc bạn xác nhận bản cập nhật khoá “${course.title}” (v${course.currentVersion})`;
   let sent = 0;
   for (let i = 0; i < enrollments.length; i += 500) {
     const results = await prisma.$transaction(

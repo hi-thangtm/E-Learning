@@ -47,7 +47,7 @@ export function CourseHeader({
     : archived
       ? "Khoá đang lưu trữ — khôi phục trước khi phát hành."
       : course.currentVersion > 0 || course.status !== "DRAFT"
-        ? "Khoá đã phát hành. Phát hành phiên bản mới (MINOR / MAJOR) có ở Việc 21."
+        ? "Khoá đã phát hành — dùng nút “Phát hành bản cập nhật” để phát hành phiên bản mới."
         : null;
 
   return (
@@ -57,11 +57,12 @@ export function CourseHeader({
         Khoá học
       </Link>
 
-      <div className="flex items-center justify-between gap-6 rounded-md bg-card p-6 shadow-md">
-        <div className="flex min-w-0 items-center gap-4">
+      {/* Tên dài: 2 dòng; thiếu chỗ thì hàng nút xuống dưới (ui-review #32) */}
+      <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-4 rounded-md bg-card p-6 shadow-md">
+        <div className="flex min-w-[min(100%,28rem)] flex-1 items-center gap-4">
           <CourseThumbnail thumbnailKey={course.thumbnailUrl} alt="" className="w-28" />
           <div className="min-w-0 space-y-1.5">
-            <h1 className="truncate text-2xl font-medium text-foreground" title={course.title}>
+            <h1 className="line-clamp-2 text-2xl leading-snug font-medium break-words text-foreground" title={course.title}>
               {course.title}
             </h1>
             <div className="flex flex-wrap items-center gap-3 text-[13px] text-muted-foreground">
@@ -73,8 +74,8 @@ export function CourseHeader({
           </div>
         </div>
 
-        <div className="flex shrink-0 items-center gap-4">
-          <Link href={`/content/questions?course=${course.id}`} className={buttonVariants({ variant: "secondary" })}>
+        <div className="flex shrink-0 flex-wrap items-center gap-4">
+          <Link href={`/content/questions?course=${course.id}`} className={buttonVariants({ variant: "outline" })}>
             <ListChecks />
             Ngân hàng câu hỏi ({formatNumber(questionCount)} câu)
           </Link>

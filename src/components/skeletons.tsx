@@ -15,7 +15,7 @@ export function LoadingHeader({ title, description = "Đang tải..." }: { title
 /** Hàng thẻ số liệu (mục 5.1) */
 export function StatCardsSkeleton({ count = 4 }: { count?: number }) {
   return (
-    <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
+    <div className={cn("grid gap-4 sm:gap-6", count === 5 ? "grid-cols-2 sm:grid-cols-3 lg:grid-cols-5" : "grid-cols-1 sm:grid-cols-2 lg:grid-cols-4")}>
       {Array.from({ length: count }, (_, i) => (
         <Skeleton key={i} className="h-[118px] rounded-md" />
       ))}

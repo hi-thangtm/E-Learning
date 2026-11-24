@@ -22,13 +22,14 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Input } from "@/components/ui/input";
 import { cancelEnrollmentAction, extendEnrollmentAction } from "./actions";
 import { GrantAttemptsDialog } from "./grant-attempts-dialog";
 import { Tooltip } from "@/components/ui/tooltip";
+import { DatePicker } from "@/components/date-picker";
+import { addDaysIso, vnIsoDate } from "@/lib/format";
 
 const ITEM = "mx-1 gap-3 rounded-md px-3 py-2 text-[15px]";
-const RULE_LOCK = "Đang giao tự động theo quy tắc — tắt quy tắc ở mục Giao tự động";
+const RULE_LOCK = "Đang giao tự động theo quy tắc — tắt quy tắc ở mục Quy tắc giao tự động";
 
 /** Menu ⋮ mỗi lượt giao: Gia hạn, Cấp thêm lượt làm bài, Huỷ giao. Quyền thật kiểm tra lại ở server. */
 export function EnrollmentRowActions({
@@ -153,7 +154,7 @@ function ExtendDialog({
           <DialogBody>
             <FormGrid>
             <FormField label="Hạn mới" htmlFor="extend-date" required error={error ?? undefined} hint="Hết ngày này (giờ Việt Nam) mới tính quá hạn.">
-              <Input id="extend-date" type="date" value={date} onChange={(e) => setDate(e.target.value)} aria-invalid={!!error} />
+              <DatePicker id="extend-date" value={date} onChange={setDate} min={addDaysIso(vnIsoDate(), 1)} invalid={!!error} />
             </FormField>
             </FormGrid>
           </DialogBody>

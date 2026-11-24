@@ -139,7 +139,7 @@ export async function prepareBunnyUploadAction(
 ): Promise<Result<{ upload: BunnyUpload }>> {
   const { actor, lesson } = await loadVideoLesson(lessonId);
   if (!lesson) return { ok: false, message: NO_ACCESS };
-  if (!isBunnyConfigured()) return { ok: false, message: "Chưa cấu hình Bunny Stream." };
+  if (!(await isBunnyConfigured())) return { ok: false, message: "Chưa cấu hình Bunny Stream." };
 
   // Trình duyệt tải thẳng lên Bunny nên server chỉ kiểm tra được thông tin khai báo; Bunny sẽ báo lỗi nếu không phải video
   const ext = String(file?.name ?? "").split(".").pop()?.toLowerCase() ?? "";
@@ -176,7 +176,7 @@ export async function prepareBunnyUploadAction(
   ]);
   if (previousPending && previousPending !== videoId) await deleteBunnyVideo(previousPending);
 
-  const { libraryId, signature, expire } = tusSignature(videoId);
+  const { libraryId, signature, expire } = await tusSignature(videoId);
   return {
     ok: true,
     upload: {
@@ -296,8 +296,8 @@ export async function getVideoPlaybackAction(
     return { ok: false, message: "Video chưa sẵn sàng." };
   }
   if (lesson.videoProvider === "BUNNY") {
-    if (!isBunnyConfigured()) return { ok: false, message: "Chưa cấu hình Bunny Stream." };
-    return { ok: true, provider: "BUNNY", videoId: lesson.videoId, embedUrl: bunnyEmbedUrl(lesson.videoId) };
+    if (!(await isBunnyConfigured())) return { ok: false, message: "Chưa cấu hình Bunny Stream." };
+    return { ok: true, provider: "BUNNY", videoId: lesson.videoId, embedUrl: await bunnyEmbedUrl(lesson.videoId) };
   }
   return { ok: true, provider: "YOUTUBE", videoId: lesson.videoId, embedUrl: null };
 }

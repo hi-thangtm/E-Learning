@@ -108,7 +108,7 @@ export function SectionCard({
       ref={setNodeRef}
       style={style}
       className={cn(
-        "rounded-md border border-border bg-card",
+        "min-w-0 rounded-md border border-border bg-card",
         isDragging && "relative z-10 opacity-80 shadow-lg",
         section.isArchived && "border-dashed",
       )}
@@ -134,7 +134,9 @@ export function SectionCard({
         >
           <ChevronDown className={cn("size-5 shrink-0 text-foreground/45 transition-transform", !expanded && "-rotate-90")} />
           <span className="shrink-0 text-[13px] text-muted-foreground">Chương {index + 1}</span>
-          <span className="truncate font-medium text-foreground">{section.title}</span>
+          <span className="min-w-0 truncate font-medium text-foreground" title={section.title}>
+            {section.title}
+          </span>
           <span className="shrink-0 text-[13px] text-muted-foreground">· {visibleLessons} bài</span>
           {section.isArchived && <StatusBadge tone="secondary">Đã ẩn</StatusBadge>}
         </button>
@@ -256,8 +258,10 @@ function LessonRow({ lesson, actions }: { lesson: ContentLesson; actions: ItemAc
           <span className="sr-only">{TYPE_LABEL[lesson.type]}</span>
         </span>
         <span className="min-w-0">
-          <span className="flex items-center gap-2">
-            <span className="truncate text-[15px] text-foreground">{lesson.title}</span>
+          <span className="flex min-w-0 items-center gap-2">
+            <span className="truncate text-[15px] text-foreground" title={lesson.title}>
+              {lesson.title}
+            </span>
             {lesson.isArchived && <StatusBadge tone="secondary">Đã ẩn</StatusBadge>}
           </span>
           <span className={cn("flex items-center gap-1 text-[13px]", summary.warn ? "text-warning" : "text-muted-foreground")}>

@@ -16,7 +16,7 @@ type LessonRef = { id: string; videoId: string };
 
 /** Hỏi Bunny 1 lần; xong (READY / FAILED) → cập nhật bài nếu bài VẪN đang chờ đúng video này (cập nhật có điều kiện + nhật ký trong 1 transaction). */
 export async function syncBunnyLesson(lesson: LessonRef, actorId: string | null = null): Promise<BunnySyncResult | null> {
-  if (!isBunnyConfigured()) return null;
+  if (!(await isBunnyConfigured())) return null;
   let info: Awaited<ReturnType<typeof getBunnyVideo>>;
   try {
     info = await getBunnyVideo(lesson.videoId);
@@ -66,7 +66,7 @@ const lastChecked = new Map<string, number>();
 
 /** Đồng bộ các bài BUNNY đang xử lý trong danh sách, mỗi bài tối đa 1 lần / phút. Trả về true nếu có bài đổi trạng thái. */
 export async function syncProcessingLessonsThrottled(lessons: { id: string; videoProvider: string | null; videoId: string | null; videoStatus: string | null }[]): Promise<boolean> {
-  if (!isBunnyConfigured()) return false;
+  if (!(await isBunnyConfigured())) return false;
   const now = Date.now();
   if (lastChecked.size > 5_000) {
     for (const [id, t] of lastChecked) if (now - t > THROTTLE_MS) lastChecked.delete(id);

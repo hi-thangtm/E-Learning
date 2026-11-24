@@ -15,7 +15,8 @@ export default function Loading() {
       </div>
       <div className="rounded-md bg-card shadow-md">
         <div className="flex gap-6 border-b border-border px-6 py-3">
-          {Array.from({ length: 4 }, (_, i) => (
+          {/* Khớp 5 tab thật (COURSE_TABS) */}
+          {Array.from({ length: 5 }, (_, i) => (
             <Skeleton key={i} className="h-6 w-24" />
           ))}
         </div>

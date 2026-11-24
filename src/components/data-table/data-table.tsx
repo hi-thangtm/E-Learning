@@ -38,6 +38,8 @@ export type DataTableColumn<T> = {
    */
   truncate?: boolean | { maxWidth?: number };
   truncateText?: (row: T) => string;
+  /** Cột thao tác (⋮): dính mép phải khi bảng cuộn ngang — luôn bấm được (ui-review #27, #51) */
+  sticky?: boolean;
 };
 
 export type DataTableFilterConfig = {
@@ -46,6 +48,9 @@ export type DataTableFilterConfig = {
   options: FilterOption[];
   allLabel?: string;
 };
+
+/** Ô dính phải: nền thẻ + bóng mờ bên trái để thấy rõ đang đè lên cột khác */
+const STICKY_CELL = "sticky right-0 z-[1] bg-card shadow-[-8px_0_8px_-8px_rgb(0_0_0/0.15)]";
 
 export function DataTable<T>({
   pathname,
@@ -123,6 +128,7 @@ export function DataTable<T>({
                   className={cn(
                     "h-14 px-4 text-left align-middle text-[13px] font-medium tracking-[0.2px] whitespace-nowrap text-foreground uppercase first:pl-6 last:pr-6",
                     col.align === "right" && "text-right",
+                    col.sticky && STICKY_CELL,
                     col.className,
                   )}
                 >
@@ -146,6 +152,7 @@ export function DataTable<T>({
                     className={cn(
                       "h-[50px] px-4 align-middle text-[15px] whitespace-nowrap text-muted-foreground first:pl-6 last:pr-6",
                       col.align === "right" && "text-right tabular-nums",
+                      col.sticky && STICKY_CELL,
                       col.className,
                     )}
                   >

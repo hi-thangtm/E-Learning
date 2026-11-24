@@ -1,12 +1,17 @@
 import type { Metadata } from "next";
-import { redirect } from "next/navigation";
+import { notFound } from "next/navigation";
 import { countPathLearners } from "@/lib/assignment";
 import { requireRole } from "@/lib/current-user";
 import { prisma } from "@/lib/db";
 import { canEditPath, findPathInScope, selectableCoursesWhere } from "@/lib/path-scope";
 import { PathEditor, type PathCourseRow, type SelectableCourse } from "./path-editor";
+import { pageTitle } from "@/lib/page-title";
 
-export const metadata: Metadata = { title: "Soạn lộ trình" };
+export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
+  const actor = await requireRole(["GROUP_ADMIN", "COMPANY_ADMIN", "CONTENT_EDITOR"]);
+  const path = await findPathInScope(actor, (await params).id, { title: true });
+  return { title: pageTitle(path?.title, "Soạn lộ trình") };
+}
 
 /** Trang soạn lộ trình: thông tin + danh sách khoá có thứ tự (Việc 23A). */
 export default async function PathEditorPage({ params }: { params: Promise<{ id: string }> }) {
@@ -30,7 +35,7 @@ export default async function PathEditorPage({ params }: { params: Promise<{ id:
       },
     },
   });
-  if (!path) redirect("/content/paths");
+  if (!path) notFound(); // ui-review #31
 
   const canEdit = canEditPath(actor, path);
   const courseIds = path.courses.map((c) => c.course.id);

@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 /** Ô nhập mã chứng nhận — form GET tới /verify (server chuyển sang /verify/<MÃ>). */
 export function VerifyForm({ defaultCode = "" }: { defaultCode?: string }) {
   return (
-    <form action="/verify" method="get" className="flex items-center gap-3">
+    <form action="/verify" method="get" className="flex flex-col gap-3 sm:flex-row sm:items-center">
       <label htmlFor="verify-code" className="sr-only">
         Mã chứng nhận
       </label>
@@ -19,7 +19,7 @@ export function VerifyForm({ defaultCode = "" }: { defaultCode?: string }) {
         className="uppercase placeholder:normal-case"
         required
       />
-      <Button type="submit" className="shrink-0">
+      <Button type="submit" className="h-10 shrink-0 sm:h-auto">
         <Search />
         Tra cứu
       </Button>

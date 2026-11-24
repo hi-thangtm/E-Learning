@@ -41,7 +41,8 @@ export function MetricHeader({ metric, label }: { metric: MetricKey; label?: str
   return (
     <span className="inline-flex items-center gap-1">
       {label ?? def.label}
-      <InfoTip text={def.definition} label={`Định nghĩa: ${def.label}`} />
+      {/* Tiêu đề cột rút gọn → tooltip nhắc lại tên đầy đủ */}
+      <InfoTip text={label && label !== def.label ? `${def.label}: ${def.definition}` : def.definition} label={`Định nghĩa: ${def.label}`} />
     </span>
   );
 }

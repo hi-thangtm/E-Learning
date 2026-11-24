@@ -7,7 +7,7 @@
  * `E2E_NO_BUNNY=1` (npm run test:e2e:no-bunny): bỏ BUNNY_* khỏi app, không chạy máy giả → kiểm hệ thống khi CHƯA cấu hình Bunny.
  */
 import { defineConfig, devices } from "@playwright/test";
-import { assertTestDatabase, MOCK_BUNNY_PORT, readTestEnv, TEST_PORT } from "./scripts/test/common";
+import { assertTestDatabase, MOCK_BUNNY_PORT, MOCK_LARK_PORT, readTestEnv, TEST_PORT } from "./scripts/test/common";
 
 const testEnv = readTestEnv();
 assertTestDatabase(testEnv.DATABASE_URL);
@@ -52,6 +52,16 @@ export default defineConfig({
     },
   ],
   webServer: [
+    // Lark giả lập (Việc L1) — luôn chạy; app nhận LARK_DOMAIN trỏ vào đây
+    {
+      command: "npx tsx e2e/mock-lark/server.ts",
+      url: `http://localhost:${MOCK_LARK_PORT}/health`,
+      reuseExistingServer: false,
+      timeout: 30_000,
+      env: { ...testEnv, MOCK_LARK_PORT: String(MOCK_LARK_PORT) },
+      stdout: "ignore" as const,
+      stderr: "pipe" as const,
+    },
     ...(noBunny
       ? []
       : [

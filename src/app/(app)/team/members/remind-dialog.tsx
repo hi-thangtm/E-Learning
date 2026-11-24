@@ -23,7 +23,7 @@ import type { MemberSelection, ReminderMode, ReminderPreview } from "./types";
 
 const NOTE_MAX = 200;
 
-/** Hộp “Nhắc nhở”: chọn kiểu nhắc + lời nhắn → xem số thông báo sẽ gửi → Gửi. */
+/** Hộp “Gửi nhắc nhở”: chọn kiểu nhắc + lời nhắn → xem số thông báo sẽ gửi → Gửi. */
 export function RemindDialog({
   trigger,
   selection,

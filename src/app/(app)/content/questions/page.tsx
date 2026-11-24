@@ -23,7 +23,13 @@ export const metadata: Metadata = { title: "Ngân hàng câu hỏi" };
 
 const PATHNAME = "/content/questions";
 const TYPE_VALUES = ["SINGLE", "MULTIPLE"] as const;
-const STATUS_VALUES = ["active", "inactive"] as const;
+const STATUS_VALUES = ["active", "pending", "inactive"] as const;
+/** Lọc khớp đúng nhãn ở cột Trạng thái: Đang dùng / Chờ duyệt / Đã tắt (ui-review #43) */
+const STATUS_WHERE: Record<(typeof STATUS_VALUES)[number], Prisma.QuestionWhereInput> = {
+  active: { isActive: true, isApproved: true },
+  pending: { isApproved: false },
+  inactive: { isActive: false, isApproved: true },
+};
 
 export default async function QuestionsPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
   const actor = await requireRole(["GROUP_ADMIN", "COMPANY_ADMIN", "CONTENT_EDITOR"]);
@@ -78,7 +84,7 @@ export default async function QuestionsPage({ searchParams }: { searchParams: Pr
           description={
             courses.length > 0
               ? "Mỗi khoá học có ngân hàng câu hỏi riêng. Chọn khoá ở ô phía trên."
-              : "Chưa có khoá học nào trong phạm vi của bạn. Tạo khoá học trước ở mục Nội dung › Khoá học."
+              : "Chưa có khoá học nào trong phạm vi của bạn. Tạo khoá học trước ở mục Soạn nội dung › Khoá học."
           }
           className="rounded-md bg-card shadow-md"
         />
@@ -107,7 +113,7 @@ export default async function QuestionsPage({ searchParams }: { searchParams: Pr
     ...(q && { content: { contains: q, mode: "insensitive" } }),
     ...(topic && { topic: topic === NO_TOPIC ? null : topic }),
     ...(type && { type }),
-    ...(status && { isActive: status === "active" }),
+    ...(status && STATUS_WHERE[status]),
   };
 
   const [total, questions] = await prisma.$transaction([
@@ -225,7 +231,7 @@ export default async function QuestionsPage({ searchParams }: { searchParams: Pr
 
       {!canEdit && (
         <p className="mb-6 rounded-md bg-muted px-4 py-3 text-[13px] text-muted-foreground">
-          Khoá học này thuộc công ty khác — bạn chỉ được xem và xuất câu hỏi, không thêm / sửa được.
+          Khoá học này thuộc công ty khác — bạn chỉ được xem câu hỏi, không thêm / sửa / xuất được.
         </p>
       )}
 
@@ -295,6 +301,7 @@ export default async function QuestionsPage({ searchParams }: { searchParams: Pr
             allLabel: "Tất cả trạng thái",
             options: [
               { value: "active", label: "Đang dùng" },
+              { value: "pending", label: "Chờ duyệt" },
               { value: "inactive", label: "Đã tắt" },
             ],
           },
@@ -306,15 +313,15 @@ export default async function QuestionsPage({ searchParams }: { searchParams: Pr
               <>
                 <a
                   href={`${PATHNAME}/export?course=${course.id}`}
-                  className={buttonVariants({ variant: "secondary" })}
+                  className={buttonVariants({ variant: "outline" })}
                   download
                 >
                   <Download />
                   Xuất Excel
                 </a>
-                <Link href={`${PATHNAME}/import?course=${course.id}`} className={buttonVariants({ variant: "secondary" })}>
+                <Link href={`${PATHNAME}/import?course=${course.id}`} className={buttonVariants({ variant: "outline" })}>
                   <FileUp />
-                  Import Excel
+                  Import câu hỏi
                 </Link>
               </>
             )}

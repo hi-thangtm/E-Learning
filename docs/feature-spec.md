@@ -16,15 +16,17 @@
 
 | Nhóm menu | Học viên | Quản lý | Biên soạn | Admin công ty con | Admin tập đoàn |
 |---|:-:|:-:|:-:|:-:|:-:|
-| **Học tập** — Tổng quan, Khoá học của tôi, Lộ trình, Thư viện, Chứng nhận | ✓ | ✓ | ✓ | ✓ | ✓ |
-| **Đội của tôi** — Tổng quan đội, Nhân viên | | ✓ | | ✓ (cả công ty) | ✓ |
-| **Nội dung** — Khoá học, Ngân hàng câu hỏi, Lộ trình, Danh mục | | | ✓ | ✓ | ✓ |
-| **Giao khoá** — Giao thủ công, Quy tắc bắt buộc | | | | ✓ | ✓ |
-| **Tổ chức** — Người dùng, Phòng ban, Chức danh | | | | ✓ | ✓ |
-| **Báo cáo** | | đội mình | | công ty mình | toàn tập đoàn |
-| **Hệ thống** — Công ty con, Mẫu chứng nhận, Nhật ký, Cài đặt | | | | Nhật ký, Mẫu chứng nhận | ✓ |
+| **Học tập** — Tổng quan, Khoá học của tôi, Lộ trình của tôi, Thư viện khoá học, Chứng nhận của tôi | ✓ | ✓ | ✓ | ✓ | ✓ |
+| **Theo dõi học tập** — Tổng quan tập đoàn (chỉ Admin tập đoàn), Tình hình học tập, Tiến độ từng người, Báo cáo | | phòng mình + phòng con | | cả công ty | toàn tập đoàn |
+| **Giao khoá** — Giao khoá học, Quy tắc giao tự động | | | | ✓ | ✓ |
+| **Soạn nội dung** — Khoá học, Ngân hàng câu hỏi, Lộ trình học, Danh mục khoá học | | | ✓ | ✓ | ✓ |
+| **Tổ chức** — Công ty con (chỉ Admin tập đoàn), Người dùng, Phòng ban, Chức danh | | | | ✓ | ✓ |
+| **Hệ thống** — Mẫu chứng nhận, Nhật ký thao tác, Tác vụ hằng ngày, Kết nối Lark, Cài đặt hệ thống | | | | Mẫu chứng nhận, Nhật ký thao tác | ✓ |
 
-Đường dẫn của từng mục: `src/lib/roles.ts`.
+Đường dẫn của từng mục: `src/lib/roles.ts` (đổi nhãn / nhóm không đổi URL; nhãn mục menu = tiêu đề trang).
+Bấm tên nhóm để thu gọn / mở (nhớ trên máy — localStorage); nhóm chứa trang đang mở luôn mở.
+Tên cũ (trước 24/11/2026): “Đội của tôi” → Theo dõi học tập, “Tổng quan đội” → Tình hình học tập, “Nhân viên” (đội) → Tiến độ từng người,
+“Nội dung” → Soạn nội dung, “Danh sách giao khoá” → Giao khoá học, “Giao tự động” → Quy tắc giao tự động.
 
 ## 2. Học viên (mọi nhân viên)
 
@@ -82,9 +84,9 @@ Tham khảo Vuexy: `apps/academy/dashboard`, `my-course`, `course-details`.
 
 ## 3. Quản lý (trưởng bộ phận)
 
-Có toàn bộ chức năng Học viên, thêm menu **Đội của tôi**. Phạm vi: các phòng mình làm trưởng + phòng con. **Chỉ xem và nhắc**, không tạo / giao khoá.
+Có toàn bộ chức năng Học viên, thêm nhóm menu **Theo dõi học tập** (Tình hình học tập, Tiến độ từng người, Báo cáo). Phạm vi: các phòng mình làm trưởng + phòng con. **Chỉ xem và nhắc**, không tạo / giao khoá.
 
-**3.1 Tổng quan đội**
+**3.1 Tình hình học tập** (trước gọi “Tổng quan đội”)
 - Tỷ lệ hoàn thành khoá bắt buộc của đội.
 - Số người quá hạn; danh sách "chưa nắm quy trình mới nhất".
 - Biểu đồ tiến độ theo khoá.
@@ -97,7 +99,7 @@ Có toàn bộ chức năng Học viên, thêm menu **Đội của tôi**. Phạ
 
 ## 4. Biên soạn nội dung
 
-Có toàn bộ chức năng Học viên, thêm menu **Nội dung**. Phạm vi: nội dung của công ty mình.
+Có toàn bộ chức năng Học viên, thêm nhóm menu **Soạn nội dung**. Phạm vi: nội dung của công ty mình.
 
 **4.1 Danh mục khoá học**
 - Thêm / sửa / ẩn danh mục.

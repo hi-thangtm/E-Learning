@@ -3,7 +3,7 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
 
 /**
- * Dashboard tập đoàn (Việc 28B — feature-spec 6.3). CHỈ chạy ở server, chỉ Admin tập đoàn gọi.
+ * Tổng quan tập đoàn (Việc 28B — feature-spec 6.3). CHỈ chạy ở server, chỉ Admin tập đoàn gọi.
  * Định nghĩa chỉ số giống docs/reports.md / src/lib/report-definitions.ts:
  * - Nhân viên = người đang làm (ACTIVE) của công ty đang hoạt động.
  * - Khoá được giao = enrollment RULE / ASSIGNED khác CANCELLED. Tỷ lệ hoàn thành = hoàn thành ÷ được giao.

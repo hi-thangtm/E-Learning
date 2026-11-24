@@ -4,7 +4,8 @@ import { PageHeader } from "@/components/page-header";
 import { StatusBadge } from "@/components/status-badge";
 import { requireRole } from "@/lib/current-user";
 import { prisma } from "@/lib/db";
-import { formatDateTimeSeconds, formatNumber } from "@/lib/format";
+import { InfoTip } from "@/components/info-tip";
+import { formatDateTimeSeconds, formatDecimal, formatNumber } from "@/lib/format";
 import { DAILY_JOB_PARTS, type DailyJobCounts } from "@/lib/jobs/daily";
 import { getSettings } from "@/lib/settings";
 import { RunJobPanel } from "./run-job-panel";
@@ -36,7 +37,7 @@ export default async function JobsPage() {
     <>
       <PageHeader
         title="Tác vụ hằng ngày"
-        description="Bộ lập lịch gọi POST /api/jobs/daily mỗi ngày (cần CRON_SECRET). Ở máy dev chạy tay bằng: npm run job:daily."
+        description="Hệ thống tự chạy các việc này mỗi ngày một lần (gửi nhắc, chấm bài bỏ dở, xử lý chứng nhận hết hạn, dọn dữ liệu cũ). Bấm “Chạy ngay” nếu cần chạy lại sớm."
       />
       <RunJobPanel parts={parts} summary={summary} />
 
@@ -49,16 +50,26 @@ export default async function JobsPage() {
             <table className="w-full">
               <thead>
                 <tr className="border-y border-border">
-                  {["Thời gian", "Người chạy", ...DAILY_JOB_PARTS.map((p) => p.label), "Lỗi", "Thời gian chạy"].map((h, i) => (
+                  {/* Tiêu đề ngắn 1 dòng + ⓘ tên đầy đủ (ui-review #59) */}
+                  {[
+                    { key: "at", short: "Thời gian", label: "" },
+                    { key: "actor", short: "Người chạy", label: "" },
+                    ...DAILY_JOB_PARTS,
+                    { key: "errors", short: "Lỗi", label: "" },
+                    { key: "duration", short: "Thời gian chạy", label: "" },
+                  ].map((h, i) => (
                     <th
-                      key={h}
+                      key={h.key}
                       scope="col"
                       className={
-                        "h-14 px-4 text-left align-middle text-[13px] font-medium tracking-[0.2px] text-foreground uppercase first:pl-6 last:pr-6 " +
+                        "h-14 px-4 text-left align-middle text-[13px] font-medium tracking-[0.2px] whitespace-nowrap text-foreground uppercase first:pl-6 last:pr-6 " +
                         (i >= 2 && i < 2 + DAILY_JOB_PARTS.length ? "text-right" : "")
                       }
                     >
-                      {h}
+                      <span className="inline-flex items-center gap-1">
+                        {h.short}
+                        {h.label && <InfoTip text={h.label} label={`Giải thích cột ${h.short}`} />}
+                      </span>
                     </th>
                   ))}
                 </tr>
@@ -92,7 +103,7 @@ export default async function JobsPage() {
                         )}
                       </td>
                       <td className="pr-6 pl-4 whitespace-nowrap text-muted-foreground tabular-nums">
-                        {m.durationMs != null ? `${formatNumber(m.durationMs)} ms` : "—"}
+                        {m.durationMs != null ? `${formatDecimal(m.durationMs / 1000, 1)} giây` : "—"}
                       </td>
                     </tr>
                   );

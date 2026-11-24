@@ -91,7 +91,7 @@ test.describe("Huỷ phiên đang mở", () => {
 
     const admin = await pageAs(browser, "TEST-CA1");
     await admin.goto(`/org/users/${target.id}`);
-    await admin.getByRole("button", { name: "Khoá", exact: true }).click();
+    await admin.getByRole("button", { name: "Khoá tài khoản", exact: true }).click();
     await admin.getByRole("alertdialog").getByRole("button", { name: "Khoá", exact: true }).click();
     await expect.poll(async () => (await userByCode("TEST-LOCK")).status).toBe("INACTIVE");
 

@@ -20,7 +20,7 @@ import { cn } from "@/lib/utils";
 import { SortHeader } from "../../reports/sort-header";
 import { CompanyRateChart, CompletionTrendChart } from "./overview-charts";
 
-export const metadata: Metadata = { title: "Dashboard tập đoàn" };
+export const metadata: Metadata = { title: "Tổng quan tập đoàn" };
 
 const PATHNAME = "/system/overview";
 const SORT_KEYS = ["code", "memberCount", "completionRate", "overduePeopleRate", "ackRate", "activeRate"];
@@ -42,7 +42,7 @@ function rateTone(v: number | null) {
   return v >= 90 ? "bg-success/16 text-success" : v >= 70 ? "bg-warning/16 text-warning" : "bg-destructive/16 text-destructive";
 }
 
-/** Dashboard tập đoàn (Việc 28B — feature-spec 6.3) — chỉ Admin tập đoàn. Định nghĩa chỉ số: docs/reports.md. */
+/** Tổng quan tập đoàn (Việc 28B — feature-spec 6.3) — chỉ Admin tập đoàn. Định nghĩa chỉ số: docs/reports.md. */
 export default async function GroupOverviewPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
   const actor = await requireRole(["GROUP_ADMIN"]);
   const sp = await searchParams;
@@ -83,7 +83,7 @@ export default async function GroupOverviewPage({ searchParams }: { searchParams
     { key: "members", header: <SortHeader field="memberCount" metric="memberCount" />, className: "text-right", cell: (c) => <span className="tabular-nums">{formatNumber(c.memberCount)}</span> },
     {
       key: "rate",
-      header: <SortHeader field="completionRate" metric="completionRate" />,
+      header: <SortHeader field="completionRate" metric="completionRate" label="Hoàn thành" />,
       className: "text-right",
       cell: (c) => (
         <span className={cn("inline-flex min-w-16 justify-end rounded-sm px-2 py-0.5 font-medium tabular-nums", rateTone(c.completionRate))}>
@@ -93,7 +93,7 @@ export default async function GroupOverviewPage({ searchParams }: { searchParams
     },
     {
       key: "overdue",
-      header: <SortHeader field="overduePeopleRate" metric="overduePeopleRate" />,
+      header: <SortHeader field="overduePeopleRate" metric="overduePeopleRate" label="Quá hạn" />,
       className: "text-right",
       cell: (c) => (
         <span className={cn("tabular-nums", c.overduePeople > 0 && "text-destructive")}>
@@ -102,10 +102,10 @@ export default async function GroupOverviewPage({ searchParams }: { searchParams
         </span>
       ),
     },
-    { key: "ack", header: <SortHeader field="ackRate" metric="groupAckRate" />, className: "text-right", cell: (c) => <span className="tabular-nums">{pctText(c.ackRate)}</span> },
+    { key: "ack", header: <SortHeader field="ackRate" metric="groupAckRate" label="Nắm bản mới" />, className: "text-right", cell: (c) => <span className="tabular-nums">{pctText(c.ackRate)}</span> },
     {
       key: "active",
-      header: <SortHeader field="activeRate" metric="activeRate" />,
+      header: <SortHeader field="activeRate" metric="activeRate" label="Hoạt động 30 ngày" />,
       className: "text-right",
       cell: (c) => (
         <span className="tabular-nums">
@@ -118,7 +118,7 @@ export default async function GroupOverviewPage({ searchParams }: { searchParams
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Dashboard tập đoàn" description="Số liệu học tập toàn tập đoàn và so sánh giữa các công ty. Rê chuột vào ⓘ để xem định nghĩa." />
+      <PageHeader title="Tổng quan tập đoàn" description="Số liệu học tập toàn tập đoàn và so sánh giữa các công ty. Rê chuột vào ⓘ để xem định nghĩa." />
 
       <div className="grid grid-cols-4 gap-6">
         <Stat metric="memberCount" label="Nhân viên đang làm" value={formatNumber(totals.memberCount)} icon={<Users />} tone="primary" />
@@ -126,7 +126,7 @@ export default async function GroupOverviewPage({ searchParams }: { searchParams
         <Stat
           metric="completionRate"
           value={pctText(totals.completionRate)}
-          hint={`${formatNumber(totals.completed)}/${formatNumber(totals.assigned)} lượt được giao`}
+          hint={`${formatNumber(totals.completed)}/${formatNumber(totals.assigned)} lượt học`}
           icon={<Gauge />}
           tone="success"
         />
@@ -206,7 +206,7 @@ export default async function GroupOverviewPage({ searchParams }: { searchParams
       <div className="grid grid-cols-2 gap-6">
         <AttentionList
           title="Tỷ lệ quá hạn cao nhất"
-          hint="Khoá có ≥ 5 lượt được giao"
+          hint="Khoá có ≥ 5 lượt học"
           rows={attention.overdue}
           tone="text-destructive"
           detail={(c) => `${c.part}/${c.whole} lượt quá hạn`}

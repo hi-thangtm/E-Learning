@@ -447,7 +447,7 @@ export async function getLessonDetail(lessonId: string): Promise<LessonDetail | 
   if (!l.videoProvider || !l.videoId) unavailable = "Bài học chưa có video.";
   else if (l.videoStatus !== "READY") unavailable = "Video đang được xử lý, vui lòng quay lại sau.";
   else if (!l.durationSeconds) unavailable = "Video chưa có thời lượng — liên hệ người soạn khoá học.";
-  else if (l.videoProvider === "BUNNY" && !isBunnyConfigured()) unavailable = "Hệ thống chưa cấu hình Bunny Stream.";
+  else if (l.videoProvider === "BUNNY" && !(await isBunnyConfigured())) unavailable = "Hệ thống chưa cấu hình Bunny Stream.";
 
   return {
     type: "VIDEO",
@@ -457,7 +457,7 @@ export async function getLessonDetail(lessonId: string): Promise<LessonDetail | 
     videoId: l.videoId,
     durationSeconds: l.durationSeconds,
     minWatchPercent: l.minWatchPercent,
-    embedUrl: !unavailable && l.videoProvider === "BUNNY" && l.videoId ? bunnyEmbedUrl(l.videoId) : null,
+    embedUrl: !unavailable && l.videoProvider === "BUNNY" && l.videoId ? await bunnyEmbedUrl(l.videoId) : null,
     unavailable,
   };
 }
@@ -566,7 +566,7 @@ async function onPathCourseCompleted(tx: Prisma.TransactionClient, enrollmentId:
     await notify(tx, {
       userIds: [e.userId],
       type: "PATH_COMPLETED",
-      title: `Chúc mừng! Bạn đã hoàn thành lộ trình ${path.title}`.slice(0, 250),
+      title: `Chúc mừng! Bạn đã hoàn thành lộ trình “${path.title}”`.slice(0, 250),
       link: `/learning-paths/${path.id}`,
       dedupeKey: `path_done:${path.id}`,
     });
@@ -578,7 +578,7 @@ async function onPathCourseCompleted(tx: Prisma.TransactionClient, enrollmentId:
   await notify(tx, {
     userIds: [e.userId],
     type: "PATH_NEXT_UNLOCKED",
-    title: `Đã mở khoá học tiếp theo: ${firstOpen.title} (lộ trình ${path.title})`.slice(0, 250),
+    title: `Đã mở khoá học tiếp theo: “${firstOpen.title}” (lộ trình “${path.title}”)`.slice(0, 250),
     link: `/my-courses/${firstOpen.id}`,
     dedupeKey: `path_next:${path.id}:${firstOpen.id}`,
   });

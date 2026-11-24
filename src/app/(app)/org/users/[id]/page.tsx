@@ -4,6 +4,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { Award, BookOpen, ChevronLeft, History, TriangleAlert } from "lucide-react";
 import { CertificateActions } from "@/components/certificate-actions";
+import { EnrollmentTable } from "@/components/enrollment-table";
 import { RoleBadge } from "@/components/role-badge";
 import { StatusBadge } from "@/components/status-badge";
 import { AuditDetailSheet } from "@/components/audit/audit-detail-sheet";
@@ -14,6 +15,7 @@ import { requireRole } from "@/lib/current-user";
 import { prisma } from "@/lib/db";
 import { formatDate, formatDateTime } from "@/lib/format";
 import { getInitials } from "@/lib/initials";
+import { getMemberEnrollments } from "@/lib/member-detail";
 import { buildHref, getParam, type SearchParams } from "@/lib/table-params";
 import { getAncestorIds } from "@/lib/tree";
 import { buildUserFormOptions, loadOrgCatalog } from "../form-options";
@@ -21,8 +23,21 @@ import { UserActions } from "../user-actions";
 import { UserFormOptionsProvider } from "../user-form-options";
 import { RevokeCertificateDialog } from "./revoke-certificate-dialog";
 import { EmptyState } from "@/components/empty-state";
+import { pageTitle } from "@/lib/page-title";
+import { LarkBadge } from "@/components/lark-badge";
 
-export const metadata: Metadata = { title: "Chi tiết người dùng" };
+export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
+  const actor = await requireRole(["GROUP_ADMIN", "COMPANY_ADMIN"]);
+  const { id } = await params;
+  const user =
+    id && id.length <= 50
+      ? await prisma.user.findFirst({
+          where: { id, ...(actor.role !== "GROUP_ADMIN" && { companyId: actor.companyId }) },
+          select: { fullName: true },
+        })
+      : null;
+  return { title: pageTitle(user?.fullName, "Chi tiết người dùng") };
+}
 
 const LOG_LIMIT = 20;
 
@@ -54,6 +69,9 @@ export default async function UserDetailPage({
       lastLoginAt: true,
       lockedUntil: true,
       mustChangePassword: true,
+      larkUserId: true,
+      passwordSet: true,
+      inactiveSource: true,
       companyId: true,
       departmentId: true,
       positionId: true,
@@ -64,12 +82,15 @@ export default async function UserDetailPage({
   });
   if (!user) redirect("/org/users");
 
-  // Chứng nhận của người này (đã qua kiểm tra phạm vi ở trên)
-  const certificates = await prisma.certificate.findMany({
-    where: { userId: user.id },
-    orderBy: { issuedAt: "desc" },
-    select: { id: true, code: true, courseTitle: true, courseVersion: true, issuedAt: true, expiresAt: true, revokedAt: true },
-  });
+  // Lượt học + chứng nhận của người này (đã qua kiểm tra phạm vi ở trên)
+  const [enrollments, certificates] = await Promise.all([
+    getMemberEnrollments(user.id),
+    prisma.certificate.findMany({
+      where: { userId: user.id },
+      orderBy: { issuedAt: "desc" },
+      select: { id: true, code: true, courseTitle: true, courseVersion: true, issuedAt: true, expiresAt: true, revokedAt: true },
+    }),
+  ]);
 
   const sp = await searchParams;
   const pathname = `/org/users/${user.id}`;
@@ -132,7 +153,7 @@ export default async function UserDetailPage({
 
       <div className="grid grid-cols-12 gap-6">
         {/* --- Cột trái: hồ sơ --- */}
-        <section className="col-span-4 self-start rounded-md bg-card p-6 shadow-md">
+        <section className="col-span-4 min-w-0 self-start rounded-md bg-card p-6 shadow-md">
           <div className="flex flex-col items-center gap-4 pt-6 text-center">
             <span
               aria-hidden
@@ -147,7 +168,13 @@ export default async function UserDetailPage({
                 {user.status === "ACTIVE" ? (
                   <StatusBadge tone="success">Đang làm</StatusBadge>
                 ) : (
-                  <StatusBadge tone="secondary">Đã khoá</StatusBadge>
+                  <StatusBadge tone="secondary">{user.inactiveSource === "LARK" ? "Đã khoá (Lark)" : "Đã khoá"}</StatusBadge>
+                )}
+                {user.larkUserId && <LarkBadge />}
+                {!user.passwordSet && (
+                  <span title="Tạo từ Lark, chưa có mật khẩu — bấm “Đặt lại mật khẩu” để cấp mật khẩu đăng nhập">
+                    <StatusBadge tone="warning">Chưa có mật khẩu</StatusBadge>
+                  </span>
                 )}
               </div>
             </div>
@@ -169,7 +196,7 @@ export default async function UserDetailPage({
           <h2 className="mt-6 border-b border-border pb-3 text-[13px] tracking-[0.4px] text-foreground/45 uppercase">
             Chi tiết
           </h2>
-          <dl className="mt-4 grid gap-3 text-[15px]">
+          <dl className="mt-4 grid min-w-0 grid-cols-1 gap-3 text-[15px]">
             <DetailRow label="Mã nhân viên">{user.employeeCode}</DetailRow>
             <DetailRow label="Email">{user.email}</DetailRow>
             <DetailRow label="Điện thoại">{user.phone}</DetailRow>
@@ -224,6 +251,7 @@ export default async function UserDetailPage({
                   positionId: user.positionId ?? "",
                   hireDate: user.hireDate ? user.hireDate.toISOString().slice(0, 10) : "",
                   role: user.role,
+                  larkLinked: !!user.larkUserId,
                   managedDepartments: user.managedDepartments,
                 }}
               />
@@ -232,13 +260,9 @@ export default async function UserDetailPage({
         </section>
 
         {/* --- Cột phải --- */}
-        <div className="col-span-8 space-y-6">
+        <div className="col-span-8 min-w-0 space-y-6">
           <Panel title="Khoá học" icon={<BookOpen className="size-5" />}>
-            <EmptyBlock
-              icon={<BookOpen className="size-8" />}
-              title="Chưa có khoá học"
-              description="Khoá học được giao, tiến độ và hạn hoàn thành sẽ hiện ở đây khi có chức năng giao khoá."
-            />
+            <EnrollmentTable rows={enrollments} />
           </Panel>
 
           <Panel title="Chứng nhận" icon={<Award className="size-5" />}>
@@ -300,9 +324,9 @@ export default async function UserDetailPage({
 
 function DetailRow({ label, children }: { label: string; children: ReactNode }) {
   return (
-    <div className="flex gap-2">
+    <div className="flex min-w-0 gap-2">
       <dt className="w-40 shrink-0 font-medium text-foreground">{label}:</dt>
-      <dd className="min-w-0 break-words text-muted-foreground">{children || <span className="text-foreground/45">—</span>}</dd>
+      <dd className="min-w-0 [overflow-wrap:anywhere] text-muted-foreground">{children || <span className="text-foreground/45">—</span>}</dd>
     </div>
   );
 }

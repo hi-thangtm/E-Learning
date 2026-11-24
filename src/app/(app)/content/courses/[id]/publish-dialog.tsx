@@ -21,6 +21,7 @@ import { Textarea } from "@/components/ui/textarea";
 import type { PublishCheckResult } from "@/lib/course-publish";
 import { getPublishChecksAction, publishCourseAction } from "./actions";
 import { useInfoDirty } from "./info-dirty-store";
+import { formatNumber } from "@/lib/format";
 
 /**
  * Nút “Phát hành” + hộp “Kiểm tra trước khi phát hành” (phát hành lần đầu, v0 → v1).
@@ -121,7 +122,7 @@ export function PublishButton({
             {infoDirty && (
               <p role="status" className="flex items-start gap-2 rounded-md bg-warning/16 px-4 py-3 text-[15px] text-warning">
                 <TriangleAlert className="mt-0.5 size-4 shrink-0" />
-                Tab Thông tin đang có thay đổi chưa lưu. Lưu thông tin trước khi phát hành, nếu không các thay đổi đó sẽ không có trong bản phát hành.
+                Tab Thông tin đang có thay đổi chưa lưu. Bấm “Lưu thay đổi” ở tab đó trước khi phát hành, nếu không các thay đổi đó sẽ không có trong bản phát hành.
               </p>
             )}
 
@@ -179,9 +180,10 @@ export function PublishButton({
                     <div className="rounded-md bg-muted/60 px-4 py-3 text-[15px] text-foreground">
                       <p className="font-medium">Phiên bản 1 — phát hành lần đầu</p>
                       <p className="mt-1 text-[13px] text-muted-foreground">
-                        {checks.summary.sections} chương · {checks.summary.lessons} bài ({checks.summary.videos} video,{" "}
-                        {checks.summary.documents} tài liệu, {checks.summary.quizzes} kiểm tra) · ngân hàng {checks.summary.questions} câu
-                        hỏi đang dùng.
+                        {formatNumber(checks.summary.sections)} chương · {formatNumber(checks.summary.lessons)} bài (
+                        {formatNumber(checks.summary.videos)} video, {formatNumber(checks.summary.documents)} tài liệu,{" "}
+                        {formatNumber(checks.summary.quizzes)} bài kiểm tra) · ngân hàng {formatNumber(checks.summary.questions)} câu hỏi đang
+                        dùng.
                       </p>
                     </div>
                     <FormField

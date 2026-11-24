@@ -132,7 +132,7 @@ export function DepartmentTree({
         <div className="flex items-center gap-4">
           <DataTableSearch placeholder="Tìm theo tên, mã..." />
           <Button
-            variant="secondary"
+            variant="outline"
             disabled={searching || parentIds.size === 0}
             title={searching ? "Đang tìm kiếm: các nhánh luôn được mở" : undefined}
             onClick={() => setCollapsed(allCollapsed ? new Set() : new Set(parentIds))}
@@ -186,7 +186,8 @@ export function DepartmentTree({
                     className="border-b border-border transition-colors last:border-0 hover:bg-muted/50"
                   >
                     <td className="h-[50px] py-2 pr-4 pl-6 align-middle">
-                      <div className="flex items-center gap-1" style={{ paddingLeft: depth * 24 }}>
+                      {/* Tên dài: 1 dòng + title, dòng cao đều (ui-review #66) */}
+                      <div className="flex min-w-0 max-w-md items-center gap-1" style={{ paddingLeft: depth * 24 }}>
                         {hasChildren ? (
                           <button
                             type="button"
@@ -202,8 +203,9 @@ export function DepartmentTree({
                           <span className="size-6 shrink-0" aria-hidden />
                         )}
                         <span
+                          title={row.name}
                           className={cn(
-                            "text-[15px]",
+                            "min-w-0 truncate text-[15px]",
                             dimmed ? "text-muted-foreground" : "font-medium text-foreground",
                             !row.isActive && "line-through decoration-foreground/30",
                           )}
@@ -217,8 +219,10 @@ export function DepartmentTree({
                     </td>
                     <td className="h-[50px] px-4 align-middle">
                       {row.managerName ? (
-                        <div className="leading-tight">
-                          <p className="text-[15px] text-foreground">{row.managerName}</p>
+                        <div className="max-w-56 leading-tight">
+                          <p className="truncate text-[15px] text-foreground" title={row.managerName}>
+                            {row.managerName}
+                          </p>
                           <p className="text-[13px] text-muted-foreground">{row.managerCode}</p>
                         </div>
                       ) : (

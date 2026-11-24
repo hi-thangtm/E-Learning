@@ -1,0 +1,312 @@
+{
+  "login": {
+    "w": 1440,
+    "h": 900,
+    "mobile": false
+  },
+  "change-password": {
+    "w": 1440,
+    "h": 900,
+    "mobile": false
+  },
+  "layout-admin": {
+    "w": 1440,
+    "h": 900,
+    "mobile": false
+  },
+  "user-menu": {
+    "w": 1440,
+    "h": 900,
+    "mobile": false
+  },
+  "quick-search": {
+    "w": 1440,
+    "h": 900,
+    "mobile": false
+  },
+  "verify": {
+    "w": 1440,
+    "h": 900,
+    "mobile": false
+  },
+  "hv-dashboard": {
+    "w": 1440,
+    "h": 900,
+    "mobile": false
+  },
+  "hv-dashboard-m": {
+    "w": 780,
+    "h": 1688,
+    "mobile": true
+  },
+  "hv-my-courses": {
+    "w": 1440,
+    "h": 900,
+    "mobile": false
+  },
+  "hv-course-detail": {
+    "w": 1440,
+    "h": 900,
+    "mobile": false
+  },
+  "hv-video": {
+    "w": 1440,
+    "h": 900,
+    "mobile": false
+  },
+  "hv-video-m": {
+    "w": 780,
+    "h": 1688,
+    "mobile": true
+  },
+  "hv-document": {
+    "w": 1440,
+    "h": 900,
+    "mobile": false
+  },
+  "hv-quiz-intro": {
+    "w": 1440,
+    "h": 900,
+    "mobile": false
+  },
+  "hv-quiz-review": {
+    "w": 1440,
+    "h": 900,
+    "mobile": false
+  },
+  "hv-quiz-player": {
+    "w": 1440,
+    "h": 900,
+    "mobile": false
+  },
+  "hv-updates": {
+    "w": 1440,
+    "h": 900,
+    "mobile": false
+  },
+  "hv-path": {
+    "w": 1440,
+    "h": 900,
+    "mobile": false
+  },
+  "hv-library": {
+    "w": 1440,
+    "h": 900,
+    "mobile": false
+  },
+  "hv-library-detail": {
+    "w": 1440,
+    "h": 900,
+    "mobile": false
+  },
+  "hv-certificates": {
+    "w": 1440,
+    "h": 900,
+    "mobile": false
+  },
+  "hv-notifications": {
+    "w": 1440,
+    "h": 900,
+    "mobile": false
+  },
+  "ql-team": {
+    "w": 1440,
+    "h": 900,
+    "mobile": false
+  },
+  "ql-members": {
+    "w": 1440,
+    "h": 900,
+    "mobile": false
+  },
+  "ql-remind": {
+    "w": 1440,
+    "h": 900,
+    "mobile": false
+  },
+  "ql-member-detail": {
+    "w": 1440,
+    "h": 900,
+    "mobile": false
+  },
+  "ql-reports": {
+    "w": 1440,
+    "h": 900,
+    "mobile": false
+  },
+  "bs-categories": {
+    "w": 1440,
+    "h": 900,
+    "mobile": false
+  },
+  "bs-courses": {
+    "w": 1440,
+    "h": 900,
+    "mobile": false
+  },
+  "bs-create-course": {
+    "w": 1440,
+    "h": 900,
+    "mobile": false
+  },
+  "bs-course-info": {
+    "w": 1440,
+    "h": 900,
+    "mobile": false
+  },
+  "bs-course-content": {
+    "w": 1440,
+    "h": 900,
+    "mobile": false
+  },
+  "bs-add-lesson": {
+    "w": 1440,
+    "h": 900,
+    "mobile": false
+  },
+  "bs-lesson-video": {
+    "w": 1440,
+    "h": 900,
+    "mobile": false
+  },
+  "bs-preview": {
+    "w": 1440,
+    "h": 900,
+    "mobile": false
+  },
+  "bs-versions": {
+    "w": 1440,
+    "h": 900,
+    "mobile": false
+  },
+  "bs-publish-update": {
+    "w": 1440,
+    "h": 900,
+    "mobile": false
+  },
+  "bs-proposal": {
+    "w": 1440,
+    "h": 900,
+    "mobile": false
+  },
+  "bs-reviews": {
+    "w": 1440,
+    "h": 900,
+    "mobile": false
+  },
+  "bs-questions": {
+    "w": 1440,
+    "h": 900,
+    "mobile": false
+  },
+  "bs-question-form": {
+    "w": 1440,
+    "h": 900,
+    "mobile": false
+  },
+  "bs-question-import": {
+    "w": 1440,
+    "h": 900,
+    "mobile": false
+  },
+  "bs-paths": {
+    "w": 1440,
+    "h": 900,
+    "mobile": false
+  },
+  "bs-path-editor": {
+    "w": 1440,
+    "h": 900,
+    "mobile": false
+  },
+  "qt-users": {
+    "w": 1440,
+    "h": 900,
+    "mobile": false
+  },
+  "qt-user-form": {
+    "w": 1440,
+    "h": 900,
+    "mobile": false
+  },
+  "qt-user-detail": {
+    "w": 1440,
+    "h": 900,
+    "mobile": false
+  },
+  "qt-user-import": {
+    "w": 1440,
+    "h": 900,
+    "mobile": false
+  },
+  "qt-departments": {
+    "w": 1440,
+    "h": 900,
+    "mobile": false
+  },
+  "qt-positions": {
+    "w": 1440,
+    "h": 900,
+    "mobile": false
+  },
+  "qt-assign-list": {
+    "w": 1440,
+    "h": 900,
+    "mobile": false
+  },
+  "qt-assign-wizard": {
+    "w": 1440,
+    "h": 900,
+    "mobile": false
+  },
+  "qt-rules": {
+    "w": 1440,
+    "h": 900,
+    "mobile": false
+  },
+  "qt-rule-form": {
+    "w": 1440,
+    "h": 900,
+    "mobile": false
+  },
+  "qt-cert-template": {
+    "w": 1440,
+    "h": 900,
+    "mobile": false
+  },
+  "qt-audit": {
+    "w": 1440,
+    "h": 900,
+    "mobile": false
+  },
+  "td-overview": {
+    "w": 1440,
+    "h": 900,
+    "mobile": false
+  },
+  "td-companies": {
+    "w": 1440,
+    "h": 900,
+    "mobile": false
+  },
+  "td-settings": {
+    "w": 1440,
+    "h": 900,
+    "mobile": false
+  },
+  "td-bunny": {
+    "w": 1132,
+    "h": 846,
+    "mobile": false
+  },
+  "td-jobs": {
+    "w": 1440,
+    "h": 900,
+    "mobile": false
+  },
+  "td-lark": {
+    "w": 1440,
+    "h": 900,
+    "mobile": false
+  }
+}

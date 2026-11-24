@@ -1,11 +1,12 @@
 "use client";
 
-import { Input } from "@/components/ui/input";
+import { DatePicker } from "@/components/date-picker";
 import { useUpdateSearchParams } from "./use-update-search-params";
 
 /**
- * Lọc khoảng ngày: 2 ô “Từ ngày / Đến ngày” ghi tham số `from` / `to` (yyyy-MM-dd) lên URL.
+ * Lọc khoảng ngày: 2 ô “Từ … / Đến …” ghi tham số `from` / `to` (yyyy-MM-dd) lên URL.
  * Giá trị mặc định do server tính (VD: 30 ngày gần nhất) truyền vào để hiển thị.
+ * Ô chọn ngày riêng (dd/MM/yyyy, lịch tiếng Việt) + nhãn “Từ / Đến” nhìn thấy được (ui-review #70).
  */
 export function DateRangeFilter({
   from,
@@ -22,28 +23,8 @@ export function DateRangeFilter({
 
   return (
     <div className="grid grid-cols-2 gap-3">
-      <label className="grid gap-1">
-        <span className="sr-only">Từ ngày</span>
-        <Input
-          type="date"
-          aria-label="Từ ngày"
-          title="Từ ngày"
-          value={from}
-          max={to}
-          onChange={(e) => e.target.value && update({ [fromParam]: e.target.value })}
-        />
-      </label>
-      <label className="grid gap-1">
-        <span className="sr-only">Đến ngày</span>
-        <Input
-          type="date"
-          aria-label="Đến ngày"
-          title="Đến ngày"
-          value={to}
-          min={from}
-          onChange={(e) => e.target.value && update({ [toParam]: e.target.value })}
-        />
-      </label>
+      <DatePicker label="Từ" aria-label="Từ ngày" value={from} max={to} onChange={(v) => v && update({ [fromParam]: v })} />
+      <DatePicker label="Đến" aria-label="Đến ngày" value={to} min={from} onChange={(v) => v && update({ [toParam]: v })} />
     </div>
   );
 }

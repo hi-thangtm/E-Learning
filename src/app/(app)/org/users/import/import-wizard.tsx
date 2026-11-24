@@ -32,6 +32,7 @@ import { cn } from "@/lib/utils";
 import { confirmImportAction, errorReportAction, validateImportAction } from "./actions";
 import { ImportPreviewTable } from "./import-preview-table";
 import { IMPORT_MAX_FILE_BYTES, type ImportPreviewRow, type ImportSummary } from "./types";
+import { FilePicker } from "@/components/file-picker";
 
 type Preview = { companyCode: string; summary: ImportSummary; rows: ImportPreviewRow[] };
 type Done = { created: number; updated: number; warning?: string; passwordFile: string | null; passwordFileName: string };
@@ -184,7 +185,7 @@ export function ImportWizard({
           <Link href="/org/users" className={buttonVariants({ variant: "outline" })}>
             Về danh sách người dùng
           </Link>
-          <Button variant="secondary" onClick={() => reset(true)}>
+          <Button variant="outline" onClick={() => reset(true)}>
             <RotateCcw />
             Import file khác
           </Button>
@@ -250,17 +251,18 @@ export function ImportWizard({
             hint="Tối đa 5MB, 2.000 dòng."
             span="full"
           >
-            <div className="flex items-center gap-4">
-              <Input
-                ref={fileInputRef}
-                id="import-file"
-                type="file"
-                accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-                disabled={busy}
-                onChange={(e) => pickFile(e.target.files?.[0] ?? null)}
-                className="h-auto max-w-md py-1.5 file:mr-3 file:h-7 file:rounded-md file:bg-muted file:px-3"
-                aria-invalid={!!fileError}
-              />
+            <div className="flex flex-wrap items-center gap-4">
+              <div className="min-w-0 max-w-md flex-1">
+                <FilePicker
+                  ref={fileInputRef}
+                  id="import-file"
+                  accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                  file={file}
+                  disabled={busy}
+                  onChange={pickFile}
+                  invalid={!!fileError}
+                />
+              </div>
               <Button onClick={check} disabled={!file || !!fileError || busy}>
                 <Upload />
                 {checking ? "Đang kiểm tra..." : "Kiểm tra file"}
@@ -333,7 +335,7 @@ export function ImportWizard({
           <AlertDialogFooter>
             <AlertDialogCancel disabled={importing}>Huỷ</AlertDialogCancel>
             <Button onClick={confirmImport} disabled={importing}>
-              {importing ? "Đang import..." : "Import"}
+              {importing ? "Đang import..." : `Import ${formatNumber((summary?.create ?? 0) + (summary?.update ?? 0))} người`}
             </Button>
           </AlertDialogFooter>
         </AlertDialogContent>

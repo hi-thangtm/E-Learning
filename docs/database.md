@@ -45,8 +45,8 @@ PostgreSQL 17 · Prisma 6 · tên bảng `snake_case` (`@@map`), cột `camelCas
   Mở thẳng `/assign/rules/<id>` ngoài phạm vi → trang “Không tìm thấy”.
 - Mọi kiểm tra quyền làm ở server (không tin dữ liệu từ trình duyệt).
 
-### Đội của tôi (`/team`, `/team/members` — `src/lib/scope.ts`, `src/lib/team-stats.ts`)
-- **Phạm vi đội** = `getTeamScope(user)` — dùng ở MỌI truy vấn Đội của tôi / Báo cáo:
+### Theo dõi học tập — trước gọi “Đội của tôi” (`/team`, `/team/members` — `src/lib/scope.ts`, `src/lib/team-stats.ts`)
+- **Phạm vi đội** = `getTeamScope(user)` — dùng ở MỌI truy vấn Tình hình học tập / Tiến độ từng người / Báo cáo:
   `MANAGER` = nhân viên các phòng mình làm trưởng + mọi phòng con (duyệt cây phòng ban, kể cả phòng đã ẩn; không làm trưởng phòng nào → rỗng);
   `COMPANY_ADMIN` = cả công ty mình; `GROUP_ADMIN` = toàn tập đoàn hoặc 1 công ty. Luôn chỉ người `ACTIVE` của công ty đang hoạt động.
   Xem chi tiết 1 người: `assertUserInTeam`. Trưởng phòng tải được PDF chứng nhận của người trong đội.
@@ -191,13 +191,13 @@ Lõi dùng chung: `assignCourse` / `previewAssignment` / `onUserOrgChanged` tron
     không dùng cho quy trình nội bộ cần bảo mật. Phát qua `www.youtube-nocookie.com`. Thời lượng đo bằng trình phát lúc gắn; `videoStatus = READY` ngay.
   - `BUNNY`: trình duyệt tải **thẳng** lên Bunny Stream bằng TUS (server chỉ tạo video + ký chữ ký 1 giờ, API key không rời server).
     Tải xong → `PROCESSING` → `READY` (lưu `durationSeconds`) hoặc `FAILED`. Phát bằng iframe kèm **token hết hạn sau 6 giờ**,
-    tạo ở server mỗi lần mở bài. Cần đủ `BUNNY_STREAM_LIBRARY_ID`, `BUNNY_STREAM_API_KEY`, `BUNNY_STREAM_TOKEN_KEY` (vận hành: `docs/bunny-setup.md`).
+    tạo ở server mỗi lần mở bài. Cần đủ Library ID, API key, Token key — nhập ở Hệ thống › Cài đặt (system_settings `BUNNY_CREDENTIALS`, khoá mã hoá AES-256-GCM, ưu tiên) hoặc `.env` `BUNNY_STREAM_LIBRARY_ID` / `BUNNY_STREAM_API_KEY` / `BUNNY_STREAM_TOKEN_KEY` (vận hành: `docs/bunny-setup.md`).
   - **Video đang tải lên** (Việc 31B, security-review #8): `lessons.pendingVideoId` + `pendingVideoCreatedAt` — video đã tạo trên Bunny nhưng
     CHƯA gắn vào bài. Vé tải lên (HMAC `lessonId:videoId:expire`) chỉ được nhận khi `videoId = pendingVideoId`; hoàn tất / huỷ là cập nhật
     **có điều kiện** `WHERE pendingVideoId = videoId` → mỗi vé dùng đúng 1 lần. Tải lại → xoá video chờ cũ trên Bunny. Tạo video: tối đa
     20 lần / giờ / người. Chờ quá **24 giờ** → tác vụ hằng ngày xoá trên Bunny + bỏ khỏi bài. Index `lessons.videoId` cho webhook.
   - **Cập nhật trạng thái** (`src/lib/bunny-sync.ts`, luôn hỏi lại Bunny bằng API key — không tin dữ liệu gửi tới): dialog bài học hỏi mỗi 10 giây;
-    webhook `POST /api/bunny/webhook` (chỉ đọc `VideoGuid`; kiểm chữ ký nếu có `BUNNY_STREAM_READONLY_KEY`); tác vụ hằng ngày hỏi lại mọi bài
+    webhook `POST /api/bunny/webhook` (chỉ đọc `VideoGuid`; kiểm chữ ký nếu có Read-Only key (giao diện hoặc `BUNNY_STREAM_READONLY_KEY`)); tác vụ hằng ngày hỏi lại mọi bài
     `PROCESSING`; mở trang soạn khoá / trang học hỏi lại bài `PROCESSING` (tối đa 1 lần / phút / bài). Đổi trạng thái → audit `LESSON_VIDEO_SET`.
   - Phát hành lần đầu **và** bản cập nhật MINOR / MAJOR / duyệt MAJOR bị chặn khi còn bài video đang dùng chưa `READY` (nêu rõ chương › bài).
   - Thay video / đổi nguồn / gỡ video / **xoá hẳn** bài: xoá video cũ (và video đang chờ) trên Bunny (lỗi chỉ ghi log, không chặn). **Ẩn** bài: giữ video.
@@ -271,7 +271,30 @@ Lõi dùng chung: `assignCourse` / `previewAssignment` / `onUserOrgChanged` tron
   (`getCurrentUser` trả `null`). Dữ liệu giữ nguyên; kích hoạt lại thì đăng nhập bình thường.
 - Công ty chỉ có 2 cấp: công ty con luôn có `parentId` = công ty tổng. Công ty tổng không được tạm ngưng, không sửa mã (chỉ sửa tên).
 - Admin tập đoàn tạo tài khoản `COMPANY_ADMIN` cho công ty con (mã NV in hoa, duy nhất toàn tập đoàn, mật khẩu tạm, `mustChangePassword = true`).
-- Các cột `lark*` để trống ở phase 1 (dành cho đồng bộ Lark giai đoạn 2).
+- **Đồng bộ Lark** (Việc L1 — `src/lib/lark/*`, trang Hệ thống › Kết nối Lark, hướng dẫn cấu hình `docs/lark-setup.md`):
+  - Cả tập đoàn dùng CHUNG 1 tổ chức Lark. Lark là **nguồn chính** cho: họ tên, email (email doanh nghiệp ưu tiên), điện thoại (+84… lưu thành 0…),
+    phòng ban, công ty, ngày vào làm, nghỉ việc, trưởng phòng. **Không** đồng bộ vai trò và chức danh (vẫn sửa ở E-Learning).
+  - `companies.larkDepartmentId` = phòng ban GỐC trên Lark ứng với công ty. Công ty của 1 phòng / 1 người = công ty có `larkDepartmentId` là tổ tiên gần
+    nhất trên cây Lark. Không ghép 2 công ty vào cùng 1 phòng hoặc 2 phòng lồng nhau. Phòng gốc = cấp công ty (người ở đó không thuộc phòng ban nào).
+  - `departments.larkDepartmentId` = open_department_id. Phòng mới: mã `LK-` + hash ổn định, không trùng trong công ty. Lần đầu: phòng có sẵn chưa gắn
+    Lark, trùng tên (không phân biệt hoa thường), cùng công ty, cùng phòng cha → GHÉP (giữ mã, quy tắc giao theo phòng vẫn đúng). Phòng không còn trên Lark
+    → `isActive = false` nếu không còn người / phòng con đang dùng (không thì chỉ cảnh báo).
+  - `users.larkUserId` = Lark user_id. Khớp người theo `larkUserId`, không có thì theo employee_no in hoa = `employeeCode` (rồi gán `larkUserId`).
+    Bỏ qua + báo cáo: thiếu employee_no, 2 người Lark trùng mã, mã trùng tài khoản đã gắn người Lark khác, ngoài mọi nhánh đã ghép.
+    Tài khoản không có `larkUserId` và không khớp ai (VD ADMIN) → giữ nguyên (“Chỉ có ở E-Learning”).
+  - Người mới từ Lark: LEARNER, `passwordSet = false` (hash ngẫu nhiên — đăng nhập bằng mật khẩu luôn báo sai), `mustChangePassword = false`.
+    Admin **đặt lại mật khẩu** → `passwordSet = true` (tự đổi mật khẩu cũng vậy).
+  - `users.inactiveSource`: ai khoá tài khoản — `"LARK"` (nghỉ việc / đóng băng / không còn trên Lark) hoặc `"ADMIN"` (quản trị bấm Khoá). Lark báo đang làm
+    lại → chỉ tự mở khi `"LARK"`; khoá do `"ADMIN"` (hoặc trống — khoá trước khi có Lark) không tự mở, ghi vào báo cáo. Admin mở khoá → `inactiveSource = null`.
+  - Đổi công ty theo Lark = chuyển công ty như Việc 6 (gỡ trưởng phòng ở công ty cũ, `sessionsValidAfter`); Admin tập đoàn không tự chuyển công ty.
+    Trưởng phòng: `leader_user_id` → `managerId` (cùng công ty, đang làm; LEARNER → MANAGER); Lark bỏ trưởng phòng → gỡ `managerId`, không hạ vai trò.
+  - Người liên kết Lark: dialog sửa chỉ đổi vai trò + chức danh; không chuyển công ty bằng tay; import Excel báo lỗi dòng của người này.
+  - Người mới / đổi phòng / đổi công ty / mở lại → `onUserOrgChanged` (quy tắc giao tự động).
+  - **Chốt chặn**: kế hoạch khoá > 5% người đang hoạt động hoặc > 20 người → tác vụ hằng ngày / script KHÔNG áp dụng (ghi lỗi); chạy tay phải tick
+    “Tôi đã kiểm tra, vẫn áp dụng”. Áp dụng luôn cần chạy thử trước (server tính lại kế hoạch, so dấu vân tay).
+  - Áp dụng trong 1 transaction + `pg_try_advisory_xact_lock(20260101)`; 1 dòng audit `LARK_SYNC_RUN` (người chạy hoặc Hệ thống, trigger, số lượng từng loại,
+    tối đa 500 thay đổi, cảnh báo, lỗi). Ghép công ty ↔ phòng Lark: audit `LARK_MAPPING_UPDATED`.
+  - Tác vụ hằng ngày chạy “Đồng bộ Lark” ĐẦU TIÊN, chỉ khi đã cấu hình và đã có ít nhất 1 lần áp dụng thủ công. Chạy tay: `npm run job:lark-sync`.
 - **Import Excel** (`/org/users/import`): mỗi file = 1 công ty. Mã NV chưa có → tạo mới; đã có trong **cùng công ty** → chỉ cập nhật
   họ tên, email, điện thoại, phòng ban, chức danh, ngày vào làm (ô trống = giữ nguyên; không đổi vai trò, trạng thái, mật khẩu);
   đã có ở công ty khác → lỗi. Chỉ lưu khi cả file không còn dòng lỗi; lúc xác nhận kiểm tra lại toàn bộ ở server; ghi theo lô 100 dòng / transaction.

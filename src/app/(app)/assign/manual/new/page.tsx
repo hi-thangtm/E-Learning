@@ -84,7 +84,7 @@ export default async function AssignNewPage({ searchParams }: { searchParams: Pr
       <div className="mb-6 space-y-2">
         <Link href="/assign/manual" className="inline-flex items-center gap-1 text-[15px] text-muted-foreground hover:text-primary">
           <ChevronLeft className="size-4" />
-          Danh sách giao khoá
+          Giao khoá học
         </Link>
         <h1 className="text-2xl font-medium text-foreground">Giao khoá học / lộ trình</h1>
         <p className="text-[15px] text-muted-foreground">

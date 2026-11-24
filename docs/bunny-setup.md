@@ -24,12 +24,12 @@ Nếu chưa cài Bunny, Biên soạn vẫn dùng được video YouTube (chế �
 
 Mở thư viện vừa tạo. Chép 4 giá trị sau vào một chỗ an toàn, **không gửi qua chat / email thường**:
 
-| Giá trị | Ở đâu trong Bunny | Biến trong file `.env` |
+| Giá trị | Ở đâu trong Bunny | Ô trên giao diện (biến `.env` dự phòng) |
 |---|---|---|
-| **Library ID** (một dãy số) | thư viện › **API** › *Access Credentials* › “Video library ID” | `BUNNY_STREAM_LIBRARY_ID` |
-| **API Key** | thư viện › **API** › *Access Credentials* › “Api Key” | `BUNNY_STREAM_API_KEY` |
-| **Read-Only API Key** (tuỳ chọn, nên có) | thư viện › **API**, ngay cạnh API Key | `BUNNY_STREAM_READONLY_KEY` |
-| **Token authentication key** | thư viện › **Security** › thẻ “Token authentication key” | `BUNNY_STREAM_TOKEN_KEY` |
+| **Library ID** (một dãy số) | thư viện › **API** › *Access Credentials* › “Video library ID” | Library ID (`BUNNY_STREAM_LIBRARY_ID`) |
+| **API Key** | thư viện › **API** › *Access Credentials* › “Api Key” | API key (`BUNNY_STREAM_API_KEY`) |
+| **Read-Only API Key** (tuỳ chọn, nên có) | thư viện › **API**, ngay cạnh API Key | Read-Only key (`BUNNY_STREAM_READONLY_KEY`) |
+| **Token authentication key** | thư viện › **Security** › thẻ “Token authentication key” | Token key (`BUNNY_STREAM_TOKEN_KEY`) |
 
 Lưu ý:
 - Dùng **API Key của thư viện**. Không dùng API Key của cả tài khoản (Account settings), vì Bunny sẽ báo “sai API key”.
@@ -58,7 +58,18 @@ Trong thư viện:
    Webhook giúp bài video tự chuyển sang “sẵn sàng” ngay khi Bunny xử lý xong. Nếu thiếu webhook, hệ thống vẫn tự cập nhật
    khi người soạn mở lại trang hoặc khi tác vụ hằng ngày chạy, chỉ chậm hơn.
 
-## 4. Điền vào máy chủ
+## 4. Nhập khoá vào hệ thống
+
+**Cách chính — trên giao diện:** đăng nhập **Admin tập đoàn** → **Hệ thống › Cài đặt** → thẻ **Video Bunny Stream** → nhập
+**Library ID**, **API key**, **Token key (xem video)**, **Read-Only key** (tuỳ chọn) → **Lưu cấu hình**. Không cần khởi động lại.
+- 3 khoá được mã hoá AES-256-GCM (khoá dẫn xuất từ `AUTH_SECRET`) trước khi lưu vào `system_settings` (`BUNNY_CREDENTIALS`);
+  không bao giờ hiện lại trên giao diện (chỉ “••••” + 4 ký tự cuối). Ô khoá để trống khi lưu = giữ khoá cũ.
+- Tick **Gỡ Read-Only key** để tắt kiểm chữ ký webhook.
+- Cấu hình trên giao diện được ưu tiên hơn file `.env`. **Xoá cấu hình** → quay về `.env` (nếu có).
+- Đổi `AUTH_SECRET` của máy chủ → khoá đã lưu không giải mã được: thẻ báo, nhập lại các khoá.
+- Mỗi lần lưu / xoá được ghi Nhật ký (“Cấu hình Bunny Stream”) — chỉ ghi Library ID và khoá nào được đổi, không ghi khoá.
+
+**Cách dự phòng — file `.env`** (dùng khi chưa nhập trên giao diện):
 
 1. Mở file `.env` trên máy chủ, cùng thư mục với `docker-compose.yml`, rồi điền:
    ```
@@ -78,7 +89,7 @@ Trong thư viện:
 | Kết quả | Ý nghĩa / cách xử lý |
 |---|---|
 | **Đã kết nối · N video** | Xong. |
-| **Chưa cấu hình** | Thiếu 1 trong 3 biến bắt buộc, hoặc Library ID không phải số. Kiểm tra `.env` rồi khởi động lại. |
+| **Chưa cấu hình** | Chưa nhập đủ Library ID / API key / Token key (trên giao diện hoặc `.env`), hoặc khoá đã lưu không đọc được (đổi `AUTH_SECRET`) — nhập lại. |
 | **Lỗi: sai API key** | Chép lại API Key **của thư viện** (mục 2). |
 | **Lỗi: sai Library ID** | Chép lại Library ID của đúng thư viện. |
 | **Lỗi: không gọi được Bunny** | Máy chủ không ra được Internet, tường lửa chặn `video.bunnycdn.com`, hoặc Bunny đang sự cố. Thử lại sau. |
@@ -126,7 +137,7 @@ Nên đặt **cảnh báo số dư** (Billing › Notifications) để không b�
 
 | Hiện tượng | Nguyên nhân hay gặp |
 |---|---|
-| Lựa chọn “Bunny Stream” bị khoá, ghi “Chưa cấu hình” | Thiếu biến trong `.env` hoặc chưa khởi động lại sau khi sửa. |
+| Lựa chọn “Bunny Stream” bị khoá, ghi “Chưa cấu hình” | Chưa nhập đủ khoá ở Hệ thống › Cài đặt › Video Bunny Stream (hoặc `.env` thiếu biến / chưa khởi động lại). |
 | Bài kẹt “đang xử lý” lâu | Video dài cần nhiều thời gian. Nếu Bunny đã xử lý xong mà bài vẫn kẹt: webhook chưa dán hoặc sai địa chỉ. Mở lại trang soạn khoá để hệ thống tự hỏi lại Bunny, hoặc chờ tác vụ hằng ngày. |
 | Học viên thấy khung đen / “Không tải được trình phát Bunny” | Token key sai, chưa thêm tên miền vào *Allowed domains*, hoặc học viên mở bài quá 6 giờ không tải lại trang. |
 | “Bạn đã tạo quá 20 lượt tải video trong 1 giờ” | Giới hạn chống tạo video rác. Chờ 1 giờ hoặc dùng tài khoản Biên soạn khác. |

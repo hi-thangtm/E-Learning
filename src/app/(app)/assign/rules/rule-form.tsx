@@ -35,6 +35,8 @@ export function RuleForm({
   initial?: { kind: RuleKind; id: string } | null;
 }) {
   const router = useRouter();
+  // Quy tắc đã tạo nhưng đang tắt: lưu không giao (saveRuleAction bỏ qua runRule) — chữ + xem trước phải nói đúng (F2)
+  const inactive = !!rule && !rule.isActive;
   const [state, formAction, pending] = useActionState(saveRuleAction, initialActionState);
   const err = state.errors ?? {};
 
@@ -233,17 +235,24 @@ export function RuleForm({
           </FormField>
         </div>
 
-        <p className="flex items-start gap-2 rounded-md bg-info/16 px-4 py-2.5 text-[13px] text-info">
-          <Info className="mt-0.5 size-4 shrink-0" />
-          {kind === "path" ? "Lộ trình được giao = mọi khoá của lộ trình, cùng một hạn. " : ""}Lưu quy tắc sẽ giao ngay cho mọi người đang khớp, và tự giao cho người vào nhóm sau này. Thu hẹp nhóm không thu hồi lượt đã giao, chỉ áp dụng thêm cho người mới khớp.
-        </p>
+        {inactive ? (
+          <p className="flex items-start gap-2 rounded-md bg-warning/16 px-4 py-2.5 text-[13px] text-warning">
+            <TriangleAlert className="mt-0.5 size-4 shrink-0" />
+            Quy tắc đang tắt — lưu chỉ cập nhật điều kiện, KHÔNG giao cho ai. Bấm “Bật lại quy tắc” ở đầu trang để giao.
+          </p>
+        ) : (
+          <p className="flex items-start gap-2 rounded-md bg-info/16 px-4 py-2.5 text-[13px] text-info">
+            <Info className="mt-0.5 size-4 shrink-0" />
+            {kind === "path" ? "Lộ trình được giao = mọi khoá của lộ trình, cùng một hạn. " : ""}Lưu quy tắc sẽ giao ngay cho mọi người đang khớp, và tự giao cho người vào nhóm sau này. Thu hẹp nhóm không thu hồi lượt đã giao, chỉ áp dụng thêm cho người mới khớp.
+          </p>
+        )}
 
         <div className="flex justify-end gap-4 border-t border-border pt-4">
           <Link href="/assign/rules" className={buttonVariants({ variant: "outline" })}>
             Huỷ
           </Link>
           <Button type="submit" disabled={pending || !courseId}>
-            {pending ? "Đang lưu..." : rule ? "Lưu quy tắc" : "Tạo và giao ngay"}
+            {pending ? "Đang lưu..." : rule ? "Lưu thay đổi" : "Tạo và giao ngay"}
           </Button>
         </div>
       </section>
@@ -270,7 +279,8 @@ export function RuleForm({
               </p>
             )}
             <p className="text-[15px] text-foreground">
-              Hiện có <strong className="font-medium">{formatNumber(preview.matched)}</strong> người khớp:{" "}
+              {inactive ? "Nếu bật lại: " : "Hiện có "}
+              <strong className="font-medium">{formatNumber(preview.matched)}</strong> người khớp:{" "}
               <span className="text-success">{formatNumber(preview.newCount)} giao mới</span>,{" "}
               <span>
                 {formatNumber(preview.existingCount)} đã có{preview.kind === "path" ? " lộ trình" : ""}

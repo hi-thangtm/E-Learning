@@ -79,7 +79,10 @@ export function ConfirmDialog({
       {trigger && <AlertDialogTrigger render={trigger} />}
       <AlertDialogContent>
         <AlertDialogHeader>
-          <AlertDialogTitle>{title}</AlertDialogTitle>
+          {/* Tên dài (200 ký tự) → tối đa 2 dòng, đủ nội dung ở title (ui-review #44) */}
+          <AlertDialogTitle className="line-clamp-2 break-words" title={typeof title === "string" ? title : undefined}>
+            {title}
+          </AlertDialogTitle>
           {description && <AlertDialogDescription>{description}</AlertDialogDescription>}
         </AlertDialogHeader>
         <AlertDialogFooter>

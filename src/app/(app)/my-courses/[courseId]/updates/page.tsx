@@ -30,6 +30,8 @@ export default async function CourseUpdatesPage({ params }: { params: Promise<{ 
     },
   });
   if (!enrollment) redirect("/my-courses");
+  // Chưa học xong bản nào → chưa có gì để “xác nhận thay đổi” (ui-review F5) → về trang khoá
+  if (knownVersion(enrollment) === 0) redirect(`/my-courses/${courseId}`);
 
   const [pending] = await getPendingAcknowledgements(user.id, courseId);
   const course = enrollment.course;
@@ -41,18 +43,21 @@ export default async function CourseUpdatesPage({ params }: { params: Promise<{ 
         Về trang khoá học
       </Link>
 
-      <section className="rounded-md bg-card p-6 shadow-md">
+      <section className="rounded-md bg-card p-4 shadow-md sm:p-6">
         <div className="flex items-start gap-3">
-          <span className="flex size-12 shrink-0 items-center justify-center rounded-md bg-info/16 text-info">
+          <span className="hidden size-12 shrink-0 items-center justify-center rounded-md bg-info/16 text-info sm:flex">
             <FileDiff className="size-6" />
           </span>
           <div className="min-w-0">
             <p className="text-[13px] text-muted-foreground">Có gì thay đổi</p>
-            <h1 className="text-2xl font-medium text-foreground">{course.title}</h1>
-            <p className="mt-1 text-[15px] text-muted-foreground">
-              Bạn đang nắm phiên bản <strong className="font-medium text-foreground">v{knownVersion(enrollment)}</strong> → phiên bản hiện tại{" "}
-              <strong className="font-medium text-foreground">v{course.currentVersion}</strong>
-            </p>
+            <h1 className="text-xl font-medium break-words text-foreground sm:text-2xl">{course.title}</h1>
+            {/* Chỉ hiện “v… → v…” khi còn bản chờ xác nhận (ui-review #10) */}
+            {pending && (
+              <p className="mt-1 text-[15px] text-muted-foreground">
+                Bạn đang nắm phiên bản <strong className="font-medium text-foreground">v{knownVersion(enrollment)}</strong> → phiên bản hiện tại{" "}
+                <strong className="font-medium text-foreground">v{course.currentVersion}</strong>
+              </p>
+            )}
             {pending?.dueDate && (
               <p className={cn("mt-2 flex items-center gap-2 text-[15px]", pending.overdue ? "text-destructive" : "text-warning")}>
                 <CalendarClock className="size-4" />
@@ -73,7 +78,7 @@ export default async function CourseUpdatesPage({ params }: { params: Promise<{ 
           <p className="text-[15px] text-muted-foreground">
             {enrollment.acknowledgedAt ? `Xác nhận lần gần nhất ngày ${formatDate(enrollment.acknowledgedAt)}.` : "Không có cập nhật nào cần xác nhận."}
           </p>
-          <Link href={`/my-courses/${course.id}`} className={buttonVariants({ variant: "secondary" })}>
+          <Link href={`/my-courses/${course.id}`} className={buttonVariants({ variant: "outline" })}>
             Về trang khoá học
           </Link>
         </section>

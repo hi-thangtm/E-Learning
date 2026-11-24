@@ -1,8 +1,9 @@
 import { CircleAlert, CircleCheck, CircleDashed, CircleHelp } from "lucide-react";
-import { lastBunnyConnection, maskedBunnyConfig, type BunnyConnectionResult } from "@/lib/bunny";
+import { getBunnySettingsView, lastBunnyConnection, type BunnyConnectionResult } from "@/lib/bunny";
 import { formatDateTime, formatNumber } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { BunnyCopyWebhook, BunnyTestButton } from "./bunny-controls";
+import { BunnyCredentialsForm } from "./bunny-credentials-form";
 
 /** Nhãn + màu của kết quả kiểm tra kết nối */
 export function bunnyStatusView(result: BunnyConnectionResult | null): { label: string; tone: "success" | "destructive" | "muted" | "warning" } {
@@ -31,7 +32,7 @@ const TONE = {
 const ICON = { success: CircleCheck, destructive: CircleAlert, warning: CircleHelp, muted: CircleDashed } as const;
 
 const CHECKLIST = [
-  "Security › bật Token Authentication cho trình phát nhúng (embed view) — chép “Token authentication key” vào BUNNY_STREAM_TOKEN_KEY.",
+  "Security › bật Token Authentication cho trình phát nhúng (embed view) — chép “Token authentication key” vào ô Token key ở trên.",
   "Security › Allowed domains: chỉ tên miền của hệ thống (không có https://).",
   "Security › bật Block Direct URL File Access (chặn mở thẳng file video / ảnh).",
   "Encoding › TẮT Enable MP4 Fallback và Enable Early-Play (không cho tải / lộ file gốc).",
@@ -39,23 +40,16 @@ const CHECKLIST = [
 ];
 
 /**
- * Thẻ "Video Bunny Stream" trên /system/settings (trang đã requireRole GROUP_ADMIN). Cấu hình đọc từ .env — trang này chỉ HIỂN THỊ:
- * khoá chỉ còn "••••" + 4 ký tự cuối, không bao giờ đưa khoá thật vào HTML.
+ * Thẻ "Video Bunny Stream" trên /system/settings (trang đã requireRole GROUP_ADMIN): nhập khoá trên giao diện (ưu tiên hơn .env),
+ * kiểm tra kết nối, địa chỉ webhook. Khoá chỉ hiện "••••" + 4 ký tự cuối, không bao giờ đưa khoá thật vào HTML.
  */
-export function BunnyCard() {
-  const config = maskedBunnyConfig();
+export async function BunnyCard() {
+  const config = await getBunnySettingsView();
   const last = lastBunnyConnection();
   const view = config.configured ? bunnyStatusView(last?.result ?? null) : bunnyStatusView({ status: "not_configured" });
   const Icon = ICON[view.tone];
   const appUrl = (process.env.APP_URL || process.env.AUTH_URL || "").replace(/\/+$/, "");
   const webhookUrl = appUrl ? `${appUrl}/api/bunny/webhook` : "/api/bunny/webhook";
-
-  const rows: [string, string][] = [
-    ["Library ID", config.libraryId ?? "—"],
-    ["API key", config.apiKey ?? "Chưa điền"],
-    ["Token key (xem video)", config.tokenKey ?? "Chưa điền"],
-    ["Chữ ký webhook (Read-Only key)", config.readonlyKey ? `Bật · ${config.readonlyKey}` : "Tắt (tuỳ chọn)"],
-  ];
 
   return (
     <section className="rounded-md bg-card shadow-md" aria-labelledby="bunny-title">
@@ -65,7 +59,7 @@ export function BunnyCard() {
             Video Bunny Stream
           </h2>
           <p className="text-[13px] text-muted-foreground">
-            Khoá đọc từ file .env của máy chủ (BUNNY_STREAM_LIBRARY_ID / API_KEY / TOKEN_KEY). Đổi khoá: sửa .env rồi khởi động lại. Hướng dẫn: docs/bunny-setup.md.
+            Nhập khoá thư viện video Bunny ở đây — khoá được mã hoá trước khi lưu, không hiện lại sau khi lưu. Cấu hình ở đây được ưu tiên hơn file .env. Hướng dẫn: docs/bunny-setup.md.
           </p>
         </div>
         {config.configured && <BunnyTestButton />}
@@ -83,14 +77,7 @@ export function BunnyCard() {
           )}
         </div>
 
-        <dl className="grid grid-cols-1 gap-x-8 gap-y-3 text-[15px] md:grid-cols-2">
-          {rows.map(([label, value]) => (
-            <div key={label} className="flex min-w-0 flex-col gap-0.5">
-              <dt className="text-[13px] text-muted-foreground">{label}</dt>
-              <dd className="font-mono text-foreground">{value}</dd>
-            </div>
-          ))}
-        </dl>
+        <BunnyCredentialsForm view={config} />
 
         <div className="grid gap-1.5">
           <p className="text-[13px] text-muted-foreground">Địa chỉ webhook (dán vào Bunny › thư viện › API › Webhook URL)</p>

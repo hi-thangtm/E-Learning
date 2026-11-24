@@ -467,7 +467,7 @@ export async function assignPath(input: PathAssignInput): Promise<AssignCounts &
     await notifyUsers(prisma, {
       userIds: newcomers,
       type: "COURSE_ASSIGNED",
-      title: `Bạn được giao lộ trình: ${path.title}`.slice(0, 250),
+      title: `Bạn được giao lộ trình “${path.title}”`.slice(0, 250),
       link: `/learning-paths/${path.id}`,
       dedupeKey: `path_assigned:${path.id}`,
     });
