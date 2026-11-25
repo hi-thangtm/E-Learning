@@ -598,13 +598,19 @@ model Notification {
   title        String
   link         String?
   readAt       DateTime?
-  sentToLarkAt DateTime? // Giai đoạn 2: đã gửi tin nhắn Lark
+  sentToLarkAt DateTime? // Đã gửi tin nhắn Lark thành công (Việc L2)
+  /// Gửi qua Lark (Việc L2): null = không thuộc diện gửi; PENDING (chờ gửi / chờ thử lại) / SENT / SKIPPED (chưa liên kết Lark, loại đã tắt…) / FAILED
+  larkStatus        String?
+  larkAttempts      Int       @default(0)
+  larkNextAttemptAt DateTime?
+  larkError         String? // Lý do lỗi / bỏ qua gần nhất (≤ 300 ký tự)
   dedupeKey    String? // Chống gửi trùng: cùng userId + dedupeKey chỉ có 1 dòng (NULL = không chống trùng)
   createdAt    DateTime  @default(now())
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, dedupeKey])
+  @@index([larkStatus, larkNextAttemptAt]) // Bộ gửi Lark lấy tin chờ gửi
   @@index([userId, readAt])
   @@map("notifications")
 }

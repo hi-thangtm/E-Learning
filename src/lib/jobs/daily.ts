@@ -3,6 +3,7 @@ import { ackDueDate, knownVersion } from "@/lib/acknowledgements";
 import { deleteBunnyVideo, isBunnyConfigured } from "@/lib/bunny";
 import { syncBunnyLesson } from "@/lib/bunny-sync";
 import { isLarkConfigured } from "@/lib/lark/client";
+import { dispatchLarkNotifications } from "@/lib/lark/notify";
 import { hasManualLarkApply, runLarkSyncAuto } from "@/lib/lark/sync";
 import { logAudit } from "@/lib/audit";
 import { prisma } from "@/lib/db";
@@ -41,6 +42,7 @@ export type DailyJobCounts = {
   ackOverdue: number;
   bunnyStatusSynced: number;
   bunnyPendingCleaned: number;
+  larkNotifySent: number;
 };
 
 /** `short` = tiêu đề cột ở bảng lịch sử chạy (tên đầy đủ ở tooltip ⓘ). */
@@ -55,6 +57,7 @@ export const DAILY_JOB_PARTS: { key: keyof DailyJobCounts; label: string; short:
   { key: "ackOverdue", label: "Nhắc xác nhận cập nhật quá hạn", short: "Nhắc xác nhận" },
   { key: "bunnyStatusSynced", label: "Cập nhật video đang xử lý", short: "Video xử lý" },
   { key: "bunnyPendingCleaned", label: "Dọn video tải dở", short: "Dọn video" },
+  { key: "larkNotifySent", label: "Gửi thông báo Lark còn sót", short: "Tin Lark" },
 ];
 
 export type DailyJobResult =
@@ -428,6 +431,7 @@ export async function runDailyJob(options: { triggeredBy: string | null; trigger
         ackOverdue: 0,
         bunnyStatusSynced: 0,
         bunnyPendingCleaned: 0,
+        larkNotifySent: 0,
       };
       const errors: Partial<Record<keyof DailyJobCounts, string>> = {};
       const parts: [keyof DailyJobCounts, (now: Date) => Promise<number>][] = [
@@ -442,6 +446,8 @@ export async function runDailyJob(options: { triggeredBy: string | null; trigger
         ["ackOverdue", remindAckOverdue],
         ["bunnyStatusSynced", syncProcessingVideos],
         ["bunnyPendingCleaned", cleanupPendingVideos],
+        // Chạy CUỐI: gửi tin Lark của các thông báo vừa tạo ở trên + tin còn sót (bộ gửi nền từng dừng)
+        ["larkNotifySent", async () => (await dispatchLarkNotifications({ limit: 5_000 })).sent],
       ];
       for (const [key, run] of parts) {
         try {

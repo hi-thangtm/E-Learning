@@ -1,6 +1,8 @@
 import "server-only";
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
+import { kickLarkDispatch } from "@/lib/lark/notify";
+import { shouldQueueForLark } from "@/lib/lark/notify-settings";
 import { safeLink, type NotificationType, type NotificationView } from "@/lib/notification-types";
 
 /**
@@ -34,11 +36,13 @@ export function notify(db: NotifyDb, input: NotifyInput) {
   const dedupeKey = input.dedupeKey?.slice(0, 200) || null;
   const userIds = [...new Set(input.userIds)];
 
-  // Giai đoạn 2 — Lark: sau khi tạo, gửi tin nhắn Lark cho người có users.larkUserId rồi đánh dấu sentToLarkAt
-  // (tác vụ nền đọc các dòng sentToLarkAt IS NULL — không gửi trong transaction nghiệp vụ).
+  // Lark (Việc L2): đánh dấu chờ gửi nếu loại này đang bật gửi qua Lark; bộ gửi nền (src/lib/lark/notify.ts) gửi SAU khi
+  // transaction nghiệp vụ xong — không gọi mạng ở đây. Đánh thức bộ gửi để tin tới trong vài giây.
+  const lark = shouldQueueForLark(input.type) ? { larkStatus: "PENDING", larkNextAttemptAt: new Date() } : {};
+  if (lark.larkStatus) kickLarkDispatch();
 
   return db.notification.createMany({
-    data: userIds.map((userId) => ({ userId, type: input.type, title, link, dedupeKey })),
+    data: userIds.map((userId) => ({ userId, type: input.type, title, link, dedupeKey, ...lark })),
     skipDuplicates: true,
   });
 }

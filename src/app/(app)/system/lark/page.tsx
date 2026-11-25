@@ -6,11 +6,13 @@ import { StatusBadge } from "@/components/status-badge";
 import { describeAuditEntry } from "@/lib/audit";
 import { requireRole } from "@/lib/current-user";
 import { prisma } from "@/lib/db";
-import { formatDateTime } from "@/lib/format";
+import { formatDateTime, vnDayStart, vnIsoDate } from "@/lib/format";
 import { getLarkSettingsView, isLarkConfigured } from "@/lib/lark/client";
 import { getLarkNames } from "@/lib/lark/names";
+import { getLarkNotifySettings } from "@/lib/lark/notify-settings";
 import { LarkCredentialsForm } from "./lark-credentials-form";
 import { LarkMapping } from "./lark-mapping";
+import { LarkNotifyPanel } from "./lark-notify-panel";
 import { LarkSyncPanel } from "./lark-sync-panel";
 
 export const metadata: Metadata = { title: "Kết nối Lark" };
@@ -32,6 +34,19 @@ export default async function LarkPage() {
       select: { id: true, createdAt: true, metadata: true, actor: { select: { fullName: true, employeeCode: true } } },
     }),
   ]);
+  // Gửi thông báo qua Lark (Việc L2)
+  const [notifySettings, larkCounts, sentToday, failures] = await Promise.all([
+    getLarkNotifySettings(true),
+    prisma.notification.groupBy({ by: ["larkStatus"], where: { larkStatus: { in: ["PENDING", "FAILED", "SKIPPED"] } }, _count: { _all: true } }),
+    prisma.notification.count({ where: { larkStatus: "SENT", sentToLarkAt: { gte: vnDayStart(vnIsoDate()) } } }),
+    prisma.notification.findMany({
+      where: { larkStatus: "FAILED" },
+      orderBy: { createdAt: "desc" },
+      take: 20,
+      select: { id: true, type: true, larkError: true, createdAt: true, user: { select: { fullName: true, employeeCode: true } } },
+    }),
+  ]);
+  const countOf = (s: string) => larkCounts.find((c) => c.larkStatus === s)?._count._all ?? 0;
   const mapped = companies.filter((c) => c.larkDepartmentId).length;
   const applied = history.some((h) => {
     const m = h.metadata as { trigger?: string; applied?: boolean } | null;
@@ -54,6 +69,21 @@ export default async function LarkPage() {
       />
 
       <LarkSyncPanel configured={configured} mappedCount={mapped} everApplied={applied} />
+
+      <LarkNotifyPanel
+        configured={configured}
+        enabled={notifySettings.enabled}
+        types={notifySettings.types}
+        since={notifySettings.enabled ? notifySettings.since : null}
+        stats={{ sentToday, pending: countOf("PENDING"), failed: countOf("FAILED"), skipped: countOf("SKIPPED") }}
+        failures={failures.map((f) => ({
+          id: f.id,
+          who: `${f.user.fullName} (${f.user.employeeCode})`,
+          type: f.type,
+          error: f.larkError,
+          at: f.createdAt.toISOString(),
+        }))}
+      />
 
       {/* Lịch sử */}
       <section className="rounded-md bg-card shadow-md" aria-labelledby="lark-history">

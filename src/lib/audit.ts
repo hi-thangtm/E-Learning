@@ -89,6 +89,9 @@ export const AUDIT_ACTION_LABELS = {
   LARK_SYNC_RUN: "Đồng bộ Lark",
   LARK_MAPPING_UPDATED: "Ghép công ty với phòng ban Lark",
   LARK_CREDENTIALS_UPDATED: "Cấu hình kết nối Lark",
+  LARK_NOTIFY_SETTINGS_UPDATED: "Cài đặt gửi thông báo qua Lark",
+  LARK_NOTIFY_TESTED: "Gửi thử thông báo Lark",
+  LARK_NOTIFY_RETRIED: "Gửi lại thông báo Lark bị lỗi",
   BUNNY_CREDENTIALS_UPDATED: "Cấu hình Bunny Stream",
 } as const;
 
@@ -214,6 +217,9 @@ const GROUP_ACTIONS: Record<AuditGroup, AuditAction[]> = {
     "LARK_SYNC_RUN",
     "LARK_MAPPING_UPDATED",
     "LARK_CREDENTIALS_UPDATED",
+    "LARK_NOTIFY_SETTINGS_UPDATED",
+    "LARK_NOTIFY_TESTED",
+    "LARK_NOTIFY_RETRIED",
     "BUNNY_CREDENTIALS_UPDATED",
     "LESSON_VIDEO_UPLOAD_STARTED",
     "USER_UPDATED",
@@ -652,6 +658,7 @@ export function describeAuditEntry(action: string, metadata: unknown): string | 
         `nhắc xác nhận ${c.ackOverdue ?? 0}`,
         c.bunnyStatusSynced ? `cập nhật video ${c.bunnyStatusSynced}` : null,
         c.bunnyPendingCleaned ? `dọn video tải dở ${c.bunnyPendingCleaned}` : null,
+        c.larkNotifySent ? `tin Lark ${c.larkNotifySent}` : null,
         errors > 0 ? `${errors} phần lỗi` : null,
       ]
         .filter(Boolean)
@@ -663,6 +670,12 @@ export function describeAuditEntry(action: string, metadata: unknown): string | 
       if (m.applied !== true) return `${how} — không áp dụng: ${m.error ?? "?"}`;
       return `${how} — tạo ${c.create ?? 0} · cập nhật ${c.update ?? 0} · chuyển công ty ${c.transfer ?? 0} · khoá ${c.lock ?? 0} · mở lại ${c.reopen ?? 0} · phòng ban ${c.departments ?? 0} · bỏ qua ${c.skipped ?? 0}`;
     }
+    case "LARK_NOTIFY_SETTINGS_UPDATED":
+      return `${m.enabled ? "Bật" : "Tắt"} gửi qua Lark${Array.isArray(m.types) ? ` · ${m.types.length} loại thông báo` : ""}`;
+    case "LARK_NOTIFY_TESTED":
+      return m.ok ? "Gửi thử thành công" : `Gửi thử lỗi: ${m.reason ?? ""}`;
+    case "LARK_NOTIFY_RETRIED":
+      return `${m.count ?? 0} tin được gửi lại`;
     case "LARK_CREDENTIALS_UPDATED":
       return m.cleared ? "Xoá cấu hình trên giao diện" : `App ID ${m.appId ?? "?"} · ${m.domain === "feishu" ? "Feishu" : "Lark quốc tế"}${m.secretChanged ? " · đổi App Secret" : ""}`;
     case "BUNNY_CREDENTIALS_UPDATED": {

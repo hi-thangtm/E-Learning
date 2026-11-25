@@ -8,6 +8,9 @@
  * - GET  /open-apis/contact/v3/users/find_by_department?department_id=…  — người TRỰC TIẾP trong phòng.
  * - Điều khiển cho test: GET /health, POST /__mock/state { departments, users }, POST /__mock/reset, GET /__mock/requests,
  *   POST /__mock/rate-limit { count } (n lần gọi tiếp theo trả HTTP 429 — kiểm thử thử lại).
+ * - Gửi tin nhắn (Việc L2): POST /open-apis/im/v1/messages?receive_id_type=user_id { receive_id, msg_type, content } → lưu lại.
+ *   Điều khiển: GET /__mock/messages, POST /__mock/messages/reset, POST /__mock/message-fail { count, code?, status? }
+ *   (n lần gửi tiếp theo lỗi — mặc định HTTP 500), POST /__mock/blocked-users { userIds } (người ngoài phạm vi app → mã 230013).
  *
  * Cấu hình từ biến môi trường (giống .env.test): LARK_APP_ID, LARK_APP_SECRET, MOCK_LARK_PORT (3202).
  */
@@ -35,6 +38,10 @@ type MockUser = {
 
 let state: { departments: MockDept[]; users: MockUser[] } = { departments: [], users: [] };
 let rateLimitLeft = 0;
+type SentMessage = { at: number; receive_id: string; receive_id_type: string; msg_type: string; content: unknown };
+const messages: SentMessage[] = [];
+let messageFail = { count: 0, code: 0, status: 500 };
+let blockedUsers = new Set<string>();
 const requests: { method: string; path: string }[] = [];
 
 function send(res: http.ServerResponse, status: number, body: unknown) {
@@ -73,9 +80,28 @@ const server = http.createServer(async (req, res) => {
       state = { departments: [], users: [] };
       rateLimitLeft = 0;
       requests.length = 0;
+      messages.length = 0;
+      messageFail = { count: 0, code: 0, status: 500 };
+      blockedUsers = new Set();
       return send(res, 200, { ok: true });
     }
     if (path === "/__mock/requests") return send(res, 200, requests);
+    if (path === "/__mock/messages" && req.method === "GET") return send(res, 200, messages);
+    if (path === "/__mock/messages/reset" && req.method === "POST") {
+      messages.length = 0;
+      messageFail = { count: 0, code: 0, status: 500 };
+      blockedUsers = new Set();
+      return send(res, 200, { ok: true });
+    }
+    if (path === "/__mock/message-fail" && req.method === "POST") {
+      const b = await readJson(req);
+      messageFail = { count: Number(b.count ?? 1), code: Number(b.code ?? 0), status: Number(b.status ?? 500) };
+      return send(res, 200, { ok: true });
+    }
+    if (path === "/__mock/blocked-users" && req.method === "POST") {
+      blockedUsers = new Set(((await readJson(req)).userIds as string[]) ?? []);
+      return send(res, 200, { ok: true });
+    }
     if (path === "/__mock/rate-limit" && req.method === "POST") {
       rateLimitLeft = Number((await readJson(req)).count ?? 1);
       return send(res, 200, { ok: true });
@@ -92,6 +118,25 @@ const server = http.createServer(async (req, res) => {
       rateLimitLeft--;
       res.setHeader("x-ogw-ratelimit-reset", "1");
       return send(res, 429, { code: 99991400, msg: "request trigger frequency limit" });
+    }
+
+    if (path === "/open-apis/im/v1/messages" && req.method === "POST") {
+      const body = await readJson(req);
+      const receiveIdType = url.searchParams.get("receive_id_type") ?? "";
+      if (messageFail.count > 0) {
+        messageFail.count--;
+        return send(res, messageFail.status, { code: messageFail.code || 1000, msg: "mock send failure" });
+      }
+      if (receiveIdType !== "user_id" || typeof body.receive_id !== "string") return send(res, 400, { code: 230001, msg: "invalid receive_id" });
+      if (blockedUsers.has(body.receive_id)) return send(res, 400, { code: 230013, msg: "Bot has NO availability to this user." });
+      let content: unknown = body.content;
+      try {
+        content = JSON.parse(String(body.content));
+      } catch {
+        // giữ nguyên
+      }
+      messages.push({ at: Date.now(), receive_id: body.receive_id, receive_id_type: receiveIdType, msg_type: String(body.msg_type), content });
+      return send(res, 200, { code: 0, msg: "success", data: { message_id: `om_${messages.length}` } });
     }
 
     const children = path.match(/^\/open-apis\/contact\/v3\/departments\/([^/]+)\/children$/);

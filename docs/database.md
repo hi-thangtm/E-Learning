@@ -353,7 +353,14 @@ Lõi dùng chung: `assignCourse` / `previewAssignment` / `onUserOrgChanged` tron
     `overdue:<enrollmentId>:<yyyy-mm-dd hạn>:w<tuần>`, `cert_expiring:<certificateId>`, `cert_expired:<certificateId>`, `version_major:<courseId>:v<n>`.
     Có mốc (hạn, phiên bản) để khi hạn / phiên bản đổi thì được báo lại. `NULL` = không chống trùng (VD giao khoá: giao lại sau khi huỷ vẫn báo);
     Postgres cho phép nhiều dòng `dedupeKey` NULL.
-  - `sentToLarkAt`: giai đoạn 2 — tác vụ nền gửi tin Lark cho các dòng chưa gửi.
+  - **Gửi qua Lark** (Việc L2, `src/lib/lark/notify.ts`): `notify()` đánh dấu `larkStatus = PENDING` (+ `larkNextAttemptAt`) khi loại đó đang
+    bật gửi qua Lark (cài đặt `system_settings.LARK_NOTIFY` = `{ enabled, since, types }`, sửa ở Hệ thống › Kết nối Lark) — KHÔNG gọi mạng trong
+    transaction nghiệp vụ. Bộ gửi nền (khởi động ở `src/instrumentation.ts`, mỗi 10 giây + đánh thức ngay sau khi tạo; tác vụ hằng ngày
+    chạy thêm 1 lượt dự phòng) nhận việc bằng cập nhật có điều kiện (không gửi trùng) rồi gửi thẻ tin nhắn bot tới `users.larkUserId`.
+    Trạng thái: `SENT` (+ `sentToLarkAt`), `SKIPPED` (chưa liên kết Lark / tài khoản khoá / loại đã tắt / tạo trước mốc `since` — không gửi bù),
+    `FAILED` (lỗi cố định như người nhận ngoài phạm vi app, hoặc lỗi tạm quá 5 lần; thử lại sau 1 / 5 / 15 / 60 phút). `larkAttempts`, `larkError`
+    (lý do ≤ 300 ký tự). `larkStatus = NULL` = không thuộc diện gửi. Index `(larkStatus, larkNextAttemptAt)`. Cần app chạy 1 tiến trình
+    (bộ gửi + giới hạn tần suất nằm trong bộ nhớ).
 
 ## Quy tắc 7 — Lưu file (ảnh bìa, PDF…)
 

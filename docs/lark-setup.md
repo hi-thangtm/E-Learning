@@ -64,7 +64,38 @@ Khởi động lại app. App Secret chỉ dùng ở server, không bao giờ hi
 - Chạy tay từ dòng lệnh: `npm run job:lark-sync` (áp dụng, có chốt chặn) hoặc `npm run job:lark-sync -- --dry` (chỉ xem trước).
 - Lịch sử: 30 lần gần nhất ở trang Kết nối Lark; chi tiết trong Nhật ký (thao tác “Đồng bộ Lark”).
 
-## 5. Kiểm thử không cần Lark thật
+## 5. Gửi thông báo qua Lark
+
+Thông báo trong phần mềm (VD **được giao khoá học**, sắp đến hạn, quá hạn, nhắc nhở…) được gửi thêm thành **tin nhắn Lark** dạng thẻ,
+có nút **“Mở trong E-Learning”** dẫn thẳng tới khoá / bài. Mọi thông báo vẫn hiện ở chuông trong phần mềm như cũ.
+
+**Bật trên Lark (một lần):**
+1. App trên Lark Developer › **Features / Add Features** → bật **Bot**.
+2. **Permissions & Scopes** → thêm quyền `im:message:send_as_bot` (gửi tin nhắn với tư cách bot).
+3. **Availability / Phạm vi sử dụng app**: chọn toàn bộ nhân viên cần nhận tin (người ngoài phạm vi sẽ báo lỗi
+   “Người nhận không nằm trong phạm vi sử dụng của app Lark”).
+4. **Version Management & Release** → phát hành phiên bản mới, quản trị Lark duyệt.
+
+**Bật trên E-Learning:** Hệ thống › Kết nối Lark › khối **Gửi thông báo qua Lark**:
+- Công tắc **Bật gửi qua Lark** + chọn loại thông báo (mặc định: được giao khoá, sắp đến hạn, quá hạn, nhắc nhở, cập nhật MAJOR / MINOR,
+  chứng nhận sắp hết hạn) → **Lưu thay đổi**. Chỉ gửi thông báo tạo **từ lúc bật** (không gửi bù tin cũ).
+- **Gửi thử cho tôi**: gửi 1 thẻ tới chính bạn (tài khoản phải đã liên kết Lark qua đồng bộ danh bạ).
+- Thống kê: đã gửi hôm nay / đang chờ / lỗi / bỏ qua; 20 tin lỗi gần nhất kèm lý do; **Gửi lại tin lỗi** sau khi đã sửa nguyên nhân.
+
+**Ai nhận được tin:** người **đã liên kết Lark** (`larkUserId`, có sau khi đồng bộ danh bạ) và đang hoạt động. Người tạo tay trong E-Learning,
+chưa có trên Lark → chỉ thấy ở chuông (thống kê “Bỏ qua”).
+
+**Gửi lúc nào:** vài giây sau thao tác (giao khoá, nhắc nhở…). Giao cho nhiều người: xếp hàng, ~20 tin / giây, không bỏ ai.
+Lark lỗi / mất mạng: tự thử lại sau 1, 5, 15, 60 phút (tối đa 5 lần). Tác vụ hằng ngày gửi nốt tin còn sót.
+
+| Lỗi hay gặp | Cách xử lý |
+|---|---|
+| “App Lark thiếu quyền gửi tin nhắn…” | Thêm quyền `im:message:send_as_bot`, phát hành phiên bản app, rồi **Gửi lại tin lỗi**. |
+| “App Lark chưa bật tính năng Bot.” | Bật Bot (bước 1), phát hành lại. |
+| “Người nhận không nằm trong phạm vi sử dụng…” | Thêm người / phòng ban vào phạm vi sử dụng của app, rồi **Gửi lại tin lỗi**. |
+| Nút “Mở trong E-Learning” mở sai địa chỉ | Kiểm tra `APP_URL` trong `.env` là địa chỉ thật (https://…). |
+
+## 6. Kiểm thử không cần Lark thật
 
 `e2e/mock-lark/server.ts` giả lập API Lark (token, departments/children, users/find_by_department) trên cổng 3202. `npm run test:env` tự thêm
 `LARK_*` trỏ vào giả lập trong `.env.test`. Chạy `npm run test:e2e -- e2e/99-lark.spec.ts` để kiểm tra riêng luồng Lark bằng database kiểm thử.
