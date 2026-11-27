@@ -1,7 +1,7 @@
 import { getCurrentUser } from "@/lib/current-user";
 import { canReadFile } from "@/lib/file-access";
 import { LIMITS, rateLimit, tooManyRequests } from "@/lib/rate-limit";
-import { isValidKey, readFile } from "@/lib/storage";
+import { isValidKey, streamFile } from "@/lib/storage";
 
 /**
  * Xem file đã lưu: GET /api/files/<key>   (VD /api/files/courses/thumbnails/3f9c…e1.webp)
@@ -26,13 +26,14 @@ export async function GET(_request: Request, ctx: { params: Promise<{ key: strin
   if (access === "missing") return new Response("Không tìm thấy file.", { status: 404, headers: TEXT });
   if (access === "forbidden") return new Response("Bạn không có quyền xem file này.", { status: 403, headers: TEXT });
 
-  const file = await readFile(key);
+  // Trả dạng luồng: PDF đến 20MB, không giữ cả file trong bộ nhớ (và không vướng giới hạn 4,5MB của Vercel)
+  const file = await streamFile(key);
   if (!file) return new Response("Không tìm thấy file.", { status: 404, headers: TEXT });
 
-  return new Response(new Uint8Array(file.data), {
+  return new Response(file.body, {
     headers: {
       "Content-Type": file.contentType,
-      "Content-Length": String(file.data.length),
+      "Content-Length": String(file.size),
       "Content-Disposition": "inline",
       "X-Content-Type-Options": "nosniff",
       "Cache-Control": "private, max-age=31536000, immutable",

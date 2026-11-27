@@ -11,6 +11,7 @@ import { NextResponse, type NextRequest } from "next/server";
  * - frame-src 'self': xem trước / đọc PDF trong iframe trỏ tới /api/files (cùng nguồn). Ngoài ra chỉ YouTube (nocookie) và trình phát
  *   Bunny (player.mediadelivery.net — host hiện hành; iframe.mediadelivery.net — host cũ).
  * - connect-src video.bunnycdn.com: trình duyệt tải video thẳng lên Bunny Stream (TUS).
+ *   Bản Vercel (NEXT_PUBLIC_DIRECT_UPLOAD=1): thêm vercel.com/api/blob/ — PDF tải thẳng lên Vercel Blob.
  * - Kiểm thử (Bunny giả lập): BUNNY_EMBED_HOST / BUNNY_TUS_ENDPOINT được đặt → thêm ĐÚNG origin của chúng (không dùng *).
  * Route /api/* không qua proxy (không trả HTML); header chung khác đặt ở next.config.ts.
  */
@@ -31,6 +32,8 @@ export function proxy(request: NextRequest) {
   const isDev = process.env.NODE_ENV === "development";
   // Chạy HTTPS thật (AUTH_URL https) -> bảo trình duyệt tự nâng mọi yêu cầu http lên https
   const isHttps = process.env.AUTH_URL?.startsWith("https://") ?? false;
+  // Bản Vercel: trình duyệt tải PDF thẳng lên Vercel Blob (lesson-dialog.tsx)
+  const directUpload = process.env.NEXT_PUBLIC_DIRECT_UPLOAD === "1" ? " https://vercel.com/api/blob/" : "";
 
   const csp = [
     `default-src 'self'`,
@@ -38,7 +41,7 @@ export function proxy(request: NextRequest) {
     `style-src 'self' 'unsafe-inline'`,
     `img-src 'self' data: blob: https://i.ytimg.com`,
     `font-src 'self'`,
-    `connect-src 'self' https://video.bunnycdn.com${envOrigin("BUNNY_TUS_ENDPOINT")}${isDev ? " ws: wss:" : ""}`,
+    `connect-src 'self' https://video.bunnycdn.com${envOrigin("BUNNY_TUS_ENDPOINT")}${directUpload}${isDev ? " ws: wss:" : ""}`,
     `frame-src 'self' https://www.youtube-nocookie.com https://iframe.mediadelivery.net https://player.mediadelivery.net${envOrigin("BUNNY_EMBED_HOST")}`,
     `media-src 'self' blob:`,
     `worker-src 'self' blob:`,

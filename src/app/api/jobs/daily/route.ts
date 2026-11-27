@@ -4,9 +4,11 @@ import { runDailyJob } from "@/lib/jobs/daily";
 /**
  * Chạy tác vụ hằng ngày từ bộ lập lịch (cron): POST /api/jobs/daily
  * Header bắt buộc: Authorization: Bearer <CRON_SECRET>. Thiếu biến CRON_SECRET hoặc sai khoá → 401.
+ * Vercel Cron (vercel.json) gọi bằng GET với đúng header trên → GET dùng chung xử lý.
  */
 
-export const maxDuration = 900;
+// Vercel gói Hobby cho tối đa 300 giây
+export const maxDuration = 300;
 
 function sameSecret(given: string, expected: string): boolean {
   // So sánh an toàn thời gian: băm 2 chuỗi về cùng độ dài rồi timingSafeEqual
@@ -27,3 +29,5 @@ export async function POST(request: Request) {
   const result = await runDailyJob({ triggeredBy: null, trigger: "cron" });
   return Response.json(result, { status: result.ok ? 200 : 409, headers: { "Cache-Control": "no-store" } });
 }
+
+export const GET = POST;

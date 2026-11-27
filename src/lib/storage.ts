@@ -1,13 +1,17 @@
 import "server-only";
 import { randomUUID } from "node:crypto";
-import { mkdir, readFile as fsReadFile, rm, writeFile } from "node:fs/promises";
+import { createReadStream } from "node:fs";
+import { mkdir, readFile as fsReadFile, rm, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
+import { Readable } from "node:stream";
+import { del as blobDel, get as blobGet, head as blobHead, put as blobPut } from "@vercel/blob";
 import { formatFileSize } from "@/lib/format";
 
 /**
  * Lưu file dùng chung (ảnh bìa, PDF tài liệu...) — chỉ chạy ở server.
  *
- * - Hiện lưu trên ổ đĩa, thư mục gốc = UPLOAD_DIR (mặc định ./uploads; Docker: /app/uploads, có volume).
+ * - Có BLOB_READ_WRITE_TOKEN (chạy trên Vercel) → lưu ở Vercel Blob, chế độ PRIVATE (không có URL công khai).
+ *   Không có → lưu trên ổ đĩa, thư mục gốc = UPLOAD_DIR (mặc định ./uploads; Docker: /app/uploads, có volume).
  * - Muốn đổi sang S3 / Bunny Storage: viết class mới cài `FileStorage` trong file này rồi đổi dòng
  *   `const storage: FileStorage = ...` — phần còn lại của app chỉ dùng saveFile / readFile / deleteFile / fileUrl.
  * - Key dạng `<thư mục>/<id ngẫu nhiên>.<đuôi>` (VD courses/thumbnails/3f9c…e1.webp). KHÔNG dùng tên file gốc.
@@ -22,6 +26,10 @@ export interface FileStorage {
   put(key: string, data: Buffer, contentType: string): Promise<void>;
   /** null nếu không có */
   get(key: string): Promise<Buffer | null>;
+  /** Đọc dạng luồng (gửi file lớn về trình duyệt không phải giữ cả file trong bộ nhớ). null nếu không có */
+  stream(key: string): Promise<{ body: ReadableStream<Uint8Array>; size: number } | null>;
+  /** Dung lượng file, null nếu không có */
+  size(key: string): Promise<number | null>;
   /** Không có cũng không báo lỗi */
   remove(key: string): Promise<void>;
 }
@@ -53,15 +61,73 @@ class LocalDiskStorage implements FileStorage {
     }
   }
 
+  async stream(key: string): Promise<{ body: ReadableStream<Uint8Array>; size: number } | null> {
+    const size = await this.size(key);
+    if (size === null) return null;
+    return { body: Readable.toWeb(createReadStream(this.resolve(key))) as ReadableStream<Uint8Array>, size };
+  }
+
+  async size(key: string): Promise<number | null> {
+    try {
+      return (await stat(this.resolve(key))).size;
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === "ENOENT") return null;
+      throw error;
+    }
+  }
+
   async remove(key: string): Promise<void> {
     await rm(this.resolve(key), { force: true });
+  }
+}
+
+/** Vercel Blob — store PRIVATE: chỉ server (có token) đọc được; người dùng xem qua /api/files như bản ổ đĩa. */
+class VercelBlobStorage implements FileStorage {
+  async put(key: string, data: Buffer, contentType: string): Promise<void> {
+    assertValidKey(key);
+    // allowOverwrite: false — không bao giờ ghi đè file đã có
+    await blobPut(key, data, { access: "private", contentType, addRandomSuffix: false, allowOverwrite: false });
+  }
+
+  async get(key: string): Promise<Buffer | null> {
+    const file = await this.stream(key);
+    if (!file) return null;
+    return Buffer.from(await new Response(file.body).arrayBuffer());
+  }
+
+  async stream(key: string): Promise<{ body: ReadableStream<Uint8Array>; size: number } | null> {
+    assertValidKey(key);
+    const result = await blobGet(key, { access: "private" });
+    if (!result || result.statusCode !== 200) return null;
+    return { body: result.stream, size: result.blob.size };
+  }
+
+  async size(key: string): Promise<number | null> {
+    assertValidKey(key);
+    try {
+      return (await blobHead(key)).size;
+    } catch (error) {
+      if (error instanceof Error && error.name === "BlobNotFoundError") return null;
+      throw error;
+    }
+  }
+
+  async remove(key: string): Promise<void> {
+    assertValidKey(key);
+    await blobDel(key);
   }
 }
 
 // turbopackIgnore: thư mục upload chỉ dùng lúc chạy -> không để Turbopack đóng gói cả dự án vào bản standalone
 export const UPLOAD_ROOT = path.resolve(/*turbopackIgnore: true*/ process.cwd(), process.env.UPLOAD_DIR || "./uploads");
 
-const storage: FileStorage = new LocalDiskStorage(UPLOAD_ROOT);
+/** Đang dùng Vercel Blob (có token). Khi đó PDF tải THẲNG từ trình duyệt lên Blob (Vercel giới hạn request 4,5MB). */
+export const USE_BLOB_STORAGE = !!process.env.BLOB_READ_WRITE_TOKEN;
+
+/** Thư mục PDF bài Tài liệu */
+export const LESSON_DOCUMENT_FOLDER = "courses/documents";
+
+const storage: FileStorage = USE_BLOB_STORAGE ? new VercelBlobStorage() : new LocalDiskStorage(UPLOAD_ROOT);
 
 // ---------------------------------------------------------------------------------------------
 // Loại file cho phép
@@ -155,6 +221,60 @@ export async function readFile(key: string): Promise<{ data: Buffer; contentType
   if (!data) return null;
   const ext = key.slice(key.lastIndexOf(".") + 1) as DetectedType["ext"];
   return { data, contentType: CONTENT_TYPES[ext] };
+}
+
+/** Đọc dạng luồng để trả về trình duyệt (PDF đến 20MB). null nếu key sai / không có. */
+export async function streamFile(
+  key: string,
+): Promise<{ body: ReadableStream<Uint8Array>; size: number; contentType: string } | null> {
+  if (!isValidKey(key)) return null;
+  const file = await storage.stream(key);
+  if (!file) return null;
+  const ext = key.slice(key.lastIndexOf(".") + 1) as DetectedType["ext"];
+  return { ...file, contentType: CONTENT_TYPES[ext] };
+}
+
+/**
+ * Kiểm tra file trình duyệt đã tải THẲNG lên Blob (PDF bài Tài liệu): đúng thư mục, dung lượng, loại theo NỘI DUNG.
+ * Sai → xoá file đó, trả `{ error }`. `folder` do code quy định.
+ */
+export async function verifyUploadedFile(key: string, folder: string, kind: FileKind): Promise<SavedFile | { error: string }> {
+  const rule = FILE_RULES[kind];
+  if (!isValidKey(key) || key.slice(0, key.lastIndexOf("/")) !== folder) return { error: "Đường dẫn file không hợp lệ." };
+
+  const size = await storage.size(key);
+  if (size === null) return { error: "Không tìm thấy file vừa tải lên, vui lòng thử lại." };
+
+  let error: string | null = null;
+  let detected: DetectedType | null = null;
+  if (size === 0) error = "File rỗng.";
+  else if (size > rule.maxBytes) error = `File quá lớn (${formatMb(size)}). Tối đa ${formatMb(rule.maxBytes)}.`;
+  else {
+    // Chỉ đọc vài byte đầu rồi dừng
+    const file = await storage.stream(key);
+    if (file) {
+      const reader = file.body.getReader();
+      const chunks: Uint8Array[] = [];
+      let total = 0;
+      while (total < 16) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        chunks.push(value);
+        total += value.length;
+      }
+      await reader.cancel().catch(() => {});
+      detected = detectFileType(Buffer.concat(chunks).subarray(0, 16));
+    }
+    if (!detected || !rule.allowed.includes(detected.ext) || !key.endsWith(`.${detected.ext}`)) {
+      error = `File không phải ${rule.label} (hệ thống kiểm tra theo nội dung file, không theo đuôi).`;
+    }
+  }
+
+  if (error || !detected) {
+    await deleteFile(key);
+    return { error: error ?? "Không đọc được file tải lên." };
+  }
+  return { key, contentType: detected.contentType, size };
 }
 
 /** Xoá file (bỏ qua key rỗng / sai / không còn). Không ném lỗi để không làm hỏng thao tác chính. */

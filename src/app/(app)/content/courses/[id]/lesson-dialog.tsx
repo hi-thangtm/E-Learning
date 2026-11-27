@@ -37,6 +37,25 @@ const TYPE_META = {
 } as const;
 
 const PDF_MAX_BYTES = 20 * 1024 * 1024;
+/** Bản chạy trên Vercel (lưu Vercel Blob): PDF tải THẲNG lên Blob vì Vercel giới hạn request 4,5MB — xem src/lib/storage.ts */
+const DIRECT_UPLOAD = process.env.NEXT_PUBLIC_DIRECT_UPLOAD === "1";
+
+/** Tải PDF thẳng lên Vercel Blob rồi nhờ server kiểm tra + gắn vào bài. Trả Response giống cách gửi multipart. */
+async function uploadDirect(lessonId: string, picked: File): Promise<Response> {
+  const { upload } = await import("@vercel/blob/client");
+  const key = `courses/documents/${crypto.randomUUID().replace(/-/g, "")}.pdf`;
+  await upload(key, picked, {
+    access: "private",
+    handleUploadUrl: `/api/lessons/${lessonId}/document/upload`,
+    contentType: "application/pdf",
+    multipart: picked.size > 5 * 1024 * 1024,
+  });
+  return fetch(`/api/lessons/${lessonId}/document`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ key, fileName: picked.name }),
+  });
+}
 
 /** Dialog chi tiết bài theo loại. Điều khiển bằng open / onOpenChange; cha đổi `key` theo bài để form luôn mới. */
 export function LessonDialog({
@@ -237,9 +256,14 @@ function DocumentFields({ lesson, readOnly, error }: { lesson: ContentLesson; re
 
     setUploading(true);
     try {
-      const body = new FormData();
-      body.set("file", picked);
-      const res = await fetch(`/api/lessons/${lesson.id}/document`, { method: "POST", body });
+      let res: Response;
+      if (DIRECT_UPLOAD) {
+        res = await uploadDirect(lesson.id, picked);
+      } else {
+        const body = new FormData();
+        body.set("file", picked);
+        res = await fetch(`/api/lessons/${lesson.id}/document`, { method: "POST", body });
+      }
       const data = (await res.json().catch(() => ({}))) as { ok?: boolean; fileKey?: string; fileName?: string; error?: string };
       if (!res.ok || !data.ok || !data.fileKey) {
         toast.error(data.error ?? "Không tải được file, vui lòng thử lại.");

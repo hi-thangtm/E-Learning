@@ -3,17 +3,33 @@ import { logAudit } from "@/lib/audit";
 import { findLessonForEdit } from "@/lib/course-content";
 import { getCurrentUser } from "@/lib/current-user";
 import { prisma } from "@/lib/db";
-import { deleteFile, FILE_RULES, saveFile } from "@/lib/storage";
+import { z } from "zod";
+import {
+  deleteFile,
+  FILE_RULES,
+  LESSON_DOCUMENT_FOLDER as DOCUMENT_FOLDER,
+  saveFile,
+  USE_BLOB_STORAGE,
+  verifyUploadedFile,
+  type SavedFile,
+} from "@/lib/storage";
 
 /**
- * Tải file PDF cho bài Tài liệu: POST /api/lessons/<lessonId>/document  (multipart, ô "file")
+ * Tải file PDF cho bài Tài liệu: POST /api/lessons/<lessonId>/document
  *
- * Dùng route handler thay vì server action vì PDF tối đa 20MB, còn server action giới hạn 6MB (next.config.ts).
- * Thứ tự kiểm tra: đăng nhập + vai trò -> cùng nguồn (chống CSRF) -> bài thuộc phạm vi + được sửa
- * -> dung lượng khai báo TRƯỚC khi đọc body -> loại file theo NỘI DUNG (storage.ts).
+ * 2 cách (tuỳ nơi lưu — src/lib/storage.ts):
+ * - Ổ đĩa (máy / Docker): multipart, ô "file". Dùng route handler vì PDF tối đa 20MB, server action giới hạn 6MB.
+ * - Vercel Blob: Vercel giới hạn request 4,5MB → trình duyệt tải THẲNG lên Blob (token cấp ở ./upload/route.ts),
+ *   rồi gửi JSON { key, fileName } về đây để kiểm tra (dung lượng + loại theo NỘI DUNG) và gắn vào bài.
+ * Thứ tự kiểm tra: đăng nhập + vai trò -> cùng nguồn (chống CSRF) -> bài thuộc phạm vi + được sửa -> file.
  */
 
 const EDITOR_ROLES = ["GROUP_ADMIN", "COMPANY_ADMIN", "CONTENT_EDITOR"];
+
+const directSchema = z.object({
+  key: z.string().max(300),
+  fileName: z.string().max(500),
+});
 // Phần đầu multipart (ranh giới, tên ô...) cộng thêm ngoài dung lượng file
 const MULTIPART_OVERHEAD = 64 * 1024;
 
@@ -38,24 +54,44 @@ export async function POST(request: Request, ctx: { params: Promise<{ lessonId: 
   if (!lesson) return json({ error: "Không tìm thấy bài học hoặc bạn không có quyền sửa." }, 404);
   if (lesson.type !== "DOCUMENT") return json({ error: "Chỉ bài Tài liệu mới đính kèm được PDF." }, 400);
 
-  const declared = Number(request.headers.get("content-length") ?? "0");
-  if (!declared || declared > FILE_RULES.pdf.maxBytes + MULTIPART_OVERHEAD) {
-    return json({ error: "File PDF tối đa 20MB." }, 413);
-  }
+  let saved: SavedFile;
+  let originalName: string;
 
-  let file: FormDataEntryValue | null;
-  try {
-    file = (await request.formData()).get("file");
-  } catch {
-    return json({ error: "Không đọc được file tải lên." }, 400);
-  }
-  if (!(file instanceof File)) return json({ error: "Vui lòng chọn file PDF." }, 400);
+  if (request.headers.get("content-type")?.startsWith("application/json")) {
+    // --- File đã tải thẳng lên Vercel Blob ---
+    if (!USE_BLOB_STORAGE) return json({ error: "Yêu cầu không hợp lệ." }, 400);
+    const parsed = directSchema.safeParse(await request.json().catch(() => null));
+    if (!parsed.success) return json({ error: "Yêu cầu không hợp lệ." }, 400);
+    const { key, fileName } = parsed.data;
+    // File đã gắn vào bài khác thì không nhận (chống lấy file của bài khác rồi xoá mất khi thay file)
+    if (await prisma.lesson.count({ where: { fileUrl: key } })) return json({ error: "Đường dẫn file không hợp lệ." }, 400);
+    const verified = await verifyUploadedFile(key, DOCUMENT_FOLDER, "pdf");
+    if ("error" in verified) return json({ error: verified.error }, 400);
+    saved = verified;
+    originalName = fileName;
+  } else {
+    // --- Multipart (lưu ổ đĩa) ---
+    const declared = Number(request.headers.get("content-length") ?? "0");
+    if (!declared || declared > FILE_RULES.pdf.maxBytes + MULTIPART_OVERHEAD) {
+      return json({ error: "File PDF tối đa 20MB." }, 413);
+    }
 
-  const saved = await saveFile(file, "courses/documents", "pdf");
-  if ("error" in saved) return json({ error: saved.error }, 400);
+    let file: FormDataEntryValue | null;
+    try {
+      file = (await request.formData()).get("file");
+    } catch {
+      return json({ error: "Không đọc được file tải lên." }, 400);
+    }
+    if (!(file instanceof File)) return json({ error: "Vui lòng chọn file PDF." }, 400);
+
+    const result = await saveFile(file, DOCUMENT_FOLDER, "pdf");
+    if ("error" in result) return json({ error: result.error }, 400);
+    saved = result;
+    originalName = file.name;
+  }
 
   // Tên gốc chỉ để hiển thị (không dùng làm đường dẫn)
-  const fileName = file.name.replace(/[\u0000-\u001f]/g, "").slice(0, 200) || "tai-lieu.pdf";
+  const fileName = originalName.replace(/[\u0000-\u001f]/g, "").slice(0, 200) || "tai-lieu.pdf";
   const course = lesson.section.course;
 
   try {
